@@ -60,7 +60,7 @@ function getAttendanceState(params) {
     members.push({ name: name, status: statusByName[name] || 'pending' });
   });
 
-  return { ok: true, classId: cls.id, className: cls.name, date: dateKey, members: members };
+  return { ok: true, classId: cls.id, className: cls.name, date: dateKey, members: members, filled: !!row };
 }
 
 function saveClasses(data) {
@@ -112,6 +112,7 @@ function saveAttendance(data) {
 
   var sheet = getOrCreateClassSheet(ss, cls.name);
   ensureAttendanceHeader(sheet);
+  ensureDateColumnAsText(sheet);
   var headers = ensureMemberHeaders(sheet, cls.members);
   var rowIndex = findRowByDate(sheet, dateKey);
   if (!rowIndex) {
@@ -119,7 +120,7 @@ function saveAttendance(data) {
   }
 
   var row = new Array(headers.length).fill('');
-  row[0] = dateKey;
+  row[0] = formatDisplayDate(dateKey);
   var statusByName = {};
   members.forEach(function(member) {
     var name = String(member.name || '').trim();
@@ -231,6 +232,12 @@ function ensureAttendanceHeader(sheet) {
   }
 }
 
+function ensureDateColumnAsText(sheet) {
+  if (sheet.getMaxColumns() >= 1) {
+    sheet.getRange(1, 1, Math.max(sheet.getLastRow(), 1), 1).setNumberFormat('@');
+  }
+}
+
 function ensureMemberHeaders(sheet, members) {
   var lastCol = Math.max(sheet.getLastColumn(), 1);
   var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
@@ -255,14 +262,19 @@ function findRowByDate(sheet, dateKey) {
   if (sheet.getLastRow() < 2) return null;
   var dates = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat();
   for (var i = 0; i < dates.length; i++) {
-    if (String(dates[i]).trim() === dateKey) return i + 2;
+    if (normalizeDateKey(dates[i]) === dateKey) return i + 2;
   }
   return null;
 }
 
 function sortDataRowsByDate(sheet) {
   if (sheet.getLastRow() < 3) return;
-  sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).sort({ column: 1, ascending: true });
+  var range = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn());
+  var values = range.getValues();
+  values.sort(function(a, b) {
+    return parseDateKey(a[0]) - parseDateKey(b[0]);
+  });
+  range.setValues(values);
 }
 
 function applyAttendanceFormatting(sheet) {
@@ -283,6 +295,40 @@ function normalizeStatus(status) {
 
 function sanitizeSheetName(name) {
   return String(name || 'Class').replace(/[\\/\?\*\[\]]/g, '-').substring(0, 99) || 'Class';
+}
+
+function normalizeDateKey(value) {
+  var parsed = parseDateKey(value);
+  if (parsed) {
+    return Utilities.formatDate(parsed, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+  return String(value || '').trim();
+}
+
+function formatDisplayDate(dateKey) {
+  var parsed = parseDateKey(dateKey);
+  if (!parsed) return String(dateKey || '').trim();
+  return Utilities.formatDate(parsed, Session.getScriptTimeZone(), 'dd/MM');
+}
+
+function parseDateKey(value) {
+  if (value instanceof Date && !isNaN(value.getTime())) return value;
+  var text = String(value || '').trim();
+  if (!text) return null;
+
+  var ymd = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymd) {
+    return new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
+  }
+
+  var dmy = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (dmy) {
+    return new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+  }
+
+  var date = new Date(text);
+  if (!isNaN(date.getTime())) return date;
+  return null;
 }
 
 function jsonResponse(payload) {
