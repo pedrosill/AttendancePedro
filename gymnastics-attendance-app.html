@@ -1,19 +1,19 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en" class="theme-light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Gymnastics Attendance App</title>
-  <meta name="description" content="Mobile-first attendance tracker for gymnastics classes with Google Sheets integration." />
+  <meta name="description" content="Mobile-first attendance tracker for gymnastics classes with optional Google Sheets sync." />
   <link rel="preconnect" href="https://api.fontshare.com" />
   <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" rel="stylesheet" />
   <style>
-    :root, [data-theme="light"] {
+    :root, .theme-light {
       --text-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
       --text-sm: clamp(0.875rem, 0.8rem + 0.35vw, 1rem);
       --text-base: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
       --text-lg: clamp(1.125rem, 1rem + 0.75vw, 1.5rem);
-      --text-xl: clamp(1.5rem, 1.2rem + 1.25vw, 2.25rem);
+      --text-xl: clamp(1.5rem, 1.2rem + 1.25vw, 2rem);
       --space-1: 0.25rem;
       --space-2: 0.5rem;
       --space-3: 0.75rem;
@@ -23,7 +23,6 @@
       --space-8: 2rem;
       --space-10: 2.5rem;
       --space-12: 3rem;
-      --space-16: 4rem;
       --radius-sm: 0.375rem;
       --radius-md: 0.75rem;
       --radius-lg: 1rem;
@@ -36,7 +35,6 @@
       --color-surface-2: #ffffff;
       --color-surface-offset: #edeae5;
       --color-border: #d4d1ca;
-      --color-divider: #dcd9d5;
       --color-text: #28251d;
       --color-text-muted: #6f6d66;
       --color-text-faint: #9b988f;
@@ -44,6 +42,7 @@
       --color-primary: #01696f;
       --color-primary-hover: #0c4e54;
       --color-primary-highlight: #dceceb;
+      --color-accent-soft: #dceceb;
       --color-success: #437a22;
       --color-success-highlight: #e0ead9;
       --color-warning: #d19900;
@@ -53,14 +52,12 @@
       --shadow-sm: 0 1px 2px rgba(40, 37, 29, 0.06);
       --shadow-md: 0 8px 24px rgba(40, 37, 29, 0.08);
     }
-
-    [data-theme="dark"] {
+    .theme-dark {
       --color-bg: #171614;
       --color-surface: #1c1b19;
       --color-surface-2: #22211f;
       --color-surface-offset: #2a2927;
       --color-border: #393836;
-      --color-divider: #2f2e2c;
       --color-text: #e3e0da;
       --color-text-muted: #aaa8a2;
       --color-text-faint: #7f7d78;
@@ -68,6 +65,7 @@
       --color-primary: #4f98a3;
       --color-primary-hover: #71aeb6;
       --color-primary-highlight: #25373a;
+      --color-accent-soft: #25373a;
       --color-success: #80b95a;
       --color-success-highlight: #2d3926;
       --color-warning: #e8af34;
@@ -77,7 +75,6 @@
       --shadow-sm: 0 1px 2px rgba(0,0,0,.24);
       --shadow-md: 0 14px 34px rgba(0,0,0,.34);
     }
-
     *, *::before, *::after { box-sizing: border-box; }
     html { -webkit-text-size-adjust: none; text-size-adjust: none; }
     body {
@@ -89,9 +86,8 @@
       font-size: var(--text-base);
       line-height: 1.5;
     }
-    button, select, input, textarea { font: inherit; color: inherit; }
+    button, select, input { font: inherit; color: inherit; }
     button { cursor: pointer; }
-    a { color: inherit; }
     .sr-only {
       position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
       overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
@@ -101,7 +97,6 @@
       outline-offset: 3px;
       border-radius: var(--radius-sm);
     }
-
     .app-shell {
       min-height: 100dvh;
       display: flex;
@@ -111,46 +106,7 @@
       margin: 0 auto;
       gap: var(--space-4);
     }
-
-    .topbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-3);
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: var(--space-3);
-      min-width: 0;
-    }
-
-    .brand-mark {
-      width: 2.75rem;
-      height: 2.75rem;
-      border-radius: 0.875rem;
-      background: linear-gradient(145deg, var(--color-primary-highlight), var(--color-surface-2));
-      border: 1px solid rgba(40, 37, 29, 0.08);
-      display: grid;
-      place-items: center;
-      color: var(--color-primary);
-      box-shadow: var(--shadow-sm);
-      flex-shrink: 0;
-    }
-
-    .brand-copy h1 {
-      margin: 0;
-      font-size: var(--text-lg);
-      line-height: 1.1;
-    }
-
-    .brand-copy p {
-      margin: 0.125rem 0 0;
-      color: var(--color-text-muted);
-      font-size: var(--text-sm);
-    }
-
+    .topbar { display: flex; justify-content: flex-end; }
     .theme-toggle {
       min-width: 44px;
       min-height: 44px;
@@ -161,7 +117,6 @@
       place-items: center;
       box-shadow: var(--shadow-sm);
     }
-
     .screen {
       background: var(--color-surface);
       border: 1px solid rgba(40,37,29,.08);
@@ -172,43 +127,38 @@
       flex-direction: column;
       gap: var(--space-5);
     }
-
     .screen.active { display: flex; }
-
-    .screen-header {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-2);
+    .screen.selected-class {
+      border-color: color-mix(in srgb, var(--class-accent) 28%, rgba(40,37,29,.08));
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--class-accent) 14%, transparent), var(--shadow-md);
     }
-
+    .screen-header { display: flex; flex-direction: column; gap: var(--space-2); }
     .eyebrow {
       margin: 0;
-      color: var(--color-primary);
+      color: var(--class-accent, var(--color-primary));
       font-size: var(--text-xs);
       letter-spacing: 0.08em;
       text-transform: uppercase;
       font-weight: 700;
     }
-
+    .screen-header h1,
     .screen-header h2 {
       margin: 0;
       font-size: var(--text-xl);
       line-height: 1.05;
     }
-
-    .screen-header p {
-      margin: 0;
-      color: var(--color-text-muted);
-    }
-
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-2);
-    }
-
+    .screen-header p { margin: 0; color: var(--color-text-muted); }
+    .field { display: flex; flex-direction: column; gap: var(--space-2); }
     label { font-weight: 700; font-size: var(--text-sm); }
-
+    .color-row { display: flex; align-items: center; gap: var(--space-2); }
+    .class-color-preview {
+      width: 14px;
+      height: 14px;
+      border-radius: 9999px;
+      border: 1px solid rgba(40,37,29,.12);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.35);
+      flex: 0 0 auto;
+    }
     select, .text-input {
       width: 100%;
       min-height: 52px;
@@ -218,55 +168,28 @@
       padding: 0 var(--space-4);
       box-shadow: inset 0 1px 0 rgba(255,255,255,.45);
     }
-
-    .primary-btn, .secondary-btn, .ghost-btn, .status-btn {
+    .primary-btn, .secondary-btn, .ghost-btn, .status-btn, .small-action {
       min-height: 52px;
       border-radius: var(--radius-lg);
       padding: 0 var(--space-4);
       border: 1px solid transparent;
-      transition: transform var(--transition-interactive), background var(--transition-interactive), border-color var(--transition-interactive), color var(--transition-interactive);
+      transition: transform var(--transition-interactive), background var(--transition-interactive), border-color var(--transition-interactive), color var(--transition-interactive), opacity var(--transition-interactive);
       font-weight: 700;
       font-size: var(--text-sm);
     }
-
-    .primary-btn:active, .secondary-btn:active, .ghost-btn:active, .status-btn:active, .card-action:active {
-      transform: scale(0.98);
-    }
-
-    .primary-btn {
-      background: var(--color-primary);
-      color: var(--color-text-inverse);
-    }
-
-    .primary-btn:hover { background: var(--color-primary-hover); }
-
-    .secondary-btn {
-      background: var(--color-surface-2);
-      border-color: rgba(40,37,29,.1);
-    }
-
-    .ghost-btn {
-      background: transparent;
-      border-color: rgba(40,37,29,.1);
-      color: var(--color-text-muted);
-    }
-
-    .helper-card,
-    .summary-card,
-    .member-card,
-    .inline-note {
+    .primary-btn:active, .secondary-btn:active, .ghost-btn:active, .status-btn:active, .card-action:active, .small-action:active { transform: scale(0.98); }
+    .primary-btn { background: var(--color-primary); color: var(--color-text-inverse); }
+    .primary-btn:hover { background: var(--class-accent-hover, var(--color-primary-hover)); }
+    .secondary-btn { background: var(--color-surface-2); border-color: rgba(40,37,29,.1); }
+    .ghost-btn, .small-action { background: transparent; border-color: rgba(40,37,29,.1); color: var(--color-text-muted); }
+    .small-action { min-height: 44px; }
+    .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); }
+    .summary-card, .member-card, .inline-note {
       background: var(--color-surface-2);
       border: 1px solid rgba(40,37,29,.08);
       border-radius: var(--radius-lg);
       padding: var(--space-4);
     }
-
-    .summary-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: var(--space-3);
-    }
-
     .summary-card strong {
       display: block;
       font-size: var(--text-lg);
@@ -274,19 +197,13 @@
       margin-bottom: 0.25rem;
       font-variant-numeric: tabular-nums;
     }
-
     .summary-card span {
       font-size: var(--text-xs);
       color: var(--color-text-muted);
       text-transform: uppercase;
       letter-spacing: 0.06em;
     }
-
-    .action-grid {
-      display: grid;
-      gap: var(--space-3);
-    }
-
+    .action-grid { display: grid; gap: var(--space-3); }
     .card-action {
       text-align: left;
       min-height: 112px;
@@ -299,47 +216,28 @@
       justify-content: space-between;
       gap: var(--space-4);
       box-shadow: var(--shadow-sm);
-      transition: transform var(--transition-interactive), border-color var(--transition-interactive), box-shadow var(--transition-interactive), background var(--transition-interactive);
+      transition: transform var(--transition-interactive), border-color var(--transition-interactive), box-shadow var(--transition-interactive), background var(--transition-interactive), opacity var(--transition-interactive);
     }
-
-    .card-action:hover {
-      transform: translateY(-2px);
-      border-color: rgba(1,105,111,.25);
-      box-shadow: var(--shadow-md);
-    }
-
-    .card-action .title-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-3);
-    }
-
-    .card-action h3 {
-      margin: 0;
-      font-size: var(--text-lg);
-      line-height: 1.1;
-    }
-
-    .card-action p {
-      margin: 0;
-      color: var(--color-text-muted);
-      font-size: var(--text-sm);
-    }
-
+    .card-action:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+    .card-action h3 { margin: 0; font-size: var(--text-lg); line-height: 1.1; }
+    .card-action p { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); }
+    .card-action .title-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
     .pill {
       display: inline-flex;
       align-items: center;
       gap: 0.4rem;
       border-radius: var(--radius-full);
       padding: 0.35rem 0.7rem;
-      background: var(--color-primary-highlight);
-      color: var(--color-primary);
+      background: var(--class-accent-soft, var(--color-primary-highlight));
+      color: var(--class-accent, var(--color-primary));
       font-size: var(--text-xs);
       font-weight: 700;
       white-space: nowrap;
     }
-
+    .card-action.subtle {
+      opacity: 0.86;
+      border-style: dashed;
+    }
     .member-list {
       display: flex;
       flex-direction: column;
@@ -348,32 +246,10 @@
       overflow: auto;
       padding-right: 0.125rem;
     }
-
-    .member-card {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-3);
-    }
-
-    .member-top {
-      display: flex;
-      align-items: start;
-      justify-content: space-between;
-      gap: var(--space-3);
-    }
-
-    .member-name {
-      margin: 0;
-      font-size: var(--text-base);
-      font-weight: 700;
-    }
-
-    .member-meta {
-      margin: 0.25rem 0 0;
-      color: var(--color-text-muted);
-      font-size: var(--text-sm);
-    }
-
+    .member-card { display: flex; flex-direction: column; gap: var(--space-3); }
+    .member-top { display: flex; align-items: start; justify-content: space-between; gap: var(--space-3); }
+    .member-name { margin: 0; font-size: var(--text-base); font-weight: 700; }
+    .member-meta { margin: 0.25rem 0 0; color: var(--color-text-muted); font-size: var(--text-sm); }
     .status-tag {
       padding: 0.4rem 0.7rem;
       border-radius: var(--radius-full);
@@ -383,18 +259,11 @@
       letter-spacing: 0.05em;
       white-space: nowrap;
     }
-
     .status-tag.pending { background: var(--color-surface-offset); color: var(--color-text-muted); }
     .status-tag.attended { background: var(--color-success-highlight); color: var(--color-success); }
     .status-tag.late { background: var(--color-warning-highlight); color: #7a5600; }
     .status-tag.absent { background: var(--color-error-highlight); color: var(--color-error); }
-
-    .status-row {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: var(--space-2);
-    }
-
+    .status-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); }
     .status-btn {
       min-height: 48px;
       padding: 0.75rem 0.5rem;
@@ -402,94 +271,67 @@
       border-color: rgba(40,37,29,.08);
       background: var(--color-surface);
     }
-
     .status-btn[data-status="attended"].active { background: var(--color-success-highlight); color: var(--color-success); border-color: rgba(67,122,34,.24); }
     .status-btn[data-status="late"].active { background: var(--color-warning-highlight); color: #7a5600; border-color: rgba(209,153,0,.3); }
     .status-btn[data-status="absent"].active { background: var(--color-error-highlight); color: var(--color-error); border-color: rgba(161,53,68,.3); }
-
-    .footer-actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: var(--space-3);
+    .class-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.7rem;
+      border-radius: var(--radius-full);
+      background: var(--class-accent-soft, var(--color-surface-offset));
+      color: var(--class-accent, var(--color-text-muted));
+      font-size: var(--text-xs);
+      font-weight: 700;
+      width: fit-content;
     }
-
-    .stack {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-3);
-    }
-
-    .toolbar {
-      display: flex;
-      gap: var(--space-3);
-      flex-wrap: wrap;
-    }
-
+    .footer-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+    .stack { display: flex; flex-direction: column; gap: var(--space-3); }
+    .toolbar { display: flex; gap: var(--space-3); flex-wrap: wrap; }
     .muted { color: var(--color-text-muted); }
     .tiny { font-size: var(--text-xs); }
-    .hidden { display: none !important; }
-
-    @media (min-width: 640px) {
-      .app-shell { padding-top: var(--space-6); }
-      .action-grid { grid-template-columns: repeat(3, 1fr); }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; }
-    }
+    .row-between { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+    @media (min-width: 640px) { .action-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
   </style>
 </head>
 <body>
   <a href="#main" class="sr-only">Skip to content</a>
   <main class="app-shell" id="main">
     <header class="topbar">
-      <div class="brand">
-        <div class="brand-mark" aria-hidden="true">
-          <svg width="26" height="26" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Attendance logo">
-            <rect x="10" y="11" width="18" height="42" rx="9" stroke="currentColor" stroke-width="5"/>
-            <path d="M24 32C24 21.5066 32.5066 13 43 13V13C48.5228 13 53 17.4772 53 23V23C53 28.5228 48.5228 33 43 33H24Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/>
-            <path d="M24 32H43C48.5228 32 53 36.4772 53 42V42C53 47.5228 48.5228 52 43 52V52C32.5066 52 24 43.4934 24 33V32Z" fill="currentColor"/>
-          </svg>
-        </div>
-        <div class="brand-copy">
-          <h1>Gym Attendance</h1>
-          <p>Fast class check-in on mobile</p>
-        </div>
-      </div>
       <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch to dark mode">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-        </svg>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
       </button>
     </header>
 
     <section class="screen active" id="screen-class" aria-labelledby="class-title">
       <div class="screen-header">
         <p class="eyebrow">Step 1</p>
-        <h2 id="class-title">Choose class</h2>
-        <p>Select the gymnastics class, then move to the action screen.</p>
+        <h1 id="class-title">Choose class</h1>
+        <p>Select the gymnastics class you want to work with.</p>
       </div>
 
       <div class="field">
         <label for="classSelect">Class</label>
         <select id="classSelect" aria-describedby="class-help"></select>
-        <p class="tiny muted" id="class-help">You can edit members later from the next screen.</p>
+        <p class="tiny muted" id="class-help">Pick a class, then continue.</p>
+      </div>
+
+      <div class="field">
+        <label for="attendanceDateInput">Attendance date</label>
+        <input id="attendanceDateInput" class="text-input" type="date" />
       </div>
 
       <div class="summary-grid" aria-label="Current class quick stats">
         <div class="summary-card"><strong id="membersCount">0</strong><span>Members</span></div>
         <div class="summary-card"><strong id="pendingCount">0</strong><span>Pending</span></div>
-        <div class="summary-card"><strong id="recordDate">-</strong><span>Today</span></div>
+        <div class="summary-card"><strong id="recordDate">-</strong><span>Date</span></div>
       </div>
 
       <div class="footer-actions">
-        <button class="ghost-btn" type="button" id="resetTodayBtn">Reset today</button>
+        <button class="secondary-btn" type="button" id="manageClassesBtn">Edit classes</button>
         <button class="primary-btn" type="button" id="goToActionsBtn">Continue</button>
-      </div>
-
-      <div class="helper-card">
-        <strong>Google Sheets ready</strong>
-        <p class="muted" style="margin:0.35rem 0 0;">Open Settings in the Edit view to paste your Google Apps Script webhook when you are ready to store attendance online.</p>
       </div>
     </section>
 
@@ -501,20 +343,20 @@
       </div>
 
       <div class="action-grid">
-        <button class="card-action" type="button" id="openEditBtn">
+        <button class="card-action subtle" type="button" id="openEditBtn">
           <div class="title-row">
-            <h3>Edit</h3>
-            <span class="pill">Roster</span>
+            <h3>Edit members</h3>
+            <span class="pill">Optional</span>
           </div>
-          <p>Add, rename or remove class members and update the Google Sheets webhook URL.</p>
+          <p>Only use this when you need to add or remove gymnasts.</p>
         </button>
 
         <button class="card-action" type="button" id="openAttendanceBtn">
           <div class="title-row">
             <h3>Attendance</h3>
-            <span class="pill">Check in</span>
+            <span class="pill">Main action</span>
           </div>
-          <p>See each member and tap attended, late or not attended in one pass.</p>
+          <p>Mark attended, late or not attended for each member.</p>
         </button>
 
         <button class="card-action" type="button" id="backToClassesBtn">
@@ -522,12 +364,8 @@
             <h3>Go back</h3>
             <span class="pill">Classes</span>
           </div>
-          <p>Return to the class selector and switch to a different class.</p>
+          <p>Return to the class selector and choose another class.</p>
         </button>
-      </div>
-
-      <div class="inline-note">
-        <p class="tiny muted" style="margin:0;">Tip: this app stores data in your browser for quick use. The optional webhook can also push every attendance record to Google Sheets.</p>
       </div>
     </section>
 
@@ -554,8 +392,8 @@
 
     <section class="screen" id="screen-edit" aria-labelledby="edit-title">
       <div class="screen-header">
-        <p class="eyebrow">Edit mode</p>
-        <h2 id="edit-title">Edit class list</h2>
+        <p class="eyebrow">Optional</p>
+        <h2 id="edit-title">Edit class members</h2>
         <p id="editClassLabel">Class: —</p>
       </div>
 
@@ -575,50 +413,72 @@
         <div id="editMemberList" class="member-list" aria-live="polite"></div>
       </div>
 
+      <div class="footer-actions">
+        <button class="secondary-btn" type="button" id="editBackBtn">Back</button>
+        <button class="primary-btn" type="button" id="saveSettingsBtn">Done</button>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-classes" aria-labelledby="classes-title">
+      <div class="screen-header">
+        <p class="eyebrow">Manage</p>
+        <h2 id="classes-title">Edit classes</h2>
+        <p>Add, rename or remove class groups.</p>
+      </div>
+
+      <div class="field">
+        <label for="classNameInput">Add class</label>
+        <input id="classNameInput" class="text-input" type="text" placeholder="Example: Saturday Beginners" />
+      </div>
+      <div class="field">
+        <label for="classColorInput">Class color</label>
+        <div class="color-row">
+          <span class="class-color-preview" id="classColorPreview" aria-hidden="true"></span>
+          <select id="classColorInput"></select>
+        </div>
+      </div>
+      <div class="toolbar">
+        <button class="primary-btn" type="button" id="addClassBtn">Add class</button>
+      </div>
+      <div id="classListEditor" class="member-list" aria-live="polite"></div>
       <div class="stack">
         <div class="field">
           <label for="webhookInput">Google Apps Script webhook URL</label>
           <input id="webhookInput" class="text-input" type="url" placeholder="https://script.google.com/macros/s/.../exec" />
         </div>
         <div class="inline-note">
-          <p class="tiny muted" style="margin:0;">When this URL is filled in, the app will POST each saved attendance session to your Google Sheet automatically.</p>
+          <p class="tiny muted" style="margin:0;">Paste the deployed Apps Script web app URL here, not the Google Sheet sharing link.</p>
         </div>
       </div>
-
       <div class="footer-actions">
-        <button class="secondary-btn" type="button" id="editBackBtn">Back</button>
-        <button class="primary-btn" type="button" id="saveSettingsBtn">Save changes</button>
+        <button class="secondary-btn" type="button" id="classesBackBtn">Back</button>
+        <button class="primary-btn" type="button" id="saveClassesBtn">Save classes &amp; webhook</button>
       </div>
     </section>
   </main>
 
   <script>
-    const STORAGE_KEY = 'gym-attendance-mobile-v1';
+    const STORAGE_KEY = 'gym-attendance-mobile-v2';
+    const CLASS_COLOR_OPTIONS = [
+      { value: 'teal', label: 'Teal', color: '#01696f' },
+      { value: 'sage', label: 'Sage', color: '#437a22' },
+      { value: 'gold', label: 'Gold', color: '#d19900' },
+      { value: 'rose', label: 'Rose', color: '#a13544' },
+      { value: 'slate', label: 'Slate', color: '#5f6770' }
+    ];
     const defaultState = {
       selectedClassId: 'class-1',
       webhookUrl: '',
+      selectedDate: new Date().toISOString().slice(0, 10),
       classes: [
-        {
-          id: 'class-1',
-          name: 'Beginner Kids',
-          members: ['Ines Costa', 'Marta Silva', 'Leonor Dias', 'Rita Santos']
-        },
-        {
-          id: 'class-2',
-          name: 'Intermediate Teens',
-          members: ['Sofia Almeida', 'Matilde Rocha', 'Carolina Sousa', 'Beatriz Lopes']
-        },
-        {
-          id: 'class-3',
-          name: 'Advanced Squad',
-          members: ['Ana Gomes', 'Maria Faria', 'Joana Pires', 'Helena Costa']
-        }
+        { id: 'class-1', name: 'Beginner Kids', color: 'teal', members: ['Ines Costa', 'Marta Silva', 'Leonor Dias', 'Rita Santos'] },
+        { id: 'class-2', name: 'Intermediate Teens', color: 'gold', members: ['Sofia Almeida', 'Matilde Rocha', 'Carolina Sousa', 'Beatriz Lopes'] },
+        { id: 'class-3', name: 'Advanced Squad', color: 'rose', members: ['Ana Gomes', 'Maria Faria', 'Joana Pires', 'Helena Costa'] }
       ],
       attendanceByDate: {}
     };
 
     let state = loadState();
-
     const els = {
       classSelect: document.getElementById('classSelect'),
       membersCount: document.getElementById('membersCount'),
@@ -632,14 +492,19 @@
       absentCount: document.getElementById('absentCount'),
       memberList: document.getElementById('memberList'),
       editMemberList: document.getElementById('editMemberList'),
+      classListEditor: document.getElementById('classListEditor'),
       memberNameInput: document.getElementById('memberNameInput'),
+      classNameInput: document.getElementById('classNameInput'),
+      classColorInput: document.getElementById('classColorInput'),
+      classColorPreview: document.getElementById('classColorPreview'),
       webhookInput: document.getElementById('webhookInput'),
-      saveAttendanceBtn: document.getElementById('saveAttendanceBtn'),
+      attendanceDateInput: document.getElementById('attendanceDateInput'),
       screens: {
         class: document.getElementById('screen-class'),
         actions: document.getElementById('screen-actions'),
         attendance: document.getElementById('screen-attendance'),
-        edit: document.getElementById('screen-edit')
+        edit: document.getElementById('screen-edit'),
+        classes: document.getElementById('screen-classes')
       }
     };
 
@@ -651,33 +516,38 @@
         return {
           ...structuredClone(defaultState),
           ...parsed,
-          classes: Array.isArray(parsed.classes) && parsed.classes.length ? parsed.classes : structuredClone(defaultState.classes),
+          classes: normalizeClasses(Array.isArray(parsed.classes) && parsed.classes.length ? parsed.classes : structuredClone(defaultState.classes)),
           attendanceByDate: parsed.attendanceByDate || {}
         };
       } catch {
-        return structuredClone(defaultState);
+        return normalizeState(structuredClone(defaultState));
       }
     }
 
-    function persistState() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    function normalizeState(nextState) {
+      return {
+        ...nextState,
+        classes: normalizeClasses(nextState.classes)
+      };
     }
 
-    function todayKey() {
-      return new Date().toISOString().slice(0, 10);
+    function normalizeClasses(classes) {
+      return classes.map((item, index) => ({
+        ...item,
+        color: CLASS_COLOR_OPTIONS.some(option => option.value === item.color) ? item.color : CLASS_COLOR_OPTIONS[index % CLASS_COLOR_OPTIONS.length].value,
+        members: Array.isArray(item.members) ? item.members : []
+      }));
     }
 
-    function displayDate() {
-      return new Intl.DateTimeFormat(undefined, { day: '2-digit', month: 'short' }).format(new Date());
-    }
-
-    function currentClass() {
-      return state.classes.find(item => item.id === state.selectedClassId) || state.classes[0];
-    }
+    function persistState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    function todayKey() { return new Date().toISOString().slice(0, 10); }
+    function selectedDateKey() { return state.selectedDate || todayKey(); }
+    function displayDate(value) { return new Intl.DateTimeFormat(undefined, { day: '2-digit', month: '2-digit' }).format(new Date(value + 'T12:00:00')); }
+    function currentClass() { return state.classes.find(item => item.id === state.selectedClassId) || state.classes[0]; }
 
     function currentAttendanceMap() {
       const classId = currentClass().id;
-      const key = todayKey();
+      const key = selectedDateKey();
       if (!state.attendanceByDate[key]) state.attendanceByDate[key] = {};
       if (!state.attendanceByDate[key][classId]) state.attendanceByDate[key][classId] = {};
       return state.attendanceByDate[key][classId];
@@ -686,12 +556,8 @@
     function ensureRosterStatuses() {
       const cls = currentClass();
       const map = currentAttendanceMap();
-      cls.members.forEach(name => {
-        if (!map[name]) map[name] = 'pending';
-      });
-      Object.keys(map).forEach(name => {
-        if (!cls.members.includes(name)) delete map[name];
-      });
+      cls.members.forEach(name => { if (!map[name]) map[name] = 'pending'; });
+      Object.keys(map).forEach(name => { if (!cls.members.includes(name)) delete map[name]; });
     }
 
     function renderClassOptions() {
@@ -709,14 +575,20 @@
       const cls = currentClass();
       ensureRosterStatuses();
       const map = currentAttendanceMap();
+      applyClassAccent(cls.color);
       const pending = cls.members.filter(name => map[name] === 'pending').length;
       els.membersCount.textContent = cls.members.length;
       els.pendingCount.textContent = pending;
-      els.recordDate.textContent = displayDate();
+      els.recordDate.textContent = displayDate(selectedDateKey());
+      els.attendanceDateInput.value = selectedDateKey();
       els.selectedClassLabel.textContent = `You are working with: ${cls.name}`;
       els.attendanceClassLabel.textContent = `Class: ${cls.name}`;
       els.editClassLabel.textContent = `Class: ${cls.name}`;
       els.webhookInput.value = state.webhookUrl || '';
+      if (els.classColorInput) {
+        els.classColorInput.value = cls.color || CLASS_COLOR_OPTIONS[0].value;
+        updateClassColorPreview();
+      }
     }
 
     function renderAttendance() {
@@ -746,8 +618,7 @@
             <button class="status-btn ${status === 'attended' ? 'active' : ''}" data-name="${escapeAttr(name)}" data-status="attended" type="button">Attended</button>
             <button class="status-btn ${status === 'late' ? 'active' : ''}" data-name="${escapeAttr(name)}" data-status="late" type="button">Late</button>
             <button class="status-btn ${status === 'absent' ? 'active' : ''}" data-name="${escapeAttr(name)}" data-status="absent" type="button">Not attended</button>
-          </div>
-        `;
+          </div>`;
         els.memberList.appendChild(card);
       });
 
@@ -773,81 +644,143 @@
               <h3 class="member-name">${escapeHtml(name)}</h3>
               <p class="member-meta">Position ${index + 1}</p>
             </div>
-            <button class="ghost-btn" type="button" data-remove-member="${escapeAttr(name)}" style="min-height:44px;">Remove</button>
-          </div>
-        `;
+            <button class="small-action" type="button" data-remove-member="${escapeAttr(name)}">Remove</button>
+          </div>`;
         els.editMemberList.appendChild(row);
       });
     }
 
-    function switchScreen(key) {
-      Object.entries(els.screens).forEach(([name, node]) => {
-        node.classList.toggle('active', name === key);
+    function renderClassEditor() {
+      els.classListEditor.innerHTML = '';
+      state.classes.forEach((item) => {
+        const row = document.createElement('article');
+        row.className = 'member-card';
+        row.innerHTML = `
+          <div class="stack">
+            <div class="row-between">
+              <div>
+                <h3 class="member-name">${escapeHtml(item.name)}</h3>
+                <p class="member-meta">${item.members.length} members</p>
+              </div>
+              <button class="small-action" type="button" data-remove-class="${item.id}" ${state.classes.length === 1 ? 'disabled' : ''}>Remove</button>
+            </div>
+            <div class="field">
+              <label for="color-${item.id}">Class color</label>
+              <div class="color-row">
+                <span class="class-color-preview" style="background:${classColorValue(item.color)}" aria-hidden="true"></span>
+                <select id="color-${item.id}" data-color-class="${item.id}">
+                  ${CLASS_COLOR_OPTIONS.map(option => `<option value="${option.value}" ${option.value === item.color ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+            <div class="field">
+              <label for="rename-${item.id}">Rename class</label>
+              <input id="rename-${item.id}" class="text-input" type="text" value="${escapeAttr(item.name)}" data-rename-class="${item.id}" />
+            </div>
+          </div>`;
+        els.classListEditor.appendChild(row);
       });
+    }
+
+    function switchScreen(key) {
+      Object.entries(els.screens).forEach(([name, node]) => node.classList.toggle('active', name === key));
       if (key === 'attendance') renderAttendance();
       if (key === 'edit') renderEditList();
+      if (key === 'classes') renderClassEditor();
       renderTopSummary();
     }
 
-    function statusLabel(status) {
-      return ({ pending: 'Pending', attended: 'Attended', late: 'Late', absent: 'Not attended' })[status] || 'Pending';
+    function statusLabel(status) { return ({ pending: 'Pending', attended: 'Attended', late: 'Late', absent: 'Not attended' })[status] || 'Pending'; }
+    function statusClass(status) { return ({ pending: 'pending', attended: 'attended', late: 'late', absent: 'absent' })[status] || 'pending'; }
+    function setMemberStatus(name, status) { currentAttendanceMap()[name] = status; persistState(); renderAttendance(); }
+
+    function classColorValue(colorKey) {
+      return (CLASS_COLOR_OPTIONS.find(option => option.value === colorKey) || CLASS_COLOR_OPTIONS[0]).color;
     }
 
-    function statusClass(status) {
-      return ({ pending: 'pending', attended: 'attended', late: 'late', absent: 'absent' })[status] || 'pending';
+    function classColorPair(colorKey) {
+      const color = classColorValue(colorKey);
+      return {
+        color,
+        soft: hexToRgba(color, 0.12),
+        hover: hexToRgba(color, 0.9)
+      };
     }
 
-    function setMemberStatus(name, status) {
-      const map = currentAttendanceMap();
-      map[name] = status;
-      persistState();
-      renderAttendance();
+    function applyClassAccent(colorKey) {
+      const pair = classColorPair(colorKey);
+      document.documentElement.style.setProperty('--class-accent', pair.color);
+      document.documentElement.style.setProperty('--class-accent-soft', pair.soft);
+      document.documentElement.style.setProperty('--class-accent-hover', pair.hover);
+      const active = document.querySelector('.screen.active');
+      if (active) active.classList.toggle('selected-class', active.id !== 'screen-class');
     }
 
     function addMember() {
       const value = els.memberNameInput.value.trim();
       if (!value) return;
       const cls = currentClass();
-      if (cls.members.some(name => name.toLowerCase() === value.toLowerCase())) {
-        alert('This member is already in the class.');
-        return;
-      }
+      if (cls.members.some(name => name.toLowerCase() === value.toLowerCase())) return alert('This member is already in the class.');
       cls.members.push(value);
       currentAttendanceMap()[value] = 'pending';
       els.memberNameInput.value = '';
-      persistState();
-      renderEditList();
-      renderTopSummary();
+      persistState(); renderEditList(); renderTopSummary();
     }
 
     function removeMember(name) {
       const cls = currentClass();
       cls.members = cls.members.filter(member => member !== name);
       delete currentAttendanceMap()[name];
-      persistState();
-      renderEditList();
-      renderTopSummary();
+      persistState(); renderEditList(); renderTopSummary();
     }
 
-    function resetTodayForClass() {
-      const cls = currentClass();
-      const map = currentAttendanceMap();
-      cls.members.forEach(name => { map[name] = 'pending'; });
-      persistState();
-      renderAttendance();
+    function addClass() {
+      const value = els.classNameInput.value.trim();
+      if (!value) return;
+      const id = `class-${crypto.randomUUID ? crypto.randomUUID() : Date.now()}`;
+      state.classes.push({ id, name: value, color: els.classColorInput.value || CLASS_COLOR_OPTIONS[0].value, members: [] });
+      state.selectedClassId = id;
+      els.classNameInput.value = '';
+      persistState(); renderClassOptions(); renderClassEditor(); renderTopSummary();
     }
 
+    function removeClass(id) {
+      if (state.classes.length === 1) return;
+      state.classes = state.classes.filter(item => item.id !== id);
+      if (!state.classes.some(item => item.id === state.selectedClassId)) state.selectedClassId = state.classes[0].id;
+      persistState(); renderClassOptions(); renderClassEditor(); renderTopSummary();
+    }
+
+    function saveClassEdits() {
+      document.querySelectorAll('[data-rename-class]').forEach(input => {
+        const cls = state.classes.find(item => item.id === input.dataset.renameClass);
+        if (cls && input.value.trim()) cls.name = input.value.trim();
+      });
+      document.querySelectorAll('[data-color-class]').forEach(select => {
+        const cls = state.classes.find(item => item.id === select.dataset.colorClass);
+        if (cls && CLASS_COLOR_OPTIONS.some(option => option.value === select.value)) cls.color = select.value;
+      });
+      state.webhookUrl = els.webhookInput.value.trim();
+      persistState(); renderClassOptions(); switchScreen('class');
+    }
+
+    let savingAttendance = false;
     async function saveAttendanceSession() {
+      if (savingAttendance) return;
+      savingAttendance = true;
+      const saveBtn = document.getElementById('saveAttendanceBtn');
+      if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
+
       const cls = currentClass();
       ensureRosterStatuses();
       const payload = {
         savedAt: new Date().toISOString(),
-        date: todayKey(),
+        date: selectedDateKey(),
+        displayDate: displayDate(selectedDateKey()),
         classId: cls.id,
         className: cls.name,
         members: cls.members.map(name => ({ name, status: currentAttendanceMap()[name] || 'pending' }))
       };
-
       persistState();
 
       if (state.webhookUrl) {
@@ -859,45 +792,56 @@
           });
           if (!res.ok) throw new Error('Webhook failed');
           alert('Attendance saved and sent to Google Sheets.');
-          return;
-        } catch (error) {
-          alert('Attendance saved locally, but the Google Sheets sync failed. Check the webhook URL.');
-          return;
+        } catch {
+          alert('Attendance saved locally, but the Google Sheets sync failed. Use the Apps Script /exec URL, not a shared sheet link.');
         }
+      } else {
+        alert('Attendance saved locally on this device. Add an Apps Script webhook in Edit classes to sync with Google Sheets.');
       }
 
-      alert('Attendance saved locally on this device. Add a webhook in Edit mode to sync with Google Sheets.');
+      switchScreen('class');
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save attendance'; }
+      savingAttendance = false;
     }
 
-    function saveSettings() {
-      state.webhookUrl = els.webhookInput.value.trim();
-      persistState();
-      alert('Class list and settings saved.');
-      switchScreen('actions');
-    }
-
+    function saveSettings() { persistState(); switchScreen('actions'); }
     function loadDemoNames() {
       const cls = currentClass();
-      const demo = ['Laura Pinto', 'Eva Martins', 'Clara Nunes'];
-      demo.forEach(name => {
-        if (!cls.members.includes(name)) cls.members.push(name);
-      });
-      ensureRosterStatuses();
-      persistState();
-      renderEditList();
-      renderTopSummary();
+      ['Laura Pinto', 'Eva Martins', 'Clara Nunes'].forEach(name => { if (!cls.members.includes(name)) cls.members.push(name); });
+      ensureRosterStatuses(); persistState(); renderEditList(); renderTopSummary();
     }
 
-    function escapeHtml(value) {
-      return value.replace(/[&<>\"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char]);
+    function populateClassColorOptions() {
+      els.classColorInput.innerHTML = CLASS_COLOR_OPTIONS.map(option => `<option value="${option.value}">${escapeHtml(option.label)}</option>`).join('');
+      els.classColorInput.value = CLASS_COLOR_OPTIONS[0].value;
+      updateClassColorPreview();
     }
 
-    function escapeAttr(value) {
-      return value.replace(/"/g, '&quot;');
+    function updateClassColorPreview() {
+      els.classColorPreview.style.background = classColorValue(els.classColorInput.value);
     }
+
+    function hexToRgba(hex, alpha) {
+      const normalized = hex.replace('#', '');
+      const value = normalized.length === 3
+        ? normalized.split('').map(char => char + char).join('')
+        : normalized;
+      const int = parseInt(value, 16);
+      const r = (int >> 16) & 255;
+      const g = (int >> 8) & 255;
+      const b = int & 255;
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function escapeHtml(value) { return value.replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char]); }
+    function escapeAttr(value) { return value.replace(/"/g, '&quot;'); }
 
     function bindEvents() {
       document.getElementById('goToActionsBtn').addEventListener('click', () => switchScreen('actions'));
+      document.getElementById('manageClassesBtn').addEventListener('click', () => switchScreen('classes'));
+      document.getElementById('classesBackBtn').addEventListener('click', () => switchScreen('class'));
+      document.getElementById('saveClassesBtn').addEventListener('click', saveClassEdits);
+      document.getElementById('addClassBtn').addEventListener('click', addClass);
       document.getElementById('backToClassesBtn').addEventListener('click', () => switchScreen('class'));
       document.getElementById('openAttendanceBtn').addEventListener('click', () => switchScreen('attendance'));
       document.getElementById('attendanceBackBtn').addEventListener('click', () => switchScreen('actions'));
@@ -907,36 +851,49 @@
       document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
       document.getElementById('saveAttendanceBtn').addEventListener('click', saveAttendanceSession);
       document.getElementById('seedDemoBtn').addEventListener('click', loadDemoNames);
-      document.getElementById('resetTodayBtn').addEventListener('click', resetTodayForClass);
-      els.classSelect.addEventListener('change', (event) => {
+      els.classColorInput.addEventListener('change', updateClassColorPreview);
+
+      els.classSelect.addEventListener('change', event => {
         state.selectedClassId = event.target.value;
         persistState();
         renderTopSummary();
       });
-      els.memberNameInput.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          addMember();
-        }
+
+      els.attendanceDateInput.addEventListener('change', event => {
+        state.selectedDate = event.target.value || todayKey();
+        persistState();
+        renderTopSummary();
       });
-      els.memberList.addEventListener('click', (event) => {
+
+      els.memberNameInput.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); addMember(); } });
+      els.classNameInput.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); addClass(); } });
+
+      els.memberList.addEventListener('click', event => {
         const btn = event.target.closest('.status-btn');
         if (!btn) return;
         setMemberStatus(btn.dataset.name, btn.dataset.status);
       });
-      els.editMemberList.addEventListener('click', (event) => {
+
+      els.editMemberList.addEventListener('click', event => {
         const btn = event.target.closest('[data-remove-member]');
         if (!btn) return;
         removeMember(btn.dataset.removeMember);
       });
 
+      els.classListEditor.addEventListener('click', event => {
+        const removeBtn = event.target.closest('[data-remove-class]');
+        if (removeBtn) removeClass(removeBtn.dataset.removeClass);
+      });
+
       const toggle = document.querySelector('[data-theme-toggle]');
       let theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      document.documentElement.setAttribute('data-theme', theme);
+      document.documentElement.classList.toggle('theme-dark', theme === 'dark');
+      document.documentElement.classList.toggle('theme-light', theme !== 'dark');
       updateThemeIcon(toggle, theme);
       toggle.addEventListener('click', () => {
         theme = theme === 'dark' ? 'light' : 'dark';
-        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.classList.toggle('theme-dark', theme === 'dark');
+        document.documentElement.classList.toggle('theme-light', theme !== 'dark');
         updateThemeIcon(toggle, theme);
       });
     }
@@ -949,13 +906,15 @@
     }
 
     function init() {
+      state = normalizeState(state);
+      persistState();
+      populateClassColorOptions();
       renderClassOptions();
       ensureRosterStatuses();
       renderTopSummary();
       bindEvents();
       switchScreen('class');
     }
-
     init();
   </script>
 </body>

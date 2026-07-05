@@ -1,0 +1,149 @@
+function doPost(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var data = JSON.parse(e.postData.contents);
+  var className = sanitizeSheetName(String(data.className || '').trim());
+  var tz = ss.getSpreadsheetTimeZone();
+  var dateKey = Utilities.formatDate(new Date(data.date + 'T12:00:00'), tz, 'dd/MM');
+  var members = data.members || [];
+  var lock = LockService.getScriptLock();
+
+  if (!className) return jsonResponse({ ok: false, error: 'Missing className' });
+
+  lock.tryLock(5000);
+  try {
+    var sheet = ss.getSheetByName(className) || ss.insertSheet(className);
+    var headers = getOrBuildHeaders(sheet, members);
+    ensureHeaderRow(sheet, headers);
+
+    var rowIndex = findRowByDate(sheet, dateKey);
+    var row = buildRow(headers, dateKey, members);
+
+    if (rowIndex) {
+      sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
+    } else {
+      rowIndex = sheet.getLastRow() + 1;
+      sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
+    }
+
+    sortDataRowsByDate(sheet, headers.length);
+    formatTable(sheet, headers.length);
+    applyAttendanceFormatting(sheet, headers.length);
+
+    return jsonResponse({ ok: true, className: className, date: dateKey, row: rowIndex });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function sanitizeSheetName(name) {
+  return name.replace(/[\\/\?\*\[\]]/g, '-').substring(0, 99) || 'Class';
+}
+
+function getOrBuildHeaders(sheet, members) {
+  var lastCol = Math.max(sheet.getLastColumn(), 1);
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  if (!headers[0]) headers[0] = 'Date';
+
+  var map = {};
+  headers.forEach(function(h, i) {
+    if (h) map[String(h).trim().toLowerCase()] = i + 1;
+  });
+
+  members.forEach(function(member) {
+    var name = String(member.name || '').trim();
+    if (!name) return;
+    if (!map[name.toLowerCase()]) {
+      headers.push(name);
+      map[name.toLowerCase()] = headers.length;
+    }
+  });
+
+  return headers;
+}
+
+function ensureHeaderRow(sheet, headers) {
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.setFrozenRows(1);
+  sheet.getRange(1, 1, 1, headers.length)
+    .setFontWeight('bold')
+    .setHorizontalAlignment('center')
+    .setBackground('#e9f3f4');
+}
+
+function buildRow(headers, dateKey, members) {
+  var row = new Array(headers.length).fill('');
+  row[0] = dateKey;
+
+  var map = {};
+  headers.forEach(function(h, i) {
+    if (h) map[String(h).trim().toLowerCase()] = i;
+  });
+
+  members.forEach(function(member) {
+    var name = String(member.name || '').trim();
+    var idx = map[name.toLowerCase()];
+    if (idx !== undefined) row[idx] = normalizeStatus(member.status);
+  });
+
+  return row;
+}
+
+function findRowByDate(sheet, dateKey) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return null;
+
+  var dates = sheet.getRange(2, 1, lastRow - 1, 1).getValues().flat();
+  for (var i = 0; i < dates.length; i++) {
+    if (String(dates[i]).trim() === dateKey) return i + 2;
+  }
+  return null;
+}
+
+function sortDataRowsByDate(sheet, cols) {
+  if (sheet.getLastRow() < 3) return;
+  sheet.getRange(2, 1, sheet.getLastRow() - 1, cols).sort({ column: 1, ascending: true });
+}
+
+function formatTable(sheet, cols) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 1 || cols < 1) return;
+
+  var range = sheet.getRange(1, 1, lastRow, cols);
+  range.setBorder(true, true, true, true, true, true, '#d0d7d8', SpreadsheetApp.BorderStyle.SOLID);
+  range.setVerticalAlignment('middle');
+
+  sheet.setColumnWidth(1, 90);
+  for (var c = 2; c <= cols; c++) sheet.setColumnWidth(c, 140);
+
+  if (lastRow > 1) {
+    sheet.getRange(2, 1, lastRow - 1, cols).setWrap(true);
+  }
+}
+
+function applyAttendanceFormatting(sheet, cols) {
+  if (sheet.getLastRow() < 2 || cols < 2) return;
+
+  var range = sheet.getRange(2, 2, sheet.getLastRow() - 1, cols - 1);
+  var rules = [
+    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('Attended').setBackground('#E8F5E9').setRanges([range]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('Late').setBackground('#FFF8E1').setRanges([range]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('Not attended').setBackground('#FFEBEE').setRanges([range]).build()
+  ];
+  sheet.setConditionalFormatRules(rules);
+}
+
+function normalizeStatus(status) {
+  var map = {
+    attended: 'Attended',
+    late: 'Late',
+    absent: 'Not attended',
+    pending: 'Not attended'
+  };
+  return map[String(status || '').toLowerCase()] || 'Not attended';
+}
+
+function jsonResponse(payload) {
+  return ContentService
+    .createTextOutput(JSON.stringify(payload))
+    .setMimeType(ContentService.MimeType.JSON);
+}
