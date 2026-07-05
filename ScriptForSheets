@@ -1,149 +1,290 @@
+var META_SHEET_NAME = '__classes__';
+var ATTENDANCE_HEADERS = ['Date'];
+var STATUS_MAP = {
+  attended: 'Attended',
+  late: 'Late',
+  absent: 'Not attended',
+  pending: 'Not attended'
+};
+
+function doGet(e) {
+  var action = String((e && e.parameter && e.parameter.action) || 'state');
+  if (action === 'attendance') return jsonResponse(getAttendanceState(e.parameter));
+  return jsonResponse(getSharedState());
+}
+
 function doPost(e) {
+  var data = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+  var action = String(data.action || 'saveAttendance');
+
+  if (action === 'saveClasses') return jsonResponse(saveClasses(data));
+  if (action === 'saveAttendance') return jsonResponse(saveAttendance(data));
+  return jsonResponse({ ok: false, error: 'Unknown action' });
+}
+
+function getSharedState() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var data = JSON.parse(e.postData.contents);
-  var className = sanitizeSheetName(String(data.className || '').trim());
-  var tz = ss.getSpreadsheetTimeZone();
-  var dateKey = Utilities.formatDate(new Date(data.date + 'T12:00:00'), tz, 'dd/MM');
-  var members = data.members || [];
-  var lock = LockService.getScriptLock();
+  var classes = readClasses(ss);
+  return { ok: true, classes: classes };
+}
 
-  if (!className) return jsonResponse({ ok: false, error: 'Missing className' });
+function getAttendanceState(params) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var classId = String((params && params.classId) || '').trim();
+  var dateKey = String((params && params.date) || '').trim();
+  var classes = readClasses(ss);
+  var cls = findClass(classes, classId);
 
-  lock.tryLock(5000);
-  try {
-    var sheet = ss.getSheetByName(className) || ss.insertSheet(className);
-    var headers = getOrBuildHeaders(sheet, members);
-    ensureHeaderRow(sheet, headers);
+  if (!cls) return { ok: false, error: 'Class not found' };
+  if (!dateKey) return { ok: true, classId: cls.id, className: cls.name, members: cls.members.map(function(name) {
+    return { name: name, status: 'pending' };
+  }) };
 
-    var rowIndex = findRowByDate(sheet, dateKey);
-    var row = buildRow(headers, dateKey, members);
-
-    if (rowIndex) {
-      sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
-    } else {
-      rowIndex = sheet.getLastRow() + 1;
-      sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
-    }
-
-    sortDataRowsByDate(sheet, headers.length);
-    formatTable(sheet, headers.length);
-    applyAttendanceFormatting(sheet, headers.length);
-
-    return jsonResponse({ ok: true, className: className, date: dateKey, row: rowIndex });
-  } finally {
-    lock.releaseLock();
+  var sheet = getOrCreateClassSheet(ss, cls.name);
+  ensureAttendanceHeader(sheet);
+  var row = findRowByDate(sheet, dateKey);
+  var members = [];
+  var statusByName = {};
+  if (row) {
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var values = sheet.getRange(row, 1, 1, sheet.getLastColumn()).getValues()[0];
+    headers.forEach(function(header, index) {
+      if (index === 0) return;
+      var name = String(header || '').trim();
+      if (!name) return;
+      statusByName[name] = normalizeStatus(values[index]);
+    });
   }
-}
 
-function sanitizeSheetName(name) {
-  return name.replace(/[\\/\?\*\[\]]/g, '-').substring(0, 99) || 'Class';
-}
-
-function getOrBuildHeaders(sheet, members) {
-  var lastCol = Math.max(sheet.getLastColumn(), 1);
-  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  if (!headers[0]) headers[0] = 'Date';
-
-  var map = {};
-  headers.forEach(function(h, i) {
-    if (h) map[String(h).trim().toLowerCase()] = i + 1;
+  cls.members.forEach(function(name) {
+    members.push({ name: name, status: statusByName[name] || 'pending' });
   });
 
+  return { ok: true, classId: cls.id, className: cls.name, date: dateKey, members: members };
+}
+
+function saveClasses(data) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var classes = Array.isArray(data.classes) ? data.classes : [];
+  var cleaned = classes.map(function(item) {
+    return {
+      id: String(item.id || '').trim() || Utilities.getUuid(),
+      name: String(item.name || '').trim(),
+      members: uniqueNames(item.members)
+    };
+  }).filter(function(item) { return item.name; });
+
+  var meta = ss.getSheetByName(META_SHEET_NAME) || ss.insertSheet(META_SHEET_NAME);
+  ensureMetaHeader(meta);
+
+  var existing = readClasses(ss);
+  var existingById = {};
+  existing.forEach(function(item) { existingById[item.id] = item; });
+
+  cleaned.forEach(function(item) {
+    var prior = existingById[item.id];
+    if (prior && prior.name && prior.name !== item.name) {
+      renameAttendanceSheet(ss, prior.name, item.name);
+    } else {
+      getOrCreateClassSheet(ss, item.name);
+    }
+  });
+
+  writeMeta(meta, cleaned);
+  return { ok: true, classes: cleaned };
+}
+
+function saveAttendance(data) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var classId = String(data.classId || '').trim();
+  var className = String(data.className || '').trim();
+  var dateKey = String(data.date || '').trim();
+  var members = Array.isArray(data.members) ? data.members : [];
+  var classes = readClasses(ss);
+  var cls = findClass(classes, classId) || { id: classId || Utilities.getUuid(), name: className, members: [] };
+
+  if (!cls.name) cls.name = className;
+  if (!cls.name) return { ok: false, error: 'Missing className' };
+  if (!dateKey) return { ok: false, error: 'Missing date' };
+
+  cls.members = uniqueNames(members.map(function(member) { return String(member.name || '').trim(); }).filter(Boolean).concat(cls.members));
+  upsertClass(ss, cls);
+
+  var sheet = getOrCreateClassSheet(ss, cls.name);
+  ensureAttendanceHeader(sheet);
+  var headers = ensureMemberHeaders(sheet, cls.members);
+  var rowIndex = findRowByDate(sheet, dateKey);
+  if (!rowIndex) {
+    rowIndex = sheet.getLastRow() + 1;
+  }
+
+  var row = new Array(headers.length).fill('');
+  row[0] = dateKey;
+  var statusByName = {};
   members.forEach(function(member) {
     var name = String(member.name || '').trim();
     if (!name) return;
-    if (!map[name.toLowerCase()]) {
-      headers.push(name);
-      map[name.toLowerCase()] = headers.length;
-    }
+    statusByName[name] = normalizeStatus(member.status);
   });
 
+  headers.forEach(function(header, index) {
+    if (index === 0) return;
+    row[index] = statusByName[String(header || '').trim()] || '';
+  });
+
+  sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
+  sortDataRowsByDate(sheet);
+  applyAttendanceFormatting(sheet);
+  return { ok: true, classId: cls.id, className: cls.name, date: dateKey, row: rowIndex };
+}
+
+function ensureMetaHeader(sheet) {
+  if (sheet.getLastRow() === 0) {
+    sheet.getRange(1, 1, 1, 3).setValues([['id', 'name', 'membersJson']]);
+    sheet.setFrozenRows(1);
+  }
+}
+
+function writeMeta(sheet, classes) {
+  sheet.clearContents();
+  sheet.getRange(1, 1, 1, 3).setValues([['id', 'name', 'membersJson']]);
+  if (classes.length) {
+    var rows = classes.map(function(item) {
+      return [item.id, item.name, JSON.stringify(uniqueNames(item.members))];
+    });
+    sheet.getRange(2, 1, rows.length, 3).setValues(rows);
+  }
+  sheet.setFrozenRows(1);
+}
+
+function readClasses(ss) {
+  var sheet = ss.getSheetByName(META_SHEET_NAME);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  var values = sheet.getRange(2, 1, sheet.getLastRow() - 1, 3).getValues();
+  return values.map(function(row) {
+    return {
+      id: String(row[0] || '').trim(),
+      name: String(row[1] || '').trim(),
+      members: parseMembers(row[2])
+    };
+  }).filter(function(item) { return item.id && item.name; });
+}
+
+function upsertClass(ss, classRecord) {
+  var classes = readClasses(ss).filter(function(item) { return item.id !== classRecord.id; });
+  classes.push(classRecord);
+  writeMeta(ss.getSheetByName(META_SHEET_NAME) || ss.insertSheet(META_SHEET_NAME), classes);
+}
+
+function findClass(classes, classId) {
+  for (var i = 0; i < classes.length; i++) {
+    if (classes[i].id === classId) return classes[i];
+  }
+  return null;
+}
+
+function parseMembers(value) {
+  try {
+    var parsed = JSON.parse(String(value || '[]'));
+    return uniqueNames(Array.isArray(parsed) ? parsed : []);
+  } catch (err) {
+    return [];
+  }
+}
+
+function uniqueNames(list) {
+  var seen = {};
+  var out = [];
+  (list || []).forEach(function(name) {
+    var value = String(name || '').trim();
+    if (!value) return;
+    var key = value.toLowerCase();
+    if (seen[key]) return;
+    seen[key] = true;
+    out.push(value);
+  });
+  return out;
+}
+
+function renameAttendanceSheet(ss, oldName, newName) {
+  var oldSheet = ss.getSheetByName(sanitizeSheetName(oldName));
+  if (!oldSheet) {
+    getOrCreateClassSheet(ss, newName);
+    return;
+  }
+  var newSheetName = sanitizeSheetName(newName);
+  if (oldSheet.getName() !== newSheetName) oldSheet.setName(newSheetName);
+}
+
+function getOrCreateClassSheet(ss, className) {
+  var name = sanitizeSheetName(className);
+  var sheet = ss.getSheetByName(name);
+  if (!sheet) sheet = ss.insertSheet(name);
+  ensureAttendanceHeader(sheet);
+  return sheet;
+}
+
+function ensureAttendanceHeader(sheet) {
+  if (sheet.getLastRow() === 0) {
+    sheet.getRange(1, 1).setValue('Date');
+    sheet.setFrozenRows(1);
+  }
+}
+
+function ensureMemberHeaders(sheet, members) {
+  var lastCol = Math.max(sheet.getLastColumn(), 1);
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  if (!headers[0]) headers[0] = 'Date';
+  var map = {};
+  headers.forEach(function(h, i) {
+    var name = String(h || '').trim().toLowerCase();
+    if (name) map[name] = i;
+  });
+  members.forEach(function(name) {
+    var key = String(name || '').trim().toLowerCase();
+    if (!key || map[key] !== undefined) return;
+    headers.push(name);
+    map[key] = headers.length - 1;
+  });
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.setFrozenRows(1);
   return headers;
 }
 
-function ensureHeaderRow(sheet, headers) {
-  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-  sheet.setFrozenRows(1);
-  sheet.getRange(1, 1, 1, headers.length)
-    .setFontWeight('bold')
-    .setHorizontalAlignment('center')
-    .setBackground('#e9f3f4');
-}
-
-function buildRow(headers, dateKey, members) {
-  var row = new Array(headers.length).fill('');
-  row[0] = dateKey;
-
-  var map = {};
-  headers.forEach(function(h, i) {
-    if (h) map[String(h).trim().toLowerCase()] = i;
-  });
-
-  members.forEach(function(member) {
-    var name = String(member.name || '').trim();
-    var idx = map[name.toLowerCase()];
-    if (idx !== undefined) row[idx] = normalizeStatus(member.status);
-  });
-
-  return row;
-}
-
 function findRowByDate(sheet, dateKey) {
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 2) return null;
-
-  var dates = sheet.getRange(2, 1, lastRow - 1, 1).getValues().flat();
+  if (sheet.getLastRow() < 2) return null;
+  var dates = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat();
   for (var i = 0; i < dates.length; i++) {
     if (String(dates[i]).trim() === dateKey) return i + 2;
   }
   return null;
 }
 
-function sortDataRowsByDate(sheet, cols) {
+function sortDataRowsByDate(sheet) {
   if (sheet.getLastRow() < 3) return;
-  sheet.getRange(2, 1, sheet.getLastRow() - 1, cols).sort({ column: 1, ascending: true });
+  sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).sort({ column: 1, ascending: true });
 }
 
-function formatTable(sheet, cols) {
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 1 || cols < 1) return;
-
-  var range = sheet.getRange(1, 1, lastRow, cols);
-  range.setBorder(true, true, true, true, true, true, '#d0d7d8', SpreadsheetApp.BorderStyle.SOLID);
-  range.setVerticalAlignment('middle');
-
-  sheet.setColumnWidth(1, 90);
-  for (var c = 2; c <= cols; c++) sheet.setColumnWidth(c, 140);
-
-  if (lastRow > 1) {
-    sheet.getRange(2, 1, lastRow - 1, cols).setWrap(true);
-  }
-}
-
-function applyAttendanceFormatting(sheet, cols) {
-  if (sheet.getLastRow() < 2 || cols < 2) return;
-
-  var range = sheet.getRange(2, 2, sheet.getLastRow() - 1, cols - 1);
+function applyAttendanceFormatting(sheet) {
+  if (sheet.getLastRow() < 2 || sheet.getLastColumn() < 2) return;
+  var range = sheet.getRange(2, 2, sheet.getLastRow() - 1, sheet.getLastColumn() - 1);
   var rules = [
-    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('Attended').setBackground('#E8F5E9').setRanges([range]).build(),
-    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('Late').setBackground('#FFF8E1').setRanges([range]).build(),
-    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('Not attended').setBackground('#FFEBEE').setRanges([range]).build()
+    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('Attended').setBackground('#e0ead9').setRanges([range]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('Late').setBackground('#f2e8bf').setRanges([range]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('Not attended').setBackground('#f2d9dd').setRanges([range]).build()
   ];
   sheet.setConditionalFormatRules(rules);
 }
 
 function normalizeStatus(status) {
-  var map = {
-    attended: 'Attended',
-    late: 'Late',
-    absent: 'Not attended',
-    pending: 'Not attended'
-  };
-  return map[String(status || '').toLowerCase()] || 'Not attended';
+  var value = String(status || '').toLowerCase();
+  return STATUS_MAP[value] || 'Not attended';
+}
+
+function sanitizeSheetName(name) {
+  return String(name || 'Class').replace(/[\\/\?\*\[\]]/g, '-').substring(0, 99) || 'Class';
 }
 
 function jsonResponse(payload) {
-  return ContentService
-    .createTextOutput(JSON.stringify(payload))
-    .setMimeType(ContentService.MimeType.JSON);
+  return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(ContentService.MimeType.JSON);
 }

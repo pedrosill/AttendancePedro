@@ -183,27 +183,31 @@
     .secondary-btn { background: var(--color-surface-2); border-color: rgba(40,37,29,.1); }
     .ghost-btn, .small-action { background: transparent; border-color: rgba(40,37,29,.1); color: var(--color-text-muted); }
     .small-action { min-height: 44px; }
-    .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); }
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(88px, 1fr)); gap: var(--space-3); }
     .summary-card, .member-card, .inline-note {
       background: var(--color-surface-2);
       border: 1px solid rgba(40,37,29,.08);
       border-radius: var(--radius-lg);
       padding: var(--space-4);
     }
+    .summary-card { min-width: 0; }
     .summary-card strong {
       display: block;
       font-size: var(--text-lg);
       line-height: 1;
       margin-bottom: 0.25rem;
       font-variant-numeric: tabular-nums;
+      overflow-wrap: anywhere;
     }
     .summary-card span {
       font-size: var(--text-xs);
       color: var(--color-text-muted);
       text-transform: uppercase;
       letter-spacing: 0.06em;
+      display: block;
+      overflow-wrap: anywhere;
     }
-    .action-grid { display: grid; gap: var(--space-3); }
+    .action-grid { display: grid; grid-template-columns: 1fr; gap: var(--space-3); }
     .card-action {
       text-align: left;
       min-height: 112px;
@@ -286,13 +290,28 @@
       font-weight: 700;
       width: fit-content;
     }
-    .footer-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+    .footer-actions { display: grid; grid-template-columns: 1fr; gap: var(--space-3); }
     .stack { display: flex; flex-direction: column; gap: var(--space-3); }
     .toolbar { display: flex; gap: var(--space-3); flex-wrap: wrap; }
     .muted { color: var(--color-text-muted); }
     .tiny { font-size: var(--text-xs); }
     .row-between { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-    @media (min-width: 640px) { .action-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (min-width: 640px) {
+      .action-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .footer-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 639px) {
+      .screen { padding: var(--space-4); gap: var(--space-4); }
+      .screen-header h1,
+      .screen-header h2 { font-size: clamp(1.35rem, 6vw, 1.8rem); }
+      .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .summary-grid .summary-card:last-child { grid-column: 1 / -1; }
+      .toolbar, .footer-actions { width: 100%; }
+      .toolbar > *, .footer-actions > * { width: 100%; }
+      .card-action { min-height: 96px; }
+      .status-row { grid-template-columns: 1fr; }
+      .status-btn { min-height: 44px; }
+    }
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
   </style>
 </head>
@@ -346,25 +365,19 @@
         <button class="card-action subtle" type="button" id="openEditBtn">
           <div class="title-row">
             <h3>Edit members</h3>
-            <span class="pill">Optional</span>
           </div>
-          <p>Only use this when you need to add or remove gymnasts.</p>
         </button>
 
         <button class="card-action" type="button" id="openAttendanceBtn">
           <div class="title-row">
             <h3>Attendance</h3>
-            <span class="pill">Main action</span>
           </div>
-          <p>Mark attended, late or not attended for each member.</p>
         </button>
 
         <button class="card-action" type="button" id="backToClassesBtn">
           <div class="title-row">
             <h3>Go back</h3>
-            <span class="pill">Classes</span>
           </div>
-          <p>Return to the class selector and choose another class.</p>
         </button>
       </div>
     </section>
@@ -392,7 +405,6 @@
 
     <section class="screen" id="screen-edit" aria-labelledby="edit-title">
       <div class="screen-header">
-        <p class="eyebrow">Optional</p>
         <h2 id="edit-title">Edit class members</h2>
         <p id="editClassLabel">Class: —</p>
       </div>
@@ -400,7 +412,7 @@
       <div class="stack">
         <div class="field">
           <label for="memberNameInput">Add member</label>
-          <input id="memberNameInput" class="text-input" type="text" placeholder="Example: Mariana Silva" />
+          <input id="memberNameInput" class="text-input" type="text" />
         </div>
         <div class="toolbar">
           <button class="primary-btn" type="button" id="addMemberBtn">Add member</button>
@@ -423,31 +435,26 @@
       <div class="screen-header">
         <p class="eyebrow">Manage</p>
         <h2 id="classes-title">Edit classes</h2>
-        <p>Add, rename or remove class groups.</p>
       </div>
 
-      <div class="field">
-        <label for="classNameInput">Add class</label>
-        <input id="classNameInput" class="text-input" type="text" placeholder="Example: Saturday Beginners" />
-      </div>
-      <div class="field">
-        <label for="classColorInput">Class color</label>
-        <div class="color-row">
-          <span class="class-color-preview" id="classColorPreview" aria-hidden="true"></span>
-          <select id="classColorInput"></select>
-        </div>
-      </div>
       <div class="toolbar">
-        <button class="primary-btn" type="button" id="addClassBtn">Add class</button>
+        <button class="primary-btn" type="button" id="toggleAddClassBtn">Add class</button>
+      </div>
+      <div id="addClassPanel" class="stack" hidden>
+        <div class="field">
+          <label for="classNameInput">Class name</label>
+          <input id="classNameInput" class="text-input" type="text" />
+        </div>
+        <div class="toolbar">
+          <button class="primary-btn" type="button" id="addClassBtn">Save class</button>
+          <button class="ghost-btn" type="button" id="cancelAddClassBtn">Cancel</button>
+        </div>
       </div>
       <div id="classListEditor" class="member-list" aria-live="polite"></div>
       <div class="stack">
         <div class="field">
           <label for="webhookInput">Google Apps Script webhook URL</label>
           <input id="webhookInput" class="text-input" type="url" placeholder="https://script.google.com/macros/s/.../exec" />
-        </div>
-        <div class="inline-note">
-          <p class="tiny muted" style="margin:0;">Paste the deployed Apps Script web app URL here, not the Google Sheet sharing link.</p>
         </div>
       </div>
       <div class="footer-actions">
@@ -458,14 +465,8 @@
   </main>
 
   <script>
-    const STORAGE_KEY = 'gym-attendance-mobile-v2';
-    const CLASS_COLOR_OPTIONS = [
-      { value: 'teal', label: 'Teal', color: '#01696f' },
-      { value: 'sage', label: 'Sage', color: '#437a22' },
-      { value: 'gold', label: 'Gold', color: '#d19900' },
-      { value: 'rose', label: 'Rose', color: '#a13544' },
-      { value: 'slate', label: 'Slate', color: '#5f6770' }
-    ];
+    const STORAGE_KEY = 'gym-attendance-prefs-v3';
+    const DEFAULT_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbyzz24t-fYVbQFvRflPRr6za6mv0tah8pt9h-WKLaVmXU7XzGwYgqzwdLucvJFc7UlV4g/exec';
     const defaultState = {
       selectedClassId: 'class-1',
       webhookUrl: '',
@@ -478,7 +479,15 @@
       attendanceByDate: {}
     };
 
-    let state = loadState();
+    let state = {
+      selectedClassId: '',
+      webhookUrl: '',
+      selectedDate: new Date().toISOString().slice(0, 10),
+      theme: 'light',
+      classes: [],
+      attendanceByDate: {},
+      savingAttendance: false
+    };
     const els = {
       classSelect: document.getElementById('classSelect'),
       membersCount: document.getElementById('membersCount'),
@@ -495,8 +504,7 @@
       classListEditor: document.getElementById('classListEditor'),
       memberNameInput: document.getElementById('memberNameInput'),
       classNameInput: document.getElementById('classNameInput'),
-      classColorInput: document.getElementById('classColorInput'),
-      classColorPreview: document.getElementById('classColorPreview'),
+      addClassPanel: document.getElementById('addClassPanel'),
       webhookInput: document.getElementById('webhookInput'),
       attendanceDateInput: document.getElementById('attendanceDateInput'),
       screens: {
@@ -511,42 +519,31 @@
     function loadState() {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return structuredClone(defaultState);
+        if (!raw) return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, selectedDate: new Date().toISOString().slice(0, 10), theme: 'light' };
         const parsed = JSON.parse(raw);
-        return {
-          ...structuredClone(defaultState),
-          ...parsed,
-          classes: normalizeClasses(Array.isArray(parsed.classes) && parsed.classes.length ? parsed.classes : structuredClone(defaultState.classes)),
-          attendanceByDate: parsed.attendanceByDate || {}
-        };
+        return { selectedClassId: parsed.selectedClassId || '', webhookUrl: parsed.webhookUrl || DEFAULT_BACKEND_URL, selectedDate: parsed.selectedDate || new Date().toISOString().slice(0, 10), theme: parsed.theme || 'light' };
       } catch {
-        return normalizeState(structuredClone(defaultState));
+        return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, selectedDate: new Date().toISOString().slice(0, 10), theme: 'light' };
       }
     }
 
-    function normalizeState(nextState) {
-      return {
-        ...nextState,
-        classes: normalizeClasses(nextState.classes)
-      };
-    }
-
-    function normalizeClasses(classes) {
-      return classes.map((item, index) => ({
-        ...item,
-        color: CLASS_COLOR_OPTIONS.some(option => option.value === item.color) ? item.color : CLASS_COLOR_OPTIONS[index % CLASS_COLOR_OPTIONS.length].value,
-        members: Array.isArray(item.members) ? item.members : []
+    function persistState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        selectedClassId: state.selectedClassId,
+        webhookUrl: state.webhookUrl,
+        selectedDate: state.selectedDate,
+        theme: state.theme
       }));
     }
-
-    function persistState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
     function todayKey() { return new Date().toISOString().slice(0, 10); }
     function selectedDateKey() { return state.selectedDate || todayKey(); }
     function displayDate(value) { return new Intl.DateTimeFormat(undefined, { day: '2-digit', month: '2-digit' }).format(new Date(value + 'T12:00:00')); }
-    function currentClass() { return state.classes.find(item => item.id === state.selectedClassId) || state.classes[0]; }
+    function currentClass() { return state.classes.find(item => item.id === state.selectedClassId) || state.classes[0] || null; }
 
     function currentAttendanceMap() {
-      const classId = currentClass().id;
+      const cls = currentClass();
+      if (!cls) return {};
+      const classId = cls.id;
       const key = selectedDateKey();
       if (!state.attendanceByDate[key]) state.attendanceByDate[key] = {};
       if (!state.attendanceByDate[key][classId]) state.attendanceByDate[key][classId] = {};
@@ -555,9 +552,47 @@
 
     function ensureRosterStatuses() {
       const cls = currentClass();
+      if (!cls) return;
       const map = currentAttendanceMap();
       cls.members.forEach(name => { if (!map[name]) map[name] = 'pending'; });
       Object.keys(map).forEach(name => { if (!cls.members.includes(name)) delete map[name]; });
+    }
+
+    function colorFromString(value) {
+      const palette = ['#01696f', '#437a22', '#d19900', '#a13544', '#5f6770', '#5c4d9b'];
+      const text = String(value || '');
+      let hash = 0;
+      for (let i = 0; i < text.length; i += 1) {
+        hash = ((hash << 5) - hash) + text.charCodeAt(i);
+        hash |= 0;
+      }
+      return palette[Math.abs(hash) % palette.length];
+    }
+
+    function apiUrl(action, query = {}) {
+      const base = state.webhookUrl || els.webhookInput.value.trim();
+      const url = new URL(base);
+      url.searchParams.set('action', action);
+      Object.entries(query).forEach(([key, value]) => url.searchParams.set(key, value));
+      return url.toString();
+    }
+
+    async function apiGet(action, query = {}) {
+      const res = await fetch(apiUrl(action, query), { method: 'GET' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    }
+
+    async function apiPost(payload) {
+      const url = state.webhookUrl || els.webhookInput.value.trim();
+      if (!url) throw new Error('Backend URL is missing');
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
     }
 
     function renderClassOptions() {
@@ -573,9 +608,20 @@
 
     function renderTopSummary() {
       const cls = currentClass();
+      if (!cls) {
+        els.membersCount.textContent = '0';
+        els.pendingCount.textContent = '0';
+        els.recordDate.textContent = displayDate(selectedDateKey());
+        els.attendanceDateInput.value = selectedDateKey();
+        els.selectedClassLabel.textContent = 'You are working with: —';
+        els.attendanceClassLabel.textContent = 'Class: —';
+        els.editClassLabel.textContent = 'Class: —';
+        els.webhookInput.value = state.webhookUrl || '';
+        return;
+      }
       ensureRosterStatuses();
       const map = currentAttendanceMap();
-      applyClassAccent(cls.color);
+      applyClassAccent(colorFromString(cls.name));
       const pending = cls.members.filter(name => map[name] === 'pending').length;
       els.membersCount.textContent = cls.members.length;
       els.pendingCount.textContent = pending;
@@ -585,10 +631,6 @@
       els.attendanceClassLabel.textContent = `Class: ${cls.name}`;
       els.editClassLabel.textContent = `Class: ${cls.name}`;
       els.webhookInput.value = state.webhookUrl || '';
-      if (els.classColorInput) {
-        els.classColorInput.value = cls.color || CLASS_COLOR_OPTIONS[0].value;
-        updateClassColorPreview();
-      }
     }
 
     function renderAttendance() {
@@ -665,15 +707,6 @@
               <button class="small-action" type="button" data-remove-class="${item.id}" ${state.classes.length === 1 ? 'disabled' : ''}>Remove</button>
             </div>
             <div class="field">
-              <label for="color-${item.id}">Class color</label>
-              <div class="color-row">
-                <span class="class-color-preview" style="background:${classColorValue(item.color)}" aria-hidden="true"></span>
-                <select id="color-${item.id}" data-color-class="${item.id}">
-                  ${CLASS_COLOR_OPTIONS.map(option => `<option value="${option.value}" ${option.value === item.color ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}
-                </select>
-              </div>
-            </div>
-            <div class="field">
               <label for="rename-${item.id}">Rename class</label>
               <input id="rename-${item.id}" class="text-input" type="text" value="${escapeAttr(item.name)}" data-rename-class="${item.id}" />
             </div>
@@ -692,26 +725,12 @@
 
     function statusLabel(status) { return ({ pending: 'Pending', attended: 'Attended', late: 'Late', absent: 'Not attended' })[status] || 'Pending'; }
     function statusClass(status) { return ({ pending: 'pending', attended: 'attended', late: 'late', absent: 'absent' })[status] || 'pending'; }
-    function setMemberStatus(name, status) { currentAttendanceMap()[name] = status; persistState(); renderAttendance(); }
-
-    function classColorValue(colorKey) {
-      return (CLASS_COLOR_OPTIONS.find(option => option.value === colorKey) || CLASS_COLOR_OPTIONS[0]).color;
-    }
-
-    function classColorPair(colorKey) {
-      const color = classColorValue(colorKey);
-      return {
-        color,
-        soft: hexToRgba(color, 0.12),
-        hover: hexToRgba(color, 0.9)
-      };
-    }
+    function setMemberStatus(name, status) { currentAttendanceMap()[name] = status; renderAttendance(); }
 
     function applyClassAccent(colorKey) {
-      const pair = classColorPair(colorKey);
-      document.documentElement.style.setProperty('--class-accent', pair.color);
-      document.documentElement.style.setProperty('--class-accent-soft', pair.soft);
-      document.documentElement.style.setProperty('--class-accent-hover', pair.hover);
+      document.documentElement.style.setProperty('--class-accent', colorKey);
+      document.documentElement.style.setProperty('--class-accent-soft', hexToRgba(colorKey, 0.12));
+      document.documentElement.style.setProperty('--class-accent-hover', hexToRgba(colorKey, 0.9));
       const active = document.querySelector('.screen.active');
       if (active) active.classList.toggle('selected-class', active.id !== 'screen-class');
     }
@@ -720,48 +739,70 @@
       const value = els.memberNameInput.value.trim();
       if (!value) return;
       const cls = currentClass();
+      if (!cls) return alert('Load a class first.');
       if (cls.members.some(name => name.toLowerCase() === value.toLowerCase())) return alert('This member is already in the class.');
-      cls.members.push(value);
-      currentAttendanceMap()[value] = 'pending';
+      saveClassState([{ id: cls.id, name: cls.name, members: cls.members.concat(value) }].concat(state.classes.filter(item => item.id !== cls.id)), cls.id);
       els.memberNameInput.value = '';
-      persistState(); renderEditList(); renderTopSummary();
     }
 
     function removeMember(name) {
       const cls = currentClass();
-      cls.members = cls.members.filter(member => member !== name);
-      delete currentAttendanceMap()[name];
-      persistState(); renderEditList(); renderTopSummary();
+      if (!cls) return;
+      saveClassState([{ id: cls.id, name: cls.name, members: cls.members.filter(member => member !== name) }].concat(state.classes.filter(item => item.id !== cls.id)), cls.id);
     }
 
     function addClass() {
       const value = els.classNameInput.value.trim();
       if (!value) return;
       const id = `class-${crypto.randomUUID ? crypto.randomUUID() : Date.now()}`;
-      state.classes.push({ id, name: value, color: els.classColorInput.value || CLASS_COLOR_OPTIONS[0].value, members: [] });
-      state.selectedClassId = id;
       els.classNameInput.value = '';
-      persistState(); renderClassOptions(); renderClassEditor(); renderTopSummary();
+      saveClassState(state.classes.concat({ id, name: value, members: [] }), id);
+      els.addClassPanel.hidden = true;
     }
 
     function removeClass(id) {
       if (state.classes.length === 1) return;
-      state.classes = state.classes.filter(item => item.id !== id);
-      if (!state.classes.some(item => item.id === state.selectedClassId)) state.selectedClassId = state.classes[0].id;
-      persistState(); renderClassOptions(); renderClassEditor(); renderTopSummary();
+      const nextClasses = state.classes.filter(item => item.id !== id);
+      saveClassState(nextClasses, nextClasses[0]?.id || '');
     }
 
     function saveClassEdits() {
-      document.querySelectorAll('[data-rename-class]').forEach(input => {
-        const cls = state.classes.find(item => item.id === input.dataset.renameClass);
-        if (cls && input.value.trim()) cls.name = input.value.trim();
-      });
-      document.querySelectorAll('[data-color-class]').forEach(select => {
-        const cls = state.classes.find(item => item.id === select.dataset.colorClass);
-        if (cls && CLASS_COLOR_OPTIONS.some(option => option.value === select.value)) cls.color = select.value;
+      const nextClasses = state.classes.map(item => {
+        const input = document.querySelector(`[data-rename-class="${CSS.escape(item.id)}"]`);
+        return { ...item, name: input && input.value.trim() ? input.value.trim() : item.name };
       });
       state.webhookUrl = els.webhookInput.value.trim();
-      persistState(); renderClassOptions(); switchScreen('class');
+      persistState();
+      saveClassState(nextClasses, state.selectedClassId || nextClasses[0]?.id || '');
+    }
+
+    async function saveClassState(nextClasses, nextSelectedClassId) {
+      const normalized = nextClasses.map(item => ({
+        id: String(item.id || `class-${Date.now()}`),
+        name: String(item.name || 'Class').trim(),
+        members: Array.isArray(item.members) ? item.members.map(name => String(name).trim()).filter(Boolean) : []
+      })).filter(item => item.name);
+      const result = await apiPost({ action: 'saveClasses', classes: normalized });
+      if (!result.ok) throw new Error(result.error || 'Could not save class data');
+      state.classes = normalized;
+      state.selectedClassId = nextSelectedClassId || normalized[0]?.id || '';
+      persistState();
+      renderClassOptions();
+      renderClassEditor();
+      renderEditList();
+      renderTopSummary();
+      if (state.selectedClassId) await refreshAttendance(state.selectedClassId, selectedDateKey()).catch(() => {});
+      switchScreen('class');
+    }
+
+    function showAddClassPanel() {
+      els.addClassPanel.hidden = false;
+      els.classNameInput.focus();
+    }
+
+    function hideAddClassPanel() {
+      els.addClassPanel.hidden = true;
+      els.classNameInput.value = '';
     }
 
     let savingAttendance = false;
@@ -772,53 +813,74 @@
       if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
 
       const cls = currentClass();
+      if (!cls) {
+        savingAttendance = false;
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save attendance'; }
+        return alert('Load a class first.');
+      }
       ensureRosterStatuses();
       const payload = {
+        action: 'saveAttendance',
         savedAt: new Date().toISOString(),
         date: selectedDateKey(),
-        displayDate: displayDate(selectedDateKey()),
         classId: cls.id,
         className: cls.name,
         members: cls.members.map(name => ({ name, status: currentAttendanceMap()[name] || 'pending' }))
       };
-      persistState();
-
-      if (state.webhookUrl) {
-        try {
-          const res = await fetch(state.webhookUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify(payload)
-          });
-          if (!res.ok) throw new Error('Webhook failed');
-          alert('Attendance saved and sent to Google Sheets.');
-        } catch {
-          alert('Attendance saved locally, but the Google Sheets sync failed. Use the Apps Script /exec URL, not a shared sheet link.');
-        }
-      } else {
-        alert('Attendance saved locally on this device. Add an Apps Script webhook in Edit classes to sync with Google Sheets.');
+      try {
+        const res = await apiPost(payload);
+        if (!res.ok) throw new Error(res.error || 'Save failed');
+        await refreshAttendance(cls.id, selectedDateKey());
+        switchScreen('class');
+      } finally {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save attendance'; }
+        savingAttendance = false;
       }
-
-      switchScreen('class');
-      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save attendance'; }
-      savingAttendance = false;
     }
 
     function saveSettings() { persistState(); switchScreen('actions'); }
     function loadDemoNames() {
       const cls = currentClass();
-      ['Laura Pinto', 'Eva Martins', 'Clara Nunes'].forEach(name => { if (!cls.members.includes(name)) cls.members.push(name); });
-      ensureRosterStatuses(); persistState(); renderEditList(); renderTopSummary();
+      if (!cls) return;
+      const nextMembers = Array.from(new Set(cls.members.concat(['Laura Pinto', 'Eva Martins', 'Clara Nunes'])));
+      saveClassState([{ id: cls.id, name: cls.name, members: nextMembers }].concat(state.classes.filter(item => item.id !== cls.id)), cls.id);
     }
 
-    function populateClassColorOptions() {
-      els.classColorInput.innerHTML = CLASS_COLOR_OPTIONS.map(option => `<option value="${option.value}">${escapeHtml(option.label)}</option>`).join('');
-      els.classColorInput.value = CLASS_COLOR_OPTIONS[0].value;
-      updateClassColorPreview();
+    async function loadSharedState() {
+      if (!state.webhookUrl) return;
+      try {
+        const res = await apiGet('state');
+        state.classes = Array.isArray(res.classes) ? res.classes.map(normalizeClass) : [];
+        if (!state.selectedClassId || !state.classes.some(item => item.id === state.selectedClassId)) {
+          state.selectedClassId = state.classes[0]?.id || '';
+        }
+        if (state.selectedClassId) {
+          await refreshAttendance(state.selectedClassId, selectedDateKey());
+        }
+      } catch {
+        // Keep local UI usable if the backend is temporarily unavailable.
+      }
     }
 
-    function updateClassColorPreview() {
-      els.classColorPreview.style.background = classColorValue(els.classColorInput.value);
+    async function refreshAttendance(classId, dateKey) {
+      if (!state.webhookUrl || !classId) return;
+      const res = await apiGet('attendance', { classId, date: dateKey });
+      state.activeAttendance = {};
+      if (res && Array.isArray(res.members)) {
+        res.members.forEach(member => {
+          state.activeAttendance[member.name] = member.status || 'pending';
+        });
+      }
+      renderTopSummary();
+      renderAttendance();
+    }
+
+    function normalizeClass(item) {
+      return {
+        id: String(item.id || `class-${Date.now()}`),
+        name: String(item.name || 'Class'),
+        members: Array.isArray(item.members) ? item.members.map(name => String(name).trim()).filter(Boolean) : []
+      };
     }
 
     function hexToRgba(hex, alpha) {
@@ -841,6 +903,8 @@
       document.getElementById('manageClassesBtn').addEventListener('click', () => switchScreen('classes'));
       document.getElementById('classesBackBtn').addEventListener('click', () => switchScreen('class'));
       document.getElementById('saveClassesBtn').addEventListener('click', saveClassEdits);
+      document.getElementById('toggleAddClassBtn').addEventListener('click', showAddClassPanel);
+      document.getElementById('cancelAddClassBtn').addEventListener('click', hideAddClassPanel);
       document.getElementById('addClassBtn').addEventListener('click', addClass);
       document.getElementById('backToClassesBtn').addEventListener('click', () => switchScreen('class'));
       document.getElementById('openAttendanceBtn').addEventListener('click', () => switchScreen('attendance'));
@@ -851,18 +915,19 @@
       document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
       document.getElementById('saveAttendanceBtn').addEventListener('click', saveAttendanceSession);
       document.getElementById('seedDemoBtn').addEventListener('click', loadDemoNames);
-      els.classColorInput.addEventListener('change', updateClassColorPreview);
 
       els.classSelect.addEventListener('change', event => {
         state.selectedClassId = event.target.value;
         persistState();
         renderTopSummary();
+        refreshAttendance(state.selectedClassId, selectedDateKey()).catch(() => {});
       });
 
       els.attendanceDateInput.addEventListener('change', event => {
         state.selectedDate = event.target.value || todayKey();
         persistState();
         renderTopSummary();
+        if (state.selectedClassId) refreshAttendance(state.selectedClassId, selectedDateKey()).catch(() => {});
       });
 
       els.memberNameInput.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); addMember(); } });
@@ -885,16 +950,23 @@
         if (removeBtn) removeClass(removeBtn.dataset.removeClass);
       });
 
+      els.webhookInput.addEventListener('change', () => {
+        state.webhookUrl = els.webhookInput.value.trim();
+        persistState();
+      });
+
       const toggle = document.querySelector('[data-theme-toggle]');
-      let theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      const theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      state.theme = theme;
       document.documentElement.classList.toggle('theme-dark', theme === 'dark');
       document.documentElement.classList.toggle('theme-light', theme !== 'dark');
       updateThemeIcon(toggle, theme);
       toggle.addEventListener('click', () => {
-        theme = theme === 'dark' ? 'light' : 'dark';
-        document.documentElement.classList.toggle('theme-dark', theme === 'dark');
-        document.documentElement.classList.toggle('theme-light', theme !== 'dark');
-        updateThemeIcon(toggle, theme);
+        state.theme = state.theme === 'dark' ? 'light' : 'dark';
+        document.documentElement.classList.toggle('theme-dark', state.theme === 'dark');
+        document.documentElement.classList.toggle('theme-light', state.theme !== 'dark');
+        updateThemeIcon(toggle, state.theme);
+        persistState();
       });
     }
 
@@ -906,14 +978,24 @@
     }
 
     function init() {
-      state = normalizeState(state);
-      persistState();
-      populateClassColorOptions();
+      const prefs = loadState();
+      state.selectedClassId = prefs.selectedClassId || '';
+      state.webhookUrl = prefs.webhookUrl || DEFAULT_BACKEND_URL;
+      state.selectedDate = prefs.selectedDate || todayKey();
+      state.theme = prefs.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.documentElement.classList.toggle('theme-dark', state.theme === 'dark');
+      document.documentElement.classList.toggle('theme-light', state.theme !== 'dark');
+      updateThemeIcon(document.querySelector('[data-theme-toggle]'), state.theme);
+      els.webhookInput.value = state.webhookUrl;
       renderClassOptions();
-      ensureRosterStatuses();
       renderTopSummary();
       bindEvents();
+      hideAddClassPanel();
       switchScreen('class');
+      loadSharedState().then(() => {
+        renderClassOptions();
+        renderTopSummary();
+      });
     }
     init();
   </script>
