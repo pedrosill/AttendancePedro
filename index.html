@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en" class="theme-light">
 <head>
   <meta charset="UTF-8" />
@@ -167,6 +167,7 @@
     }
     .screen-header p { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
     .field { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; width: 100%; }
+    #screen-class .field { margin-top: var(--space-3); }
     label { font-weight: 700; font-size: var(--text-sm); }
     .color-row { display: flex; align-items: center; gap: var(--space-2); }
     .class-color-preview {
@@ -179,12 +180,18 @@
     }
     select, .text-input {
       width: 100%;
+      max-width: 100%;
+      min-width: 0;
       min-height: 52px;
       border-radius: var(--radius-lg);
       border: 1px solid rgba(40,37,29,.12);
       background: var(--color-surface-2);
       padding: 0 var(--space-4);
       box-shadow: inset 0 1px 0 rgba(255,255,255,.45);
+    }
+    input[type="date"] {
+      -webkit-appearance: none;
+      appearance: none;
     }
     .primary-btn, .secondary-btn, .ghost-btn, .status-btn, .small-action {
       min-height: 52px;
@@ -465,6 +472,12 @@
       .screen { padding: var(--space-4); gap: var(--space-4); }
       .screen-header h1,
       .screen-header h2 { font-size: clamp(1.35rem, 6vw, 1.8rem); }
+      input[type="date"] {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        font-size: 16px;
+      }
       .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .summary-grid .summary-card:last-child { grid-column: 1 / -1; }
       .toolbar, .footer-actions { width: 100%; min-width: 0; }
@@ -491,6 +504,9 @@
         <button class="round-btn" type="button" id="editClassesTopBtn" aria-label="Edit classes">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16v4z"></path><path d="M13 7l4 4"></path></svg>
         </button>
+        <button class="round-btn" type="button" id="openSheetsBtn" aria-label="Open attendance spreadsheet">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4h12l4 4v12H4V4z"></path><path d="M8 4v16"></path><path d="M4 8h16"></path></svg>
+        </button>
         <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch to dark mode">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
         </button>
@@ -501,7 +517,6 @@
       <div class="screen-header">
         <p class="eyebrow">Step 1</p>
         <h1 id="class-title">Choose class</h1>
-        <p>Choose the class to continue.</p>
       </div>
 
       <div class="field">
@@ -672,9 +687,14 @@
       </div>
       <div id="classListEditor" class="member-list" aria-live="polite"></div>
       <div class="stack">
-        <div class="field">
-          <label for="webhookInput">Google Apps Script webhook URL</label>
-          <input id="webhookInput" class="text-input" type="url" placeholder="https://script.google.com/macros/s/.../exec" />
+        <div class="toolbar">
+          <button class="secondary-btn" type="button" id="toggleScriptBtn">Edit script</button>
+        </div>
+        <div id="scriptPanel" class="stack" hidden>
+          <div class="field">
+            <label for="webhookInput">Google Apps Script webhook URL</label>
+            <input id="webhookInput" class="text-input" type="url" placeholder="https://script.google.com/macros/s/.../exec" />
+          </div>
         </div>
       </div>
       <div class="footer-actions">
@@ -685,7 +705,7 @@
 
   <script>
     const STORAGE_KEY = 'gym-attendance-prefs-v3';
-    const DEFAULT_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbxrP3D8PdoLbM4VDba2YHGw2OELhnvUDRRM4Ts8jOUNWo2M4vJs-rBl5oT40oPFaAU4/exec';
+    const DEFAULT_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbxuqG32wE7W4n44qPhQCJQ-2tQhrIeu2kfIDQuzUsMwomWVtZp0zsJIbWu6KMgUPypyjg/exec';
     const defaultState = {
       selectedClassId: 'class-1',
       webhookUrl: '',
@@ -735,6 +755,7 @@
       addMemberPanel: document.getElementById('addMemberPanel'),
       classNameInput: document.getElementById('classNameInput'),
       addClassPanel: document.getElementById('addClassPanel'),
+      scriptPanel: document.getElementById('scriptPanel'),
       webhookInput: document.getElementById('webhookInput'),
       actionAttendanceDateInput: document.getElementById('actionAttendanceDateInput'),
       attendanceDateInput: document.getElementById('attendanceDateInput'),
@@ -1169,6 +1190,12 @@
       els.classNameInput.value = '';
     }
 
+    function toggleScriptPanel() {
+      if (!els.scriptPanel) return;
+      els.scriptPanel.hidden = !els.scriptPanel.hidden;
+      if (!els.scriptPanel.hidden && els.webhookInput) els.webhookInput.focus();
+    }
+
     let savingAttendance = false;
     async function saveAttendanceSession() {
       if (savingAttendance) return;
@@ -1202,6 +1229,21 @@
       }
     }
 
+    let savingSingleAttendance = false;
+    async function saveSingleAttendanceSession() {
+      if (savingSingleAttendance) return;
+      savingSingleAttendance = true;
+      const saveBtn = document.getElementById('saveSingleAttendanceBtn');
+      if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
+
+      try {
+        await saveAttendanceSession();
+      } finally {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save attendance'; }
+        savingSingleAttendance = false;
+      }
+    }
+
     function goToSinglePrevious() {
       if (state.singleAttendanceIndex > 0) {
         state.singleAttendanceIndex -= 1;
@@ -1219,10 +1261,6 @@
         renderSingleAttendance();
         return;
       }
-    }
-
-    async function saveSingleAttendanceSession() {
-      await saveAttendanceSession();
     }
 
     function saveSettings() { persistState(); switchScreen('class'); }
@@ -1284,6 +1322,9 @@
     function escapeAttr(value) { return value.replace(/"/g, '&quot;'); }
 
     function bindEvents() {
+      document.getElementById('openSheetsBtn').addEventListener('click', () => {
+        window.open('https://docs.google.com/spreadsheets/d/1k7tv6lmwYWUhn4D5rMy5oMvIBhYzaOIdsc5V4ivnJ6U/edit?usp=sharing', '_blank', 'noopener,noreferrer');
+      });
       document.getElementById('goToDateBtn').addEventListener('click', () => {
         if (!state.dateStepTouched) {
           state.selectedDate = todayKey();
@@ -1297,6 +1338,7 @@
       document.getElementById('toggleAddClassBtn').addEventListener('click', showAddClassPanel);
       document.getElementById('cancelAddClassBtn').addEventListener('click', hideAddClassPanel);
       document.getElementById('addClassBtn').addEventListener('click', addClass);
+      document.getElementById('toggleScriptBtn').addEventListener('click', toggleScriptPanel);
       document.getElementById('openAttendanceBtn').addEventListener('click', () => switchScreen('attendance'));
       document.getElementById('openAttendanceSingleBtn').addEventListener('click', () => {
         state.singleAttendanceIndex = 0;
@@ -1412,6 +1454,7 @@
       document.documentElement.classList.toggle('theme-light', state.theme !== 'dark');
       updateThemeIcon(document.querySelector('[data-theme-toggle]'), state.theme);
       els.webhookInput.value = state.webhookUrl;
+      if (els.scriptPanel) els.scriptPanel.hidden = true;
       renderClassOptions();
       renderTopSummary();
       bindEvents();

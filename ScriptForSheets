@@ -24,6 +24,7 @@ function doPost(e) {
 
 function getSharedState() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  normalizeAllAttendanceDates(ss);
   var classes = readClasses(ss);
   return { ok: true, classes: classes };
 }
@@ -112,7 +113,8 @@ function saveAttendance(data) {
 
   var sheet = getOrCreateClassSheet(ss, cls.name);
   ensureAttendanceHeader(sheet);
-  ensureDateColumnAsText(sheet);
+  normalizeAttendanceDates(sheet);
+  ensureDateColumnDisplayFormat(sheet);
   var headers = ensureMemberHeaders(sheet, cls.members);
   var rowIndex = findRowByDate(sheet, dateKey);
   if (!rowIndex) {
@@ -120,7 +122,7 @@ function saveAttendance(data) {
   }
 
   var row = new Array(headers.length).fill('');
-  row[0] = formatDisplayDate(dateKey);
+  row[0] = parseDateKey(dateKey);
   var statusByName = {};
   members.forEach(function(member) {
     var name = String(member.name || '').trim();
@@ -134,6 +136,7 @@ function saveAttendance(data) {
   });
 
   sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
+  sheet.getRange(rowIndex, 1).setNumberFormat('dd/MM');
   sortDataRowsByDate(sheet);
   applyAttendanceFormatting(sheet);
   return { ok: true, classId: cls.id, className: cls.name, date: dateKey, row: rowIndex };
@@ -232,10 +235,35 @@ function ensureAttendanceHeader(sheet) {
   }
 }
 
-function ensureDateColumnAsText(sheet) {
-  if (sheet.getMaxColumns() >= 1) {
-    sheet.getRange(1, 1, Math.max(sheet.getLastRow(), 1), 1).setNumberFormat('@');
+function ensureDateColumnDisplayFormat(sheet) {
+  if (sheet.getLastRow() < 2) return;
+  sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).setNumberFormat('dd/MM');
+}
+
+function normalizeAttendanceDates(sheet) {
+  if (sheet.getLastRow() < 2) return;
+  var range = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1);
+  var values = range.getValues();
+  var changed = false;
+  for (var i = 0; i < values.length; i++) {
+    var parsed = parseDateKey(values[i][0]);
+    if (parsed && !(values[i][0] instanceof Date)) {
+      values[i][0] = parsed;
+      changed = true;
+    }
   }
+  if (changed) range.setValues(values);
+  range.setNumberFormat('dd/MM');
+}
+
+function normalizeAllAttendanceDates(ss) {
+  var sheets = ss.getSheets();
+  sheets.forEach(function(sheet) {
+    var name = sheet.getName();
+    if (name === META_SHEET_NAME) return;
+    normalizeAttendanceDates(sheet);
+    ensureDateColumnDisplayFormat(sheet);
+  });
 }
 
 function ensureMemberHeaders(sheet, members) {
@@ -261,8 +289,10 @@ function ensureMemberHeaders(sheet, members) {
 function findRowByDate(sheet, dateKey) {
   if (sheet.getLastRow() < 2) return null;
   var dates = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat();
+  var target = parseDateKey(dateKey);
   for (var i = 0; i < dates.length; i++) {
-    if (normalizeDateKey(dates[i]) === dateKey) return i + 2;
+    var current = parseDateKey(dates[i]);
+    if (target && current && current.getFullYear() === target.getFullYear() && current.getMonth() === target.getMonth() && current.getDate() === target.getDate()) return i + 2;
   }
   return null;
 }
@@ -272,7 +302,9 @@ function sortDataRowsByDate(sheet) {
   var range = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn());
   var values = range.getValues();
   values.sort(function(a, b) {
-    return parseDateKey(a[0]) - parseDateKey(b[0]);
+    var aDate = parseDateKey(a[0]) || new Date(0);
+    var bDate = parseDateKey(b[0]) || new Date(0);
+    return aDate - bDate;
   });
   range.setValues(values);
 }
@@ -321,9 +353,24 @@ function parseDateKey(value) {
     return new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
   }
 
+  var ymdSlash = text.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+  if (ymdSlash) {
+    return new Date(Number(ymdSlash[1]), Number(ymdSlash[2]) - 1, Number(ymdSlash[3]));
+  }
+
   var dmy = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (dmy) {
     return new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+  }
+
+  var mdOrDm = text.match(/^(\d{1,2})\/(\d{1,2})$/);
+  if (mdOrDm) {
+    var first = Number(mdOrDm[1]);
+    var second = Number(mdOrDm[2]);
+    var year = new Date().getFullYear();
+    if (first > 12) return new Date(year, second - 1, first);
+    if (second > 12) return new Date(year, first - 1, second);
+    return new Date(year, first - 1, second);
   }
 
   var date = new Date(text);
