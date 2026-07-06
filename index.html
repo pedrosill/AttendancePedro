@@ -201,29 +201,60 @@
     .secondary-btn { background: var(--color-surface-2); border-color: rgba(40,37,29,.1); }
     .ghost-btn, .small-action { background: transparent; border-color: rgba(40,37,29,.1); color: var(--color-text-muted); }
     .small-action { min-height: 44px; }
-    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(88px, 1fr)); gap: var(--space-3); min-width: 0; width: 100%; }
+    .small-action.removing {
+      background: var(--color-error-highlight);
+      color: var(--color-error);
+      border-color: rgba(161,53,68,.3);
+    }
+    .summary-grid { display: flex; align-items: center; justify-content: flex-start; gap: var(--space-3); min-width: 0; width: 100%; }
     .summary-card, .member-card, .inline-note {
       background: var(--color-surface-2);
       border: 1px solid rgba(40,37,29,.08);
       border-radius: var(--radius-lg);
       padding: var(--space-4);
     }
-    .summary-card { min-width: 0; }
+    .summary-card {
+      min-width: 0;
+      background: transparent;
+      border: 0;
+      padding: 0;
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.45rem;
+    }
     .summary-card strong {
-      display: block;
-      font-size: var(--text-lg);
+      font-size: clamp(1.45rem, 3vw, 1.9rem);
       line-height: 1;
-      margin-bottom: 0.25rem;
       font-variant-numeric: tabular-nums;
-      overflow-wrap: anywhere;
+      color: var(--color-text);
     }
     .summary-card span {
-      font-size: 0.7rem;
+      font-size: var(--text-sm);
       color: var(--color-text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.01em;
+    }
+    .loading-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      width: 100%;
+      padding: var(--space-4);
+      border-radius: var(--radius-lg);
+      border: 1px solid color-mix(in srgb, var(--color-primary) 25%, rgba(40,37,29,.08));
+      background: color-mix(in srgb, var(--color-primary-highlight) 65%, var(--color-surface-2));
+      color: var(--color-text);
+    }
+    .loading-banner strong {
       display: block;
-      overflow-wrap: anywhere;
+      font-size: var(--text-base);
+      line-height: 1.1;
+    }
+    .loading-banner span {
+      display: block;
+      margin-top: 0.15rem;
+      color: var(--color-text-muted);
+      font-size: var(--text-sm);
     }
     .action-grid { display: grid; grid-template-columns: 1fr; gap: var(--space-3); min-width: 0; width: 100%; }
     .card-action {
@@ -296,6 +327,51 @@
     .status-btn[data-status="attended"].active { background: var(--color-success-highlight); color: var(--color-success); border-color: rgba(67,122,34,.24); }
     .status-btn[data-status="late"].active { background: var(--color-warning-highlight); color: #7a5600; border-color: rgba(209,153,0,.3); }
     .status-btn[data-status="absent"].active { background: var(--color-error-highlight); color: var(--color-error); border-color: rgba(161,53,68,.3); }
+    .status-btn.flash-attended { background: var(--color-success-highlight) !important; color: var(--color-success) !important; border-color: rgba(67,122,34,.24) !important; }
+    .status-btn.flash-late { background: var(--color-warning-highlight) !important; color: #7a5600 !important; border-color: rgba(209,153,0,.3) !important; }
+    .status-btn.flash-absent { background: var(--color-error-highlight) !important; color: var(--color-error) !important; border-color: rgba(161,53,68,.3) !important; }
+    .single-attendance-card {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+      width: 100%;
+    }
+    .member-progress {
+      margin: 0;
+      color: var(--color-text-muted);
+      font-size: var(--text-sm);
+      text-align: center;
+    }
+    .member-name-large {
+      margin: 0;
+      font-size: clamp(1.6rem, 5vw, 2.2rem);
+      line-height: 1.02;
+      letter-spacing: -0.03em;
+      text-align: center;
+    }
+    .single-nav {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-3);
+    }
+    .single-nav .primary-btn,
+    .single-nav .secondary-btn {
+      width: 100%;
+      min-width: 0;
+    }
+    .single-nav .primary-btn[hidden],
+    .single-nav .secondary-btn[hidden] {
+      display: block !important;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    .single-save {
+      display: flex;
+      justify-content: center;
+    }
+    .single-save .primary-btn {
+      width: min(100%, 320px);
+    }
     .class-chip {
       display: inline-flex;
       align-items: center;
@@ -309,12 +385,18 @@
       width: fit-content;
     }
     .footer-actions { display: grid; grid-template-columns: 1fr; gap: var(--space-3); min-width: 0; width: 100%; }
-    .footer-actions.centered { justify-items: center; }
+    .footer-actions.centered {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
     .footer-actions.centered > * { width: min(100%, 320px); }
     .stack { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; width: 100%; }
     .toolbar { display: flex; gap: var(--space-3); flex-wrap: wrap; min-width: 0; width: 100%; }
     .toolbar > * { flex: 1 1 0; }
     .toolbar .small-action { flex: 0 0 auto; }
+    .class-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: nowrap; width: auto; }
+    .class-actions .small-action { min-width: 0; padding: 0 0.7rem; min-height: 40px; white-space: nowrap; }
     .muted { color: var(--color-text-muted); }
     .tiny { font-size: var(--text-xs); }
     .row-between { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
@@ -392,6 +474,8 @@
       .status-btn { min-height: 44px; padding: 0.6rem 0.35rem; }
       .topbar { gap: var(--space-2); }
       .round-btn, .theme-toggle { flex: 0 0 auto; }
+      .class-actions { gap: var(--space-1); }
+      .class-actions .small-action { padding: 0 0.6rem; font-size: var(--text-xs); }
     }
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
   </style>
@@ -407,9 +491,6 @@
         <button class="round-btn" type="button" id="editClassesTopBtn" aria-label="Edit classes">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16v4z"></path><path d="M13 7l4 4"></path></svg>
         </button>
-        <button class="round-btn" type="button" id="editMembersTopBtn" aria-label="Edit members" hidden>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16v4z"></path><path d="M13 7l4 4"></path></svg>
-        </button>
         <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch to dark mode">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
         </button>
@@ -420,7 +501,7 @@
       <div class="screen-header">
         <p class="eyebrow">Step 1</p>
         <h1 id="class-title">Choose class</h1>
-        <p>Select the gymnastics class you want to work with.</p>
+        <p>Choose the class to continue.</p>
       </div>
 
       <div class="field">
@@ -429,8 +510,35 @@
         <p class="tiny muted" id="class-help">Pick a class, then continue.</p>
       </div>
 
+      <div class="loading-banner" id="loadingClassesText">
+        <div>
+          <strong>Loading classes</strong>
+          <span>Fetching your classes and members...</span>
+        </div>
+      </div>
+
       <div class="summary-grid" aria-label="Current class quick stats">
-        <div class="summary-card"><strong id="membersCount">0</strong><span>Members</span></div>
+        <div class="summary-card" aria-live="polite">
+          <strong id="membersCount">0</strong>
+          <span>members</span>
+        </div>
+      </div>
+
+      <div class="footer-actions centered">
+        <button class="primary-btn" type="button" id="goToDateBtn">Continue</button>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-date" aria-labelledby="date-title">
+      <div class="screen-header">
+        <p class="eyebrow">Step 2</p>
+        <h2 id="date-title">Choose date</h2>
+        <p id="dateClassLabel">You are working with: â€”</p>
+      </div>
+
+      <div class="field">
+        <label for="actionAttendanceDateInput">Attendance date</label>
+        <input id="actionAttendanceDateInput" class="text-input" type="date" />
       </div>
 
       <div class="footer-actions centered">
@@ -440,20 +548,21 @@
 
     <section class="screen" id="screen-actions" aria-labelledby="actions-title">
       <div class="screen-header">
-        <p class="eyebrow">Step 2</p>
+        <p class="eyebrow">Step 3</p>
         <h2 id="actions-title">Choose action</h2>
-        <p id="selectedClassLabel">You are working with: —</p>
-      </div>
-
-      <div class="field">
-        <label for="actionAttendanceDateInput">Attendance date</label>
-        <input id="actionAttendanceDateInput" class="text-input" type="date" />
+        <p id="actionsClassLabel">You are working with: —</p>
       </div>
 
       <div class="action-grid">
         <button class="card-action" type="button" id="openAttendanceBtn">
           <div class="title-row">
             <h3>Attendance</h3>
+          </div>
+        </button>
+
+        <button class="card-action subtle" type="button" id="openAttendanceSingleBtn">
+          <div class="title-row">
+            <h3>Quick attendance</h3>
           </div>
         </button>
       </div>
@@ -481,6 +590,33 @@
 
       <div class="footer-actions centered">
         <button class="primary-btn" type="button" id="saveAttendanceBtn">Save attendance</button>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-attendance-single" aria-labelledby="attendance-single-title">
+      <div class="screen-header">
+        <p class="eyebrow">Step 3B</p>
+        <h2 id="attendance-single-title">Mark one member</h2>
+        <p id="attendanceSingleClassLabel">Class: â€”</p>
+      </div>
+
+      <div class="inline-note">
+        <p style="margin:0;" class="muted" id="singleAttendanceDateInfo">Attendance date: -</p>
+      </div>
+
+      <div class="single-attendance-card">
+        <p class="member-progress" id="singleMemberProgress">Member 1 of 1</p>
+        <h3 class="member-name-large" id="singleMemberName">-</h3>
+        <div class="status-row">
+          <button class="status-btn" type="button" id="singleAttendedBtn">Attended</button>
+          <button class="status-btn" type="button" id="singleLateBtn">Late</button>
+          <button class="status-btn" type="button" id="singleAbsentBtn">Not attended</button>
+        </div>
+        <div class="single-nav">
+          <button class="secondary-btn" type="button" id="singlePrevBtn">Back</button>
+          <button class="primary-btn" type="button" id="singleNextBtn">Next</button>
+          <button class="primary-btn" type="button" id="saveSingleAttendanceBtn">Save attendance</button>
+        </div>
       </div>
     </section>
 
@@ -566,21 +702,33 @@
       selectedClassId: '',
       webhookUrl: '',
       selectedDate: new Date().toISOString().slice(0, 10),
-      theme: 'light',
+      theme: 'dark',
       classes: [],
       attendanceByDate: {},
+      singleAttendanceIndex: 0,
+      singleLastCompleted: false,
+      removingMemberNames: {},
+      dateStepTouched: false,
       savingAttendance: false
     };
+    let classSaveDebounce = null;
     const els = {
       classSelect: document.getElementById('classSelect'),
       membersCount: document.getElementById('membersCount'),
-      selectedClassLabel: document.getElementById('selectedClassLabel'),
+      loadingClassesText: document.getElementById('loadingClassesText'),
+      selectedClassLabel: document.getElementById('dateClassLabel'),
+      dateClassLabel: document.getElementById('dateClassLabel'),
+      actionsClassLabel: document.getElementById('actionsClassLabel'),
       attendanceClassLabel: document.getElementById('attendanceClassLabel'),
+      attendanceSingleClassLabel: document.getElementById('attendanceSingleClassLabel'),
       editClassLabel: document.getElementById('editClassLabel'),
       attendedCount: document.getElementById('attendedCount'),
       lateCount: document.getElementById('lateCount'),
       absentCount: document.getElementById('absentCount'),
       memberList: document.getElementById('memberList'),
+      singleMemberProgress: document.getElementById('singleMemberProgress'),
+      singleMemberName: document.getElementById('singleMemberName'),
+      singleAttendanceDateInfo: document.getElementById('singleAttendanceDateInfo'),
       editMemberList: document.getElementById('editMemberList'),
       classListEditor: document.getElementById('classListEditor'),
       memberNameInput: document.getElementById('memberNameInput'),
@@ -592,8 +740,10 @@
       attendanceDateInput: document.getElementById('attendanceDateInput'),
       screens: {
         class: document.getElementById('screen-class'),
+        date: document.getElementById('screen-date'),
         actions: document.getElementById('screen-actions'),
         attendance: document.getElementById('screen-attendance'),
+        attendanceSingle: document.getElementById('screen-attendance-single'),
         edit: document.getElementById('screen-edit'),
         classes: document.getElementById('screen-classes')
       }
@@ -602,11 +752,11 @@
     function loadState() {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, selectedDate: new Date().toISOString().slice(0, 10), theme: 'light' };
+        if (!raw) return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, selectedDate: new Date().toISOString().slice(0, 10), theme: 'dark' };
         const parsed = JSON.parse(raw);
-        return { selectedClassId: parsed.selectedClassId || '', webhookUrl: parsed.webhookUrl || DEFAULT_BACKEND_URL, selectedDate: parsed.selectedDate || new Date().toISOString().slice(0, 10), theme: parsed.theme || 'light' };
+        return { selectedClassId: parsed.selectedClassId || '', webhookUrl: parsed.webhookUrl || DEFAULT_BACKEND_URL, selectedDate: parsed.selectedDate || new Date().toISOString().slice(0, 10), theme: parsed.theme || 'dark' };
       } catch {
-        return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, selectedDate: new Date().toISOString().slice(0, 10), theme: 'light' };
+        return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, selectedDate: new Date().toISOString().slice(0, 10), theme: 'dark' };
       }
     }
 
@@ -631,6 +781,40 @@
       if (!state.attendanceByDate[key]) state.attendanceByDate[key] = {};
       if (!state.attendanceByDate[key][classId]) state.attendanceByDate[key][classId] = {};
       return state.attendanceByDate[key][classId];
+    }
+
+    function currentSingleAttendanceMap() {
+      return currentAttendanceMap();
+    }
+
+    function currentSingleMemberIndex() {
+      const cls = currentClass();
+      if (!cls || !cls.members.length) return 0;
+      return Math.min(Math.max(state.singleAttendanceIndex || 0, 0), cls.members.length - 1);
+    }
+
+    function currentSingleMemberName() {
+      const cls = currentClass();
+      if (!cls || !cls.members.length) return '';
+      return cls.members[currentSingleMemberIndex()] || '';
+    }
+
+    function setSingleMemberStatus(status) {
+      const name = currentSingleMemberName();
+      if (!name) return;
+      currentSingleAttendanceMap()[name] = status;
+      const cls = currentClass();
+      state.singleLastCompleted = !!cls && currentSingleMemberIndex() === cls.members.length - 1;
+      flashSingleStatus(status);
+      renderSingleAttendance();
+    }
+
+    function flashSingleStatus(status) {
+      const btn = document.getElementById(`single${status.charAt(0).toUpperCase()}${status.slice(1)}Btn`);
+      if (!btn) return;
+      const flashClass = `flash-${status}`;
+      btn.classList.add(flashClass);
+      setTimeout(() => btn.classList.remove(flashClass), 220);
     }
 
     function ensureRosterStatuses() {
@@ -695,6 +879,7 @@
         els.membersCount.textContent = '0';
         if (els.actionAttendanceDateInput) els.actionAttendanceDateInput.value = selectedDateKey();
         if (els.attendanceDateInput) els.attendanceDateInput.value = selectedDateKey();
+        if (els.singleAttendanceDateInput) els.singleAttendanceDateInput.value = selectedDateKey();
         els.selectedClassLabel.textContent = 'You are working with: —';
         els.attendanceClassLabel.textContent = 'Class: —';
         els.editClassLabel.textContent = 'Class: —';
@@ -708,6 +893,7 @@
         if (els.actionAttendanceDateInput) els.actionAttendanceDateInput.value = selectedDateKey();
         if (els.attendanceDateInput) els.attendanceDateInput.value = selectedDateKey();
       els.selectedClassLabel.textContent = `You are working with: ${cls.name}`;
+      if (els.actionsClassLabel) els.actionsClassLabel.textContent = `You are working with: ${cls.name}`;
       els.attendanceClassLabel.textContent = `Class: ${cls.name}`;
       els.editClassLabel.textContent = `Class: ${cls.name}`;
       els.webhookInput.value = state.webhookUrl || '';
@@ -750,6 +936,46 @@
       renderTopSummary();
     }
 
+    function renderSingleAttendance() {
+      const cls = currentClass();
+      if (!cls || !cls.members.length) {
+        if (els.singleAttendanceDateInfo) els.singleAttendanceDateInfo.textContent = `Attendance date: ${displayDate(selectedDateKey())}`;
+        if (els.attendanceSingleClassLabel) els.attendanceSingleClassLabel.textContent = 'Class: —';
+        if (els.singleMemberProgress) els.singleMemberProgress.textContent = 'Member 0 of 0';
+        if (els.singleMemberName) els.singleMemberName.textContent = 'No members';
+        return;
+      }
+      ensureRosterStatuses();
+      const map = currentSingleAttendanceMap();
+      const index = currentSingleMemberIndex();
+      state.singleAttendanceIndex = index;
+      const name = currentSingleMemberName();
+      const isLast = index === cls.members.length - 1;
+      if (els.singleAttendanceDateInfo) els.singleAttendanceDateInfo.textContent = `Attendance date: ${displayDate(selectedDateKey())}`;
+      if (els.attendanceSingleClassLabel) els.attendanceSingleClassLabel.textContent = `Class: ${cls.name}`;
+      if (els.singleMemberProgress) els.singleMemberProgress.textContent = `Member ${index + 1} of ${cls.members.length}`;
+      if (els.singleMemberName) els.singleMemberName.textContent = (isLast && state.singleLastCompleted) ? 'Completed' : name;
+      const status = map[name] || 'pending';
+      const statusRow = document.querySelector('#screen-attendance-single .status-row');
+      if (statusRow) {
+        const completed = isLast && state.singleLastCompleted;
+        statusRow.hidden = false;
+        statusRow.style.visibility = completed ? 'hidden' : 'visible';
+        statusRow.style.pointerEvents = completed ? 'none' : 'auto';
+      }
+      document.getElementById('singleAttendedBtn')?.classList.toggle('active', status === 'attended');
+      document.getElementById('singleLateBtn')?.classList.toggle('active', status === 'late');
+      document.getElementById('singleAbsentBtn')?.classList.toggle('active', status === 'absent');
+      document.getElementById('singlePrevBtn').disabled = index === 0;
+      document.getElementById('singleNextBtn').hidden = index === cls.members.length - 1;
+      const saveBtn = document.getElementById('saveSingleAttendanceBtn');
+      if (saveBtn) {
+        saveBtn.hidden = false;
+        saveBtn.style.visibility = (isLast && state.singleLastCompleted) ? 'visible' : 'hidden';
+        saveBtn.style.pointerEvents = (isLast && state.singleLastCompleted) ? 'auto' : 'none';
+      }
+    }
+
     function renderEditList() {
       const cls = currentClass();
       els.editMemberList.innerHTML = '';
@@ -766,7 +992,7 @@
               <h3 class="member-name">${escapeHtml(name)}</h3>
               <p class="member-meta">Position ${index + 1}</p>
             </div>
-            <button class="small-action" type="button" data-remove-member="${escapeAttr(name)}">Remove</button>
+            <button class="small-action ${state.removingMemberNames[name] ? 'removing' : ''}" type="button" data-remove-member="${escapeAttr(name)}">${state.removingMemberNames[name] ? 'Removing...' : 'Remove'}</button>
           </div>`;
         els.editMemberList.appendChild(row);
       });
@@ -784,9 +1010,13 @@
                 <h3 class="member-name">${escapeHtml(item.name)}</h3>
                 <p class="member-meta">${item.members.length} members</p>
               </div>
-              <button class="small-action" type="button" data-remove-class="${item.id}" ${state.classes.length === 1 ? 'disabled' : ''}>Remove</button>
+              <div class="class-actions">
+                <button class="small-action" type="button" data-edit-members-class="${item.id}">Members</button>
+                <button class="small-action" type="button" data-toggle-rename-class="${item.id}">Rename</button>
+                <button class="small-action" type="button" data-remove-class="${item.id}" ${state.classes.length === 1 ? 'disabled' : ''}>Remove</button>
+              </div>
             </div>
-            <div class="field">
+            <div class="field" data-rename-wrapper="${item.id}" hidden>
               <label for="rename-${item.id}">Rename class</label>
               <input id="rename-${item.id}" class="text-input" type="text" value="${escapeAttr(item.name)}" data-rename-class="${item.id}" />
             </div>
@@ -801,9 +1031,8 @@
       if (backBtn) backBtn.hidden = key === 'class';
       const editBtn = document.getElementById('editClassesTopBtn');
       if (editBtn) editBtn.hidden = key !== 'class';
-      const editMembersBtn = document.getElementById('editMembersTopBtn');
-      if (editMembersBtn) editMembersBtn.hidden = key !== 'actions';
       if (key === 'attendance') renderAttendance();
+      if (key === 'attendanceSingle') renderSingleAttendance();
       if (key === 'edit') renderEditList();
       if (key === 'classes') renderClassEditor();
       renderTopSummary();
@@ -812,6 +1041,10 @@
     function statusLabel(status) { return ({ pending: 'Pending', attended: 'Attended', late: 'Late', absent: 'Not attended' })[status] || 'Pending'; }
     function statusClass(status) { return ({ pending: 'pending', attended: 'attended', late: 'late', absent: 'absent' })[status] || 'pending'; }
     function setMemberStatus(name, status) { currentAttendanceMap()[name] = status; renderAttendance(); }
+    async function setSingleCurrentStatus(status) {
+      setSingleMemberStatus(status);
+      await goToSingleNextOrSave();
+    }
 
     function applyClassAccent(colorKey) {
       document.documentElement.style.setProperty('--class-accent', colorKey);
@@ -846,7 +1079,19 @@
     function removeMember(name) {
       const cls = currentClass();
       if (!cls) return;
-      saveClassState([{ id: cls.id, name: cls.name, members: cls.members.filter(member => member !== name) }].concat(state.classes.filter(item => item.id !== cls.id)), cls.id, { stayOnPage: true });
+      state.removingMemberNames[name] = true;
+      renderEditList();
+      if (classSaveDebounce) clearTimeout(classSaveDebounce);
+      classSaveDebounce = setTimeout(() => {
+        const nextClasses = state.classes.map(item => item.id === cls.id
+          ? { id: cls.id, name: cls.name, members: item.members.filter(member => !state.removingMemberNames[member]) }
+          : item);
+        saveClassState(nextClasses, cls.id, { stayOnPage: true })
+          .finally(() => {
+            state.removingMemberNames = {};
+            renderEditList();
+          });
+      }, 250);
     }
 
     function addClass() {
@@ -862,6 +1107,27 @@
       if (state.classes.length === 1) return;
       const nextClasses = state.classes.filter(item => item.id !== id);
       saveClassState(nextClasses, nextClasses[0]?.id || '', { stayOnPage: true });
+    }
+
+    function editClassMembers(id) {
+      const cls = state.classes.find(item => item.id === id);
+      if (!cls) return;
+      state.selectedClassId = cls.id;
+      persistState();
+      renderTopSummary();
+      renderEditList();
+      switchScreen('edit');
+    }
+
+    function toggleClassRename(id) {
+      const wrapper = document.querySelector(`[data-rename-wrapper="${CSS.escape(id)}"]`);
+      if (!wrapper) return;
+      const isHidden = wrapper.hidden;
+      wrapper.hidden = !isHidden;
+      if (isHidden) {
+        const input = wrapper.querySelector('[data-rename-class]');
+        if (input) input.focus();
+      }
     }
 
     function saveClassEdits() {
@@ -936,11 +1202,35 @@
       }
     }
 
-    function saveSettings() { persistState(); switchScreen('actions'); }
+    function goToSinglePrevious() {
+      if (state.singleAttendanceIndex > 0) {
+        state.singleAttendanceIndex -= 1;
+        state.singleLastCompleted = false;
+        renderSingleAttendance();
+      }
+    }
+
+    async function goToSingleNextOrSave() {
+      const cls = currentClass();
+      if (!cls) return;
+      if (state.singleAttendanceIndex < cls.members.length - 1) {
+        state.singleAttendanceIndex += 1;
+        state.singleLastCompleted = false;
+        renderSingleAttendance();
+        return;
+      }
+    }
+
+    async function saveSingleAttendanceSession() {
+      await saveAttendanceSession();
+    }
+
+    function saveSettings() { persistState(); switchScreen('class'); }
 
     async function loadSharedState() {
       if (!state.webhookUrl) return;
       try {
+        if (els.loadingClassesText) els.loadingClassesText.hidden = false;
         const res = await apiGet('state');
         state.classes = Array.isArray(res.classes) ? res.classes.map(normalizeClass) : [];
         if (!state.selectedClassId || !state.classes.some(item => item.id === state.selectedClassId)) {
@@ -951,6 +1241,8 @@
         }
       } catch {
         // Keep local UI usable if the backend is temporarily unavailable.
+      } finally {
+        if (els.loadingClassesText) els.loadingClassesText.hidden = true;
       }
     }
 
@@ -992,23 +1284,45 @@
     function escapeAttr(value) { return value.replace(/"/g, '&quot;'); }
 
     function bindEvents() {
+      document.getElementById('goToDateBtn').addEventListener('click', () => {
+        if (!state.dateStepTouched) {
+          state.selectedDate = todayKey();
+          state.dateStepTouched = true;
+        }
+        switchScreen('date');
+      });
       document.getElementById('goToActionsBtn').addEventListener('click', () => switchScreen('actions'));
       document.getElementById('editClassesTopBtn').addEventListener('click', () => switchScreen('classes'));
-      document.getElementById('editMembersTopBtn').addEventListener('click', () => switchScreen('edit'));
       document.getElementById('saveClassesBtn').addEventListener('click', saveClassEdits);
       document.getElementById('toggleAddClassBtn').addEventListener('click', showAddClassPanel);
       document.getElementById('cancelAddClassBtn').addEventListener('click', hideAddClassPanel);
       document.getElementById('addClassBtn').addEventListener('click', addClass);
       document.getElementById('openAttendanceBtn').addEventListener('click', () => switchScreen('attendance'));
+      document.getElementById('openAttendanceSingleBtn').addEventListener('click', () => {
+        state.singleAttendanceIndex = 0;
+        state.singleLastCompleted = false;
+        switchScreen('attendanceSingle');
+      });
       document.getElementById('toggleAddMemberBtn').addEventListener('click', showAddMemberPanel);
       document.getElementById('cancelAddMemberBtn').addEventListener('click', hideAddMemberPanel);
       document.getElementById('addMemberBtn').addEventListener('click', addMember);
       document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
       document.getElementById('saveAttendanceBtn').addEventListener('click', saveAttendanceSession);
+      document.getElementById('saveSingleAttendanceBtn').addEventListener('click', saveSingleAttendanceSession);
+      document.getElementById('singlePrevBtn').addEventListener('click', goToSinglePrevious);
+      document.getElementById('singleNextBtn').addEventListener('click', goToSingleNextOrSave);
+      document.getElementById('singleAttendedBtn').addEventListener('click', () => setSingleCurrentStatus('attended'));
+      document.getElementById('singleLateBtn').addEventListener('click', () => setSingleCurrentStatus('late'));
+      document.getElementById('singleAbsentBtn').addEventListener('click', () => setSingleCurrentStatus('absent'));
       document.getElementById('backToClassesTopBtn').addEventListener('click', () => {
         const activeId = document.querySelector('.screen.active')?.id;
-        if (activeId === 'screen-actions') return switchScreen('class');
-        if (activeId === 'screen-attendance' || activeId === 'screen-edit') return switchScreen('actions');
+        if (activeId === 'screen-date') return switchScreen('class');
+        if (activeId === 'screen-actions') return switchScreen('date');
+        if (activeId === 'screen-edit') return switchScreen('classes');
+        if (activeId === 'screen-attendance' || activeId === 'screen-attendance-single') {
+          state.singleLastCompleted = false;
+          return switchScreen('actions');
+        }
         if (activeId === 'screen-classes') return switchScreen('class');
       });
       els.classSelect.addEventListener('change', event => {
@@ -1047,6 +1361,16 @@
       });
 
       els.classListEditor.addEventListener('click', event => {
+        const editBtn = event.target.closest('[data-edit-members-class]');
+        if (editBtn) {
+          editClassMembers(editBtn.dataset.editMembersClass);
+          return;
+        }
+        const renameBtn = event.target.closest('[data-toggle-rename-class]');
+        if (renameBtn) {
+          toggleClassRename(renameBtn.dataset.toggleRenameClass);
+          return;
+        }
         const removeBtn = event.target.closest('[data-remove-class]');
         if (removeBtn) removeClass(removeBtn.dataset.removeClass);
       });
@@ -1057,7 +1381,7 @@
       });
 
       const toggle = document.querySelector('[data-theme-toggle]');
-      const theme = 'light';
+      const theme = 'dark';
       state.theme = theme;
       document.documentElement.classList.toggle('theme-dark', theme === 'dark');
       document.documentElement.classList.toggle('theme-light', theme !== 'dark');
@@ -1083,7 +1407,7 @@
       state.selectedClassId = prefs.selectedClassId || '';
       state.webhookUrl = prefs.webhookUrl || DEFAULT_BACKEND_URL;
       state.selectedDate = prefs.selectedDate || todayKey();
-      state.theme = prefs.theme || 'light';
+      state.theme = prefs.theme || 'dark';
       document.documentElement.classList.toggle('theme-dark', state.theme === 'dark');
       document.documentElement.classList.toggle('theme-light', state.theme !== 'dark');
       updateThemeIcon(document.querySelector('[data-theme-toggle]'), state.theme);
@@ -1094,6 +1418,7 @@
       hideAddClassPanel();
       hideAddMemberPanel();
       switchScreen('class');
+      if (els.loadingClassesText) els.loadingClassesText.hidden = false;
       loadSharedState().then(() => {
         renderClassOptions();
         renderTopSummary();
