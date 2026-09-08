@@ -1532,9 +1532,17 @@
           await refreshAttendance(state.selectedClassId, selectedDateKey());
         }
       } catch {
-        // Keep local UI usable if the backend is temporarily unavailable.
+        if (state.webhookUrl !== DEFAULT_BACKEND_URL) {
+          state.webhookUrl = DEFAULT_BACKEND_URL;
+          persistState();
+          return loadSharedState();
+        }
+        const title = els.loadingClassesText?.querySelector('strong');
+        const message = els.loadingClassesText?.querySelector('span');
+        if (title) title.textContent = 'Não foi possível carregar as turmas';
+        if (message) message.textContent = 'Verifique o URL do Apps Script nas definições.';
       } finally {
-        if (els.loadingClassesText) els.loadingClassesText.hidden = true;
+        if (els.loadingClassesText) els.loadingClassesText.hidden = state.classes.length > 0;
       }
     }
 
