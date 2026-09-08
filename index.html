@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Presenças de Ginástica</title>
   <meta name="description" content="Registo de presenças das aulas de ginástica." />
+  <meta name="theme-color" content="#01696f" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Presenças" />
+  <link rel="icon" type="image/png" href="./Logo1.png" />
+  <link rel="apple-touch-icon" href="./Logo1.png" />
+  <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="preconnect" href="https://api.fontshare.com" />
   <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" rel="stylesheet" />
   <style>
@@ -213,6 +220,46 @@
     .settings-choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
     .settings-choice { width: 100%; }
     .settings-choice.active { background: var(--class-accent-soft, var(--color-primary-highlight)); border-color: var(--class-accent, var(--color-primary)); color: var(--class-accent, var(--color-primary)); }
+    .share-link-row { display: flex; align-items: stretch; gap: var(--space-2); min-width: 0; }
+    .share-link-row .text-input { flex: 1; min-width: 0; }
+    .share-link-row .secondary-btn { flex: 0 0 auto; min-height: 52px; }
+    .share-actions { display: flex; gap: var(--space-3); min-width: 0; }
+    .share-actions .primary-btn { width: 100%; }
+    .share-status { min-height: 1.25rem; color: var(--color-primary); }
+    .confirm-dialog-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: grid;
+      place-items: center;
+      padding: var(--space-4);
+      background: rgba(23, 22, 20, 0.46);
+      backdrop-filter: blur(4px);
+    }
+    .confirm-dialog {
+      width: min(100%, 440px);
+      padding: var(--space-6);
+      border: 1px solid rgba(40, 37, 29, 0.1);
+      border-radius: var(--radius-xl);
+      background: var(--color-surface);
+      color: var(--color-text);
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.2);
+    }
+    .confirm-dialog h3 { margin: 0; font-size: var(--text-lg); line-height: 1.1; }
+    .confirm-dialog p { margin: var(--space-2) 0 0; color: var(--color-text-muted); font-size: var(--text-sm); }
+    .confirm-dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-6); }
+    .danger-btn {
+      min-height: 52px;
+      padding: 0 var(--space-4);
+      border: 1px solid transparent;
+      border-radius: var(--radius-lg);
+      background: var(--color-error);
+      color: #fff;
+      font: inherit;
+      font-size: var(--text-sm);
+      font-weight: 700;
+    }
+    .danger-btn:hover { filter: brightness(0.92); }
     .viewport-short .app-shell { padding-top: calc(env(safe-area-inset-top) + var(--space-2)); padding-bottom: calc(env(safe-area-inset-bottom) + var(--space-3)); }
     .viewport-short .screen { gap: var(--space-3); }
     .viewport-compact .screen { padding-inline: var(--space-3); }
@@ -567,6 +614,123 @@
         font-size: var(--text-sm);
       }
     }
+    @media (min-width: 1280px) and (min-height: 720px) {
+      .app-shell {
+        max-width: 800px;
+        padding-inline: var(--space-5);
+      }
+      .topbar {
+        left: max(5vw, calc(50% - 380px));
+        right: max(5vw, calc(50% - 380px));
+      }
+      .screen {
+        width: min(100%, 760px);
+        padding: var(--space-5);
+        gap: var(--space-5);
+        border-radius: var(--radius-lg);
+      }
+      .screen.active {
+        width: min(100%, 760px);
+        min-height: 74dvh;
+      }
+      .screen-header h1,
+      .screen-header h2 {
+        font-size: clamp(1.65rem, 1.8vw, 2.1rem);
+      }
+      .screen-header p {
+        font-size: var(--text-sm);
+      }
+      .round-btn {
+        min-width: 40px;
+        min-height: 40px;
+        width: 40px;
+        height: 40px;
+      }
+      .primary-btn,
+      .secondary-btn,
+      .ghost-btn,
+      .status-btn,
+      .small-action {
+        min-height: 46px;
+        padding-inline: 1rem;
+        border-radius: var(--radius-md);
+        font-size: var(--text-sm);
+      }
+      .text-input,
+      select {
+        min-height: 48px;
+        border-radius: var(--radius-md);
+      }
+      .settings-choice-grid {
+        max-width: 520px;
+      }
+      #screen-settings {
+        width: min(100%, 680px);
+      }
+      #screen-settings .settings-choice-grid {
+        grid-template-columns: repeat(2, minmax(0, 220px));
+        justify-content: start;
+      }
+      #screen-settings .settings-choice {
+        width: 220px;
+      }
+      #screen-settings > .secondary-btn {
+        width: 240px;
+        align-self: flex-start;
+      }
+      #screen-settings .toolbar {
+        width: auto;
+      }
+      #screen-settings .toolbar > .secondary-btn {
+        flex: 0 0 auto;
+        width: 180px;
+      }
+      #screen-settings .share-link-row {
+        max-width: 620px;
+      }
+      #screen-settings .share-link-row .secondary-btn {
+        width: 150px;
+      }
+      #screen-settings .share-actions {
+        width: 240px;
+      }
+      .footer-actions {
+        max-width: 520px;
+        margin-inline: auto;
+      }
+      .footer-actions.centered,
+      .footer-actions.centered > * {
+        width: min(100%, 260px);
+      }
+      .toolbar {
+        justify-content: flex-start;
+      }
+      .toolbar > * {
+        flex: 0 1 auto;
+      }
+      .share-actions .primary-btn {
+        width: min(100%, 240px);
+      }
+      .action-grid {
+        max-width: 560px;
+        gap: var(--space-3);
+      }
+      #screen-actions .card-action {
+        min-height: 124px;
+        padding: var(--space-4);
+      }
+      #screen-actions .card-action h3 {
+        font-size: 1.25rem;
+      }
+      .confirm-dialog {
+        padding: var(--space-5);
+        border-radius: var(--radius-lg);
+      }
+      .danger-btn {
+        min-height: 46px;
+        border-radius: var(--radius-md);
+      }
+    }
     @media (max-width: 639px) {
       .screen { padding: var(--space-4); gap: var(--space-4); }
       .screen.active { padding-top: calc(var(--space-4) + 3.5rem); }
@@ -583,6 +747,11 @@
       .toolbar, .footer-actions { width: 100%; min-width: 0; }
       .toolbar > *, .footer-actions > * { width: 100%; }
       .toolbar.add-class-toolbar > *, .toolbar.add-member-toolbar > * { width: auto; }
+      .share-link-row { flex-direction: column; }
+      .share-link-row .secondary-btn { width: 100%; }
+      .share-actions { flex-direction: column; }
+      .confirm-dialog-actions { flex-direction: column-reverse; }
+      .confirm-dialog-actions > * { width: 100%; }
       .card-action { min-height: 96px; }
       .status-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .status-btn { min-height: 44px; padding: 0.6rem 0.35rem; }
@@ -666,6 +835,21 @@
       </div>
 
       <button class="secondary-btn" type="button" id="openSheetsSettingsBtn">Abrir Google Sheets</button>
+
+      <div class="stack">
+        <div>
+          <label for="shareUrlInput">Partilhar aplicação</label>
+          <p class="tiny muted">Envie este link para abrir a aplicação noutro telemóvel ou computador.</p>
+        </div>
+        <div class="share-link-row">
+          <input id="shareUrlInput" class="text-input" type="url" value="https://attendance-pedro.pedrosill1944.workers.dev/" readonly aria-label="Link da aplicação" />
+          <button class="secondary-btn" type="button" id="copyShareLinkBtn">Copiar link</button>
+        </div>
+        <div class="share-actions">
+          <button class="primary-btn" type="button" id="nativeShareBtn">Partilhar</button>
+        </div>
+        <p class="tiny share-status" id="shareStatus" aria-live="polite"></p>
+      </div>
 
       <div class="stack">
         <div class="toolbar">
@@ -822,15 +1006,26 @@
         </div>
       </div>
       <div id="classListEditor" class="member-list" aria-live="polite"></div>
-      <div class="footer-actions">
-        <button class="primary-btn" type="button" id="saveClassesBtn">Guardar alterações</button>
-      </div>
     </section>
   </main>
+
+  <div class="confirm-dialog-backdrop" id="confirmClassRemovalDialog" hidden aria-hidden="true">
+    <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirmClassRemovalTitle" aria-describedby="confirmClassRemovalMessage">
+      <h3 id="confirmClassRemovalTitle">Remover turma?</h3>
+      <p id="confirmClassRemovalMessage">Esta ação não pode ser anulada.</p>
+      <div class="confirm-dialog-actions">
+        <button class="ghost-btn" type="button" id="cancelClassRemovalBtn">Cancelar</button>
+        <button class="danger-btn" type="button" id="confirmClassRemovalBtn">Remover turma</button>
+      </div>
+    </div>
+  </div>
 
   <script>
     const STORAGE_KEY = 'gym-attendance-prefs-v4';
     const DEFAULT_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbzWfzY9w2-Q3SiDZlTZP2H4ZZyKPmc70eCy-o_RhTs_kZ7_LrAUnVAtJBMrxX4OQ7r4Hw/exec';
+    const APP_SHARE_URL = 'https://attendance-pedro.pedrosill1944.workers.dev/';
+    const APP_SHARE_TITLE = 'Presenças de Ginástica';
+    const APP_SHARE_TEXT = 'Abra a aplicação de presenças de ginástica.';
     const defaultState = {
       selectedClassId: 'class-1',
       webhookUrl: '',
@@ -858,6 +1053,8 @@
       savingAttendance: false
     };
     let classSaveDebounce = null;
+    let pendingClassRemovalId = '';
+    let pendingClassRemovalTrigger = null;
     const els = {
       classSelect: document.getElementById('classSelect'),
       classButtonList: document.getElementById('classButtonList'),
@@ -1361,10 +1558,42 @@
       els.addClassPanel.hidden = true;
     }
 
-    function removeClass(id) {
-      if (state.classes.length === 1) return;
+    function showClassRemovalDialog(id, trigger) {
+      const cls = state.classes.find(item => item.id === id);
+      const dialog = document.getElementById('confirmClassRemovalDialog');
+      const message = document.getElementById('confirmClassRemovalMessage');
+      const confirmButton = document.getElementById('confirmClassRemovalBtn');
+      if (!cls || state.classes.length === 1 || !dialog) return;
+      pendingClassRemovalId = id;
+      pendingClassRemovalTrigger = trigger || null;
+      if (message) message.textContent = `Tem a certeza de que quer remover a turma «${cls.name}»? Esta ação não pode ser anulada.`;
+      dialog.hidden = false;
+      dialog.setAttribute('aria-hidden', 'false');
+      confirmButton?.focus();
+    }
+
+    function closeClassRemovalDialog(restoreFocus = true) {
+      const dialog = document.getElementById('confirmClassRemovalDialog');
+      if (dialog) {
+        dialog.hidden = true;
+        dialog.setAttribute('aria-hidden', 'true');
+      }
+      const trigger = pendingClassRemovalTrigger;
+      pendingClassRemovalId = '';
+      pendingClassRemovalTrigger = null;
+      if (restoreFocus) trigger?.focus();
+    }
+
+    function confirmClassRemoval() {
+      const id = pendingClassRemovalId;
+      const cls = state.classes.find(item => item.id === id);
+      if (!cls || state.classes.length === 1) {
+        closeClassRemovalDialog(false);
+        return;
+      }
       const nextClasses = state.classes.filter(item => item.id !== id);
-      saveClassState(nextClasses, nextClasses[0]?.id || '', { stayOnPage: true });
+      closeClassRemovalDialog(false);
+      saveClassState(nextClasses, nextClasses[0]?.id || '', { stayOnPage: true }).catch(() => {});
     }
 
     function editClassMembers(id) {
@@ -1388,14 +1617,18 @@
       }
     }
 
-    function saveClassEdits() {
-      const nextClasses = state.classes.map(item => {
-        const input = document.querySelector(`[data-rename-class="${CSS.escape(item.id)}"]`);
-        return { ...item, name: input && input.value.trim() ? input.value.trim() : item.name };
-      });
-      state.webhookUrl = els.webhookInput.value.trim();
-      persistState();
-      saveClassState(nextClasses, state.selectedClassId || nextClasses[0]?.id || '');
+    function saveClassRename(input) {
+      if (!input) return;
+      const id = input.dataset.renameClass;
+      const value = input.value.trim();
+      const cls = state.classes.find(item => item.id === id);
+      if (!cls || !value || value === cls.name) return;
+      const nextClasses = state.classes.map(item => item.id === id ? { ...item, name: value } : item);
+      saveClassState(nextClasses, state.selectedClassId, { stayOnPage: true }).catch(() => {});
+    }
+
+    function flushClassRenameSave(input) {
+      saveClassRename(input);
     }
 
     async function saveClassState(nextClasses, nextSelectedClassId, options = {}) {
@@ -1503,6 +1736,40 @@
 
     function saveSettings() { persistState(); switchScreen('class'); }
 
+    function setShareStatus(message) {
+      const status = document.getElementById('shareStatus');
+      if (status) status.textContent = message;
+    }
+
+    async function copyAppLink() {
+      try {
+        await navigator.clipboard.writeText(APP_SHARE_URL);
+        setShareStatus('Link copiado.');
+        return true;
+      } catch {
+        const input = document.getElementById('shareUrlInput');
+        if (!input) return false;
+        input.focus();
+        input.select();
+        const copied = typeof document.execCommand === 'function' && document.execCommand('copy');
+        setShareStatus(copied ? 'Link copiado.' : 'Selecione e copie o link manualmente.');
+        return copied;
+      }
+    }
+
+    async function shareApp() {
+      if (typeof navigator.share === 'function') {
+        try {
+          await navigator.share({ title: APP_SHARE_TITLE, text: APP_SHARE_TEXT, url: APP_SHARE_URL });
+          setShareStatus('Partilha concluída.');
+          return;
+        } catch (error) {
+          if (error?.name === 'AbortError') return;
+        }
+      }
+      await copyAppLink();
+    }
+
     function setClassPickerMode(mode) {
       state.classPickerMode = mode === 'buttons' ? 'buttons' : 'dropdown';
       persistState();
@@ -1592,6 +1859,8 @@
       document.getElementById('openSheetsSettingsBtn').addEventListener('click', () => {
         window.open('https://docs.google.com/spreadsheets/d/1k7tv6lmwYWUhn4D5rMy5oMvIBhYzaOIdsc5V4ivnJ6U/edit?usp=sharing', '_blank', 'noopener,noreferrer');
       });
+      document.getElementById('copyShareLinkBtn').addEventListener('click', copyAppLink);
+      document.getElementById('nativeShareBtn').addEventListener('click', shareApp);
       document.getElementById('goToDateBtn').addEventListener('click', () => {
         if (!state.dateStepTouched) {
           state.selectedDate = todayKey();
@@ -1606,7 +1875,6 @@
       document.getElementById('pickerButtonsBtn').addEventListener('click', () => setClassPickerMode('buttons'));
       document.getElementById('themeLightBtn').addEventListener('click', () => setTheme('light'));
       document.getElementById('themeDarkBtn').addEventListener('click', () => setTheme('dark'));
-      document.getElementById('saveClassesBtn').addEventListener('click', saveClassEdits);
       document.getElementById('toggleAddClassBtn').addEventListener('click', showAddClassPanel);
       document.getElementById('cancelAddClassBtn').addEventListener('click', hideAddClassPanel);
       document.getElementById('addClassBtn').addEventListener('click', addClass);
@@ -1692,7 +1960,7 @@
           return;
         }
         const removeBtn = event.target.closest('[data-remove-class]');
-        if (removeBtn) removeClass(removeBtn.dataset.removeClass);
+        if (removeBtn) showClassRemovalDialog(removeBtn.dataset.removeClass, removeBtn);
       });
       els.classListEditor.addEventListener('dblclick', event => {
         const name = event.target.closest('[data-rename-trigger]');
@@ -1701,7 +1969,28 @@
 
       document.getElementById('settingsClassList').addEventListener('click', event => {
         const removeBtn = event.target.closest('[data-remove-class]');
-        if (removeBtn) removeClass(removeBtn.dataset.removeClass);
+        if (removeBtn) showClassRemovalDialog(removeBtn.dataset.removeClass, removeBtn);
+      });
+      els.classListEditor.addEventListener('blur', event => {
+        const input = event.target.closest('[data-rename-class]');
+        if (input) flushClassRenameSave(input);
+      }, true);
+      els.classListEditor.addEventListener('keydown', event => {
+        const input = event.target.closest('[data-rename-class]');
+        if (input && event.key === 'Enter') {
+          event.preventDefault();
+          flushClassRenameSave(input);
+          input.blur();
+        }
+      });
+      document.getElementById('cancelClassRemovalBtn').addEventListener('click', () => closeClassRemovalDialog());
+      document.getElementById('confirmClassRemovalBtn').addEventListener('click', confirmClassRemoval);
+      document.getElementById('confirmClassRemovalDialog').addEventListener('click', event => {
+        if (event.target.id === 'confirmClassRemovalDialog') closeClassRemovalDialog();
+      });
+      document.addEventListener('keydown', event => {
+        const dialog = document.getElementById('confirmClassRemovalDialog');
+        if (event.key === 'Escape' && dialog && !dialog.hidden) closeClassRemovalDialog();
       });
 
       els.webhookInput.addEventListener('change', () => {
