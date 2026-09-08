@@ -86,7 +86,12 @@
       font-size: var(--text-base);
       line-height: 1.5;
     }
-    button, select, input { font: inherit; color: inherit; min-width: 0; }
+    button, select, input {
+      font: inherit;
+      color: inherit;
+      min-width: 0;
+      touch-action: manipulation;
+    }
     button { cursor: pointer; }
     .sr-only {
       position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
