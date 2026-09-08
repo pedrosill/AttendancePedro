@@ -1,5 +1,5 @@
 var META_SHEET_NAME = '__classes__';
-var ATTENDANCE_HEADERS = ['Date'];
+var ATTENDANCE_HEADERS = ['Membro'];
 var STATUS_MAP = {
   attended: 'Presente',
   late: 'Atrasado',
@@ -47,25 +47,28 @@ function getAttendanceState(params) {
 
   var sheet = getOrCreateClassSheet(ss, cls.name);
   ensureAttendanceHeader(sheet);
-  var row = findRowByDate(sheet, dateKey);
+  normalizeAttendanceDates(sheet);
+  var dateColumn = findColumnByDate(sheet, dateKey);
   var members = [];
   var statusByName = {};
-  if (row) {
-    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    var values = sheet.getRange(row, 1, 1, sheet.getLastColumn()).getValues()[0];
-    headers.forEach(function(header, index) {
-      if (index === 0) return;
-      var name = String(header || '').trim();
-      if (!name) return;
-      statusByName[name] = normalizeStatus(values[index]);
-    });
+  if (dateColumn) {
+    var memberCount = sheet.getLastRow() - 1;
+    if (memberCount > 0) {
+      var names = sheet.getRange(2, 1, memberCount, 1).getValues();
+      var values = sheet.getRange(2, dateColumn, memberCount, 1).getValues();
+      names.forEach(function(row, index) {
+        var name = String(row[0] || '').trim();
+        if (!name) return;
+        statusByName[name] = normalizeStatus(values[index][0]);
+      });
+    }
   }
 
   cls.members.forEach(function(name) {
     members.push({ name: name, status: statusByName[name] || 'pending' });
   });
 
-  return { ok: true, classId: cls.id, className: cls.name, date: dateKey, members: members, filled: !!row };
+  return { ok: true, classId: cls.id, className: cls.name, date: dateKey, members: members, filled: !!dateColumn };
 }
 
 function saveClasses(data) {
@@ -119,14 +122,8 @@ function saveAttendance(data) {
   ensureAttendanceHeader(sheet);
   normalizeAttendanceDates(sheet);
   ensureDateColumnDisplayFormat(sheet);
-  var headers = ensureMemberHeaders(sheet, cls.members);
-  var rowIndex = findRowByDate(sheet, dateKey);
-  if (!rowIndex) {
-    rowIndex = sheet.getLastRow() + 1;
-  }
-
-  var row = new Array(headers.length).fill('');
-  row[0] = parseDateKey(dateKey);
+  ensureMemberRows(sheet, cls.members);
+  var dateColumn = findColumnByDate(sheet, dateKey) || addDateColumn(sheet, dateKey);
   var statusByName = {};
   members.forEach(function(member) {
     var name = String(member.name || '').trim();
@@ -134,16 +131,18 @@ function saveAttendance(data) {
     statusByName[name] = normalizeStatus(member.status);
   });
 
-  headers.forEach(function(header, index) {
-    if (index === 0) return;
-    row[index] = statusByName[String(header || '').trim()] || '';
+  var memberCount = sheet.getLastRow() - 1;
+  var memberRows = memberCount > 0 ? sheet.getRange(2, 1, memberCount, 1).getValues() : [];
+  var values = memberRows.map(function(memberRow) {
+    var name = String(memberRow[0] || '').trim();
+    return [statusByName[name] || ''];
   });
-
-  sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
-  sheet.getRange(rowIndex, 1).setNumberFormat('dd/MM');
-  sortDataRowsByDate(sheet);
+  if (values.length) sheet.getRange(2, dateColumn, values.length, 1).setValues(values);
+  sheet.getRange(1, dateColumn).setNumberFormat('dd/MM');
+  sortMemberRowsByName(sheet);
+  sortDateColumnsByDate(sheet);
   applyAttendanceFormatting(sheet);
-  return { ok: true, classId: cls.id, className: cls.name, date: dateKey, row: rowIndex };
+  return { ok: true, classId: cls.id, className: cls.name, date: dateKey, column: dateColumn };
 }
 
 function ensureMetaHeader(sheet) {
@@ -236,30 +235,83 @@ function getOrCreateClassSheet(ss, className) {
 
 function ensureAttendanceHeader(sheet) {
   if (sheet.getLastRow() === 0) {
-    sheet.getRange(1, 1).setValue('Date');
+    sheet.getRange(1, 1).setValue('Membro');
     sheet.setFrozenRows(1);
+    return;
   }
+
+  var firstHeader = String(sheet.getRange(1, 1).getValue() || '').trim().toLowerCase();
+  if (firstHeader === 'date' || firstHeader === 'data') transposeLegacyAttendanceSheet(sheet);
+  if (!String(sheet.getRange(1, 1).getValue() || '').trim()) sheet.getRange(1, 1).setValue('Membro');
+  sheet.setFrozenRows(1);
+}
+
+function transposeLegacyAttendanceSheet(sheet) {
+  var lastRow = sheet.getLastRow();
+  var lastColumn = sheet.getLastColumn();
+  if (lastColumn < 2) {
+    sheet.getRange(1, 1).setValue('Membro');
+    return;
+  }
+
+  var oldValues = sheet.getRange(1, 1, lastRow, lastColumn).getValues();
+  var memberNames = [];
+  var memberIndexes = {};
+  oldValues[0].slice(1).forEach(function(value, index) {
+    var name = String(value || '').trim();
+    var key = name.toLowerCase();
+    if (!name || memberIndexes[key] !== undefined) return;
+    memberIndexes[key] = index + 1;
+    memberNames.push(name);
+  });
+  memberNames = uniqueNames(memberNames);
+
+  var dates = {};
+  for (var rowIndex = 1; rowIndex < oldValues.length; rowIndex++) {
+    var parsedDate = parseDateKey(oldValues[rowIndex][0]);
+    if (!parsedDate) continue;
+    var dateKey = Utilities.formatDate(parsedDate, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    dates[dateKey] = { date: parsedDate, values: oldValues[rowIndex] };
+  }
+
+  var dateKeys = Object.keys(dates).sort();
+  var newValues = [['Membro']].concat(dateKeys.map(function(key) { return dates[key].date; }));
+  memberNames.forEach(function(name) {
+    var oldIndex = memberIndexes[name.toLowerCase()];
+    var row = [name];
+    dateKeys.forEach(function(key) {
+      row.push(normalizeStatus(dates[key].values[oldIndex]));
+    });
+    newValues.push(row);
+  });
+
+  sheet.clearContents();
+  sheet.setConditionalFormatRules([]);
+  sheet.getRange(1, 1, newValues.length, newValues[0].length).setValues(newValues);
+  if (newValues[0].length > 1) sheet.getRange(1, 2, 1, newValues[0].length - 1).setNumberFormat('dd/MM');
+  sheet.setFrozenRows(1);
+  sheet.setFrozenColumns(1);
 }
 
 function ensureDateColumnDisplayFormat(sheet) {
-  if (sheet.getLastRow() < 2) return;
-  sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).setNumberFormat('dd/MM');
+  if (sheet.getLastColumn() < 2) return;
+  sheet.getRange(1, 2, 1, sheet.getLastColumn() - 1).setNumberFormat('dd/MM');
 }
 
 function normalizeAttendanceDates(sheet) {
-  if (sheet.getLastRow() < 2) return;
-  var range = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1);
+  if (sheet.getLastColumn() < 2) return;
+  var range = sheet.getRange(1, 2, 1, sheet.getLastColumn() - 1);
   var values = range.getValues();
   var changed = false;
-  for (var i = 0; i < values.length; i++) {
-    var parsed = parseDateKey(values[i][0]);
-    if (parsed && !(values[i][0] instanceof Date)) {
-      values[i][0] = parsed;
+  for (var i = 0; i < values[0].length; i++) {
+    var parsed = parseDateKey(values[0][i]);
+    if (parsed && !(values[0][i] instanceof Date)) {
+      values[0][i] = parsed;
       changed = true;
     }
   }
   if (changed) range.setValues(values);
-  range.setNumberFormat('dd/MM');
+  ensureDateColumnDisplayFormat(sheet);
 }
 
 function normalizeAllAttendanceDates(ss) {
@@ -267,52 +319,74 @@ function normalizeAllAttendanceDates(ss) {
   sheets.forEach(function(sheet) {
     var name = sheet.getName();
     if (name === META_SHEET_NAME) return;
+    ensureAttendanceHeader(sheet);
     normalizeAttendanceDates(sheet);
     ensureDateColumnDisplayFormat(sheet);
   });
 }
 
 function ensureMemberHeaders(sheet, members) {
-  var lastCol = Math.max(sheet.getLastColumn(), 1);
-  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  if (!headers[0]) headers[0] = 'Date';
-  var map = {};
-  headers.forEach(function(h, i) {
-    var name = String(h || '').trim().toLowerCase();
-    if (name) map[name] = i;
-  });
-  members.forEach(function(name) {
-    var key = String(name || '').trim().toLowerCase();
-    if (!key || map[key] !== undefined) return;
-    headers.push(name);
-    map[key] = headers.length - 1;
-  });
-  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-  sheet.setFrozenRows(1);
-  return headers;
+  ensureMemberRows(sheet, members);
+  return sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
 }
 
-function findRowByDate(sheet, dateKey) {
-  if (sheet.getLastRow() < 2) return null;
-  var dates = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat();
+function ensureMemberRows(sheet, members) {
+  var lastRow = sheet.getLastRow();
+  var existing = lastRow >= 2 ? sheet.getRange(2, 1, lastRow - 1, 1).getValues() : [];
+  var names = existing.map(function(row) { return String(row[0] || '').trim(); }).filter(Boolean);
+  var seen = {};
+  names.forEach(function(name) { seen[name.toLowerCase()] = true; });
+
+  uniqueNames(members).forEach(function(name) {
+    if (seen[name.toLowerCase()]) return;
+    names.push(name);
+    seen[name.toLowerCase()] = true;
+  });
+
+  names = uniqueNames(names);
+  if (names.length) sheet.getRange(2, 1, names.length, 1).setValues(names.map(function(name) { return [name]; }));
+  sheet.setFrozenColumns(1);
+  return names;
+}
+
+function findColumnByDate(sheet, dateKey) {
+  if (sheet.getLastColumn() < 2) return null;
+  var dates = sheet.getRange(1, 2, 1, sheet.getLastColumn() - 1).getValues()[0];
   var target = parseDateKey(dateKey);
+  if (!target) return null;
   for (var i = 0; i < dates.length; i++) {
     var current = parseDateKey(dates[i]);
-    if (target && current && current.getFullYear() === target.getFullYear() && current.getMonth() === target.getMonth() && current.getDate() === target.getDate()) return i + 2;
+    if (current && current.getFullYear() === target.getFullYear() && current.getMonth() === target.getMonth() && current.getDate() === target.getDate()) return i + 2;
   }
   return null;
 }
 
-function sortDataRowsByDate(sheet) {
+function addDateColumn(sheet, dateKey) {
+  var column = Math.max(sheet.getLastColumn() + 1, 2);
+  var parsed = parseDateKey(dateKey);
+  sheet.getRange(1, column).setValue(parsed || dateKey).setNumberFormat('dd/MM');
+  return column;
+}
+
+function sortMemberRowsByName(sheet) {
   if (sheet.getLastRow() < 3) return;
-  var range = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn());
+  sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).sort({ column: 1, ascending: true });
+}
+
+function sortDateColumnsByDate(sheet) {
+  if (sheet.getLastColumn() < 3) return;
+  var columnCount = sheet.getLastColumn() - 1;
+  var rowCount = sheet.getLastRow();
+  var range = sheet.getRange(1, 2, rowCount, columnCount);
   var values = range.getValues();
-  values.sort(function(a, b) {
-    var aDate = parseDateKey(a[0]) || new Date(0);
-    var bDate = parseDateKey(b[0]) || new Date(0);
-    return aDate - bDate;
+  var order = values[0].map(function(value, index) {
+    return { index: index, date: parseDateKey(value) || new Date(8640000000000000) };
+  }).sort(function(a, b) { return a.date - b.date; });
+  var sorted = values.map(function(row) {
+    return order.map(function(item) { return row[item.index]; });
   });
-  range.setValues(values);
+  range.setValues(sorted);
+  sheet.getRange(1, 2, 1, columnCount).setNumberFormat('dd/MM');
 }
 
 function applyAttendanceFormatting(sheet) {
