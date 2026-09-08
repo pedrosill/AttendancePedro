@@ -1,10 +1,14 @@
 var META_SHEET_NAME = '__classes__';
 var ATTENDANCE_HEADERS = ['Date'];
 var STATUS_MAP = {
-  attended: 'Attended',
-  late: 'Late',
-  absent: 'Not attended',
-  pending: 'Not attended'
+  attended: 'Presente',
+  late: 'Atrasado',
+  late_told: 'Atrasado — justificou',
+  late_not_told: 'Atrasado — não justificou',
+  absent: 'Falta',
+  absent_justified: 'Falta — justificada',
+  absent_not_justified: 'Falta — não justificada',
+  pending: 'Falta'
 };
 
 function doGet(e) {
@@ -207,7 +211,9 @@ function uniqueNames(list) {
     seen[key] = true;
     out.push(value);
   });
-  return out;
+  return out.sort(function(a, b) {
+    return a.localeCompare(b, 'pt-PT', { sensitivity: 'base' });
+  });
 }
 
 function renameAttendanceSheet(ss, oldName, newName) {
@@ -313,16 +319,26 @@ function applyAttendanceFormatting(sheet) {
   if (sheet.getLastRow() < 2 || sheet.getLastColumn() < 2) return;
   var range = sheet.getRange(2, 2, sheet.getLastRow() - 1, sheet.getLastColumn() - 1);
   var rules = [
+    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('Presente').setBackground('#e0ead9').setRanges([range]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenTextContains('Atrasado').setBackground('#f2e8bf').setRanges([range]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenTextContains('Falta').setBackground('#f2d9dd').setRanges([range]).build(),
     SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('Attended').setBackground('#e0ead9').setRanges([range]).build(),
-    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('Late').setBackground('#f2e8bf').setRanges([range]).build(),
-    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('Not attended').setBackground('#f2d9dd').setRanges([range]).build()
+    SpreadsheetApp.newConditionalFormatRule().whenTextContains('Late').setBackground('#f2e8bf').setRanges([range]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenTextContains('Not attended').setBackground('#f2d9dd').setRanges([range]).build()
   ];
   sheet.setConditionalFormatRules(rules);
 }
 
 function normalizeStatus(status) {
   var value = String(status || '').toLowerCase();
-  return STATUS_MAP[value] || 'Not attended';
+  if (value === 'late - told us why' || value === 'atrasado — justificou') return STATUS_MAP.late_told;
+  if (value === 'late - did not tell us why' || value === 'atrasado — não justificou') return STATUS_MAP.late_not_told;
+  if (value === 'not attended - justified' || value === 'falta — justificada') return STATUS_MAP.absent_justified;
+  if (value === 'not attended - not justified' || value === 'falta — não justificada') return STATUS_MAP.absent_not_justified;
+  if (value === 'attended' || value === 'presente') return STATUS_MAP.attended;
+  if (value === 'late' || value === 'atrasado') return STATUS_MAP.late;
+  if (value === 'absent' || value === 'not attended' || value === 'falta' || value === 'pending') return STATUS_MAP.absent;
+  return STATUS_MAP[value] || STATUS_MAP.absent;
 }
 
 function sanitizeSheetName(name) {
