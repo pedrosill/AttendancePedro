@@ -1,35 +1,70 @@
 var META_SHEET_NAME = '__classes__';
-var ATTENDANCE_HEADERS = ['Date'];
+var META_HEADERS = ['id', 'name', 'membersJson', 'trainingDaysJson', 'seasonStart'];
+var ATTENDANCE_HEADERS = ['Membro'];
+var DEFAULT_SEASON_START = '2026-09-08';
 var STATUS_MAP = {
-  attended: 'Presente',
-  late: 'Atrasado',
-  late_told: 'Atrasado — justificou',
-  late_not_told: 'Atrasado — não justificou',
-  absent: 'Falta',
-  absent_justified: 'Falta — justificada',
-  absent_not_justified: 'Falta — não justificada',
-  pending: 'Falta'
+  attended: '*',
+  late: 'A',
+  late_told: 'A',
+  late_not_told: 'A',
+  absent: 'F',
+  absent_justified: 'F',
+  absent_not_justified: 'F',
+  pending: 'F'
+};
+var TEXT_COLORS = {
+  attended: '#437a22',
+  late: '#d19900',
+  late_told: '#d19900',
+  late_not_told: '#a13544',
+  absent: '#a13544',
+  absent_justified: '#d19900',
+  absent_not_justified: '#a13544'
 };
 
 function doGet(e) {
-  var action = String((e && e.parameter && e.parameter.action) || 'state');
-  if (action === 'attendance') return jsonResponse(getAttendanceState(e.parameter));
-  return jsonResponse(getSharedState());
+  try {
+    var action = String((e && e.parameter && e.parameter.action) || 'state');
+    if (action === 'attendance') return jsonResponse(getAttendanceState(e.parameter));
+    if (action === 'recentAttendance') return jsonResponse(getRecentAttendanceState(e.parameter));
+    return jsonResponse(getSharedState());
+  } catch (error) {
+    return jsonResponse({ ok: false, error: String(error) });
+  }
 }
 
 function doPost(e) {
-  var data = JSON.parse((e && e.postData && e.postData.contents) || '{}');
-  var action = String(data.action || 'saveAttendance');
-
-  if (action === 'saveClasses') return jsonResponse(saveClasses(data));
-  if (action === 'saveAttendance') return jsonResponse(saveAttendance(data));
-  return jsonResponse({ ok: false, error: 'Unknown action' });
+  try {
+    var data = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    var action = String(data.action || 'saveAttendance');
+    var result = withWriteLock(function() {
+      if (action === 'saveClasses') return saveClasses(data);
+      if (action === 'saveClass') return saveClass(data);
+      if (action === 'addMember') return addMember(data);
+      if (action === 'removeMember') return removeMember(data);
+      if (action === 'removeClass') return removeClass(data);
+      if (action === 'saveAttendance') return saveAttendance(data);
+      return { ok: false, error: 'Unknown action' };
+    });
+    return jsonResponse(result);
+  } catch (error) {
+    return jsonResponse({ ok: false, error: String(error) });
+  }
 }
 
 function getSharedState() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  normalizeAllAttendanceDates(ss);
   var classes = readClasses(ss);
+  var meta = ss.getSheetByName(META_SHEET_NAME);
+  var metadataNeedsMigration = !meta || meta.getLastColumn() < META_HEADERS.length;
+  withWriteLock(function() {
+    normalizeAllAttendanceDates(ss, classes);
+    if (metadataNeedsMigration) {
+      meta = meta || ss.insertSheet(META_SHEET_NAME);
+      writeMeta(meta, classes);
+    }
+  });
+  classes = readClasses(ss);
   return { ok: true, classes: classes };
 }
 
@@ -47,44 +82,99 @@ function getAttendanceState(params) {
 
   var sheet = getOrCreateClassSheet(ss, cls.name);
   ensureAttendanceHeader(sheet);
-  var row = findRowByDate(sheet, dateKey);
+  normalizeAttendanceDates(sheet);
+  deduplicateDateColumns(sheet);
+  var dateColumn = findColumnByDate(sheet, dateKey);
   var members = [];
   var statusByName = {};
-  if (row) {
-    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    var values = sheet.getRange(row, 1, 1, sheet.getLastColumn()).getValues()[0];
-    headers.forEach(function(header, index) {
-      if (index === 0) return;
-      var name = String(header || '').trim();
-      if (!name) return;
-      statusByName[name] = normalizeStatus(values[index]);
-    });
+  if (dateColumn) {
+    var memberCount = sheet.getLastRow() - 1;
+    if (memberCount > 0) {
+      var names = sheet.getRange(2, 1, memberCount, 1).getValues();
+      var values = sheet.getRange(2, dateColumn, memberCount, 1).getValues();
+      var colors = sheet.getRange(2, dateColumn, memberCount, 1).getFontColors();
+      names.forEach(function(row, index) {
+        var name = String(row[0] || '').trim();
+        if (!name) return;
+        statusByName[name] = statusFromSheetCell(values[index][0], colors[index][0]);
+      });
+    }
   }
 
   cls.members.forEach(function(name) {
     members.push({ name: name, status: statusByName[name] || 'pending' });
   });
 
-  return { ok: true, classId: cls.id, className: cls.name, date: dateKey, members: members, filled: !!row };
+  return { ok: true, classId: cls.id, className: cls.name, date: dateKey, members: members, filled: !!dateColumn };
+}
+
+function getRecentAttendanceState(params) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var classId = String((params && params.classId) || '').trim();
+  var classes = readClasses(ss);
+  var cls = findClass(classes, classId);
+  if (!cls) return { ok: false, error: 'Class not found' };
+
+  var anchor = parseDateKey((params && params.date) || '') || new Date();
+  var seasonStart = parseDateKey(cls.seasonStart) || parseDateKey(DEFAULT_SEASON_START);
+  var trainingDays = Array.isArray(cls.trainingDays) ? cls.trainingDays : [];
+  var count = Math.min(Math.max(Number((params && params.count) || 2), 1), 10);
+  var dates = [];
+  var cursor = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
+  var dateColumns = {};
+  var sheet = ss.getSheetByName(sanitizeSheetName(cls.name));
+
+  if (sheet) {
+    withWriteLock(function() {
+      ensureAttendanceHeader(sheet);
+      normalizeAttendanceDates(sheet);
+      dateColumns = getDateColumnMap(sheet);
+    });
+  }
+
+  while (cursor >= seasonStart && dates.length < count) {
+    var dayOfWeek = cursor.getDay();
+    if (trainingDays.indexOf(dayOfWeek) !== -1) {
+      var dateKey = normalizeDateKey(cursor);
+      dates.push({ date: dateKey, filled: !!dateColumns[dateKey] });
+    }
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  return { ok: true, classId: cls.id, className: cls.name, dates: dates };
+}
+
+function withWriteLock(callback) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    return callback();
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function saveClasses(data) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var classes = Array.isArray(data.classes) ? data.classes : [];
+  var existing = readClasses(ss);
+  var existingById = {};
+  existing.forEach(function(item) { existingById[item.id] = item; });
   var cleaned = classes.map(function(item) {
+    var id = String(item.id || '').trim() || Utilities.getUuid();
+    var name = String(item.name || '').trim();
+    var prior = existingById[id];
     return {
-      id: String(item.id || '').trim() || Utilities.getUuid(),
-      name: String(item.name || '').trim(),
-      members: uniqueNames(item.members)
+      id: id,
+      name: name,
+      members: uniqueNames(item.members),
+      trainingDays: normalizeTrainingDays(item.trainingDays, prior ? prior.trainingDays : defaultTrainingDays(name)),
+      seasonStart: normalizeSeasonStart(item.seasonStart || (prior && prior.seasonStart))
     };
   }).filter(function(item) { return item.name; });
 
   var meta = ss.getSheetByName(META_SHEET_NAME) || ss.insertSheet(META_SHEET_NAME);
   ensureMetaHeader(meta);
-
-  var existing = readClasses(ss);
-  var existingById = {};
-  existing.forEach(function(item) { existingById[item.id] = item; });
 
   cleaned.forEach(function(item) {
     var prior = existingById[item.id];
@@ -95,8 +185,76 @@ function saveClasses(data) {
     }
   });
 
+  var incomingIds = {};
+  cleaned.forEach(function(item) { incomingIds[item.id] = true; });
+  existing.forEach(function(item) {
+    if (!incomingIds[item.id]) deleteClassSheet(ss, item.name);
+  });
+
   writeMeta(meta, cleaned);
   return { ok: true, classes: cleaned };
+}
+
+function saveClass(data) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var input = data.class && typeof data.class === 'object' ? data.class : data;
+  var classId = String(input.id || data.classId || '').trim() || Utilities.getUuid();
+  var existing = readClasses(ss);
+  var prior = findClass(existing, classId);
+  var name = String(input.name || (prior && prior.name) || '').trim();
+  if (!name) return { ok: false, error: 'Missing className' };
+
+  var record = {
+    id: classId,
+    name: name,
+    members: Array.isArray(input.members) ? uniqueNames(input.members) : (prior ? prior.members : []),
+    trainingDays: normalizeTrainingDays(input.trainingDays, prior ? prior.trainingDays : defaultTrainingDays(name)),
+    seasonStart: normalizeSeasonStart(input.seasonStart || (prior && prior.seasonStart))
+  };
+  if (prior && prior.name && prior.name !== record.name) {
+    renameAttendanceSheet(ss, prior.name, record.name);
+  } else {
+    getOrCreateClassSheet(ss, record.name);
+  }
+  upsertClass(ss, record);
+  return { ok: true, class: record };
+}
+
+function addMember(data) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var classId = String(data.classId || '').trim();
+  var memberName = String(data.memberName || data.name || '').trim();
+  var cls = findClass(readClasses(ss), classId);
+  if (!cls) return { ok: false, error: 'Class not found' };
+  if (!memberName) return { ok: false, error: 'Missing memberName' };
+  cls.members = uniqueNames(cls.members.concat(memberName));
+  upsertClass(ss, cls);
+  ensureMemberRows(getOrCreateClassSheet(ss, cls.name), cls.members);
+  return { ok: true, class: cls };
+}
+
+function removeMember(data) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var classId = String(data.classId || '').trim();
+  var memberName = String(data.memberName || data.name || '').trim();
+  var cls = findClass(readClasses(ss), classId);
+  if (!cls) return { ok: false, error: 'Class not found' };
+  cls.members = cls.members.filter(function(name) { return name.toLowerCase() !== memberName.toLowerCase(); });
+  upsertClass(ss, cls);
+  var sheet = ss.getSheetByName(sanitizeSheetName(cls.name));
+  if (sheet) removeMemberRows(sheet, memberName);
+  return { ok: true, class: cls };
+}
+
+function removeClass(data) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var classId = String(data.classId || '').trim();
+  var classes = readClasses(ss);
+  var removed = findClass(classes, classId);
+  if (!removed) return { ok: false, error: 'Class not found' };
+  writeMeta(ss.getSheetByName(META_SHEET_NAME) || ss.insertSheet(META_SHEET_NAME), classes.filter(function(item) { return item.id !== classId; }));
+  deleteClassSheet(ss, removed.name);
+  return { ok: true, classId: classId };
 }
 
 function saveAttendance(data) {
@@ -106,7 +264,13 @@ function saveAttendance(data) {
   var dateKey = String(data.date || '').trim();
   var members = Array.isArray(data.members) ? data.members : [];
   var classes = readClasses(ss);
-  var cls = findClass(classes, classId) || { id: classId || Utilities.getUuid(), name: className, members: [] };
+  var cls = findClass(classes, classId) || {
+    id: classId || Utilities.getUuid(),
+    name: className,
+    members: [],
+    trainingDays: defaultTrainingDays(className),
+    seasonStart: DEFAULT_SEASON_START
+  };
 
   if (!cls.name) cls.name = className;
   if (!cls.name) return { ok: false, error: 'Missing className' };
@@ -118,49 +282,52 @@ function saveAttendance(data) {
   var sheet = getOrCreateClassSheet(ss, cls.name);
   ensureAttendanceHeader(sheet);
   normalizeAttendanceDates(sheet);
+  deduplicateDateColumns(sheet);
   ensureDateColumnDisplayFormat(sheet);
-  var headers = ensureMemberHeaders(sheet, cls.members);
-  var rowIndex = findRowByDate(sheet, dateKey);
-  if (!rowIndex) {
-    rowIndex = sheet.getLastRow() + 1;
-  }
-
-  var row = new Array(headers.length).fill('');
-  row[0] = parseDateKey(dateKey);
+  ensureMemberRows(sheet, cls.members);
+  var dateColumn = findColumnByDate(sheet, dateKey) || addDateColumn(sheet, dateKey);
   var statusByName = {};
   members.forEach(function(member) {
     var name = String(member.name || '').trim();
     if (!name) return;
-    statusByName[name] = normalizeStatus(member.status);
+    statusByName[name] = normalizeSemanticStatus(member.status);
   });
 
-  headers.forEach(function(header, index) {
-    if (index === 0) return;
-    row[index] = statusByName[String(header || '').trim()] || '';
+  var memberCount = sheet.getLastRow() - 1;
+  var memberRows = memberCount > 0 ? sheet.getRange(2, 1, memberCount, 1).getValues() : [];
+  var values = memberRows.map(function(memberRow) {
+    var name = String(memberRow[0] || '').trim();
+    return [STATUS_MAP[statusByName[name] || 'pending'] || STATUS_MAP.pending];
   });
-
-  sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
-  sheet.getRange(rowIndex, 1).setNumberFormat('dd/MM');
-  sortDataRowsByDate(sheet);
+  var colors = memberRows.map(function(memberRow) {
+    var name = String(memberRow[0] || '').trim();
+    var semanticStatus = statusByName[name] || 'pending';
+    return [TEXT_COLORS[semanticStatus] || TEXT_COLORS.absent];
+  });
+  if (values.length) {
+    sheet.getRange(2, dateColumn, values.length, 1).setValues(values);
+    sheet.getRange(2, dateColumn, colors.length, 1).setFontColors(colors);
+  }
+  sheet.getRange(1, dateColumn).setNumberFormat('dd/MM');
+  sortMemberRowsByName(sheet);
+  sortDateColumnsByDate(sheet);
   applyAttendanceFormatting(sheet);
-  return { ok: true, classId: cls.id, className: cls.name, date: dateKey, row: rowIndex };
+  return { ok: true, classId: cls.id, className: cls.name, date: dateKey, column: dateColumn };
 }
 
 function ensureMetaHeader(sheet) {
-  if (sheet.getLastRow() === 0) {
-    sheet.getRange(1, 1, 1, 3).setValues([['id', 'name', 'membersJson']]);
-    sheet.setFrozenRows(1);
-  }
+  sheet.getRange(1, 1, 1, META_HEADERS.length).setValues([META_HEADERS]);
+  sheet.setFrozenRows(1);
 }
 
 function writeMeta(sheet, classes) {
   sheet.clearContents();
-  sheet.getRange(1, 1, 1, 3).setValues([['id', 'name', 'membersJson']]);
+  sheet.getRange(1, 1, 1, META_HEADERS.length).setValues([META_HEADERS]);
   if (classes.length) {
     var rows = classes.map(function(item) {
-      return [item.id, item.name, JSON.stringify(uniqueNames(item.members))];
+      return [item.id, item.name, JSON.stringify(uniqueNames(item.members)), JSON.stringify(normalizeTrainingDays(item.trainingDays, defaultTrainingDays(item.name))), normalizeSeasonStart(item.seasonStart)];
     });
-    sheet.getRange(2, 1, rows.length, 3).setValues(rows);
+    sheet.getRange(2, 1, rows.length, META_HEADERS.length).setValues(rows);
   }
   sheet.setFrozenRows(1);
 }
@@ -168,12 +335,15 @@ function writeMeta(sheet, classes) {
 function readClasses(ss) {
   var sheet = ss.getSheetByName(META_SHEET_NAME);
   if (!sheet || sheet.getLastRow() < 2) return [];
-  var values = sheet.getRange(2, 1, sheet.getLastRow() - 1, 3).getValues();
+  var values = sheet.getRange(2, 1, sheet.getLastRow() - 1, META_HEADERS.length).getValues();
   return values.map(function(row) {
+    var name = String(row[1] || '').trim();
     return {
       id: String(row[0] || '').trim(),
-      name: String(row[1] || '').trim(),
-      members: parseMembers(row[2])
+      name: name,
+      members: parseMembers(row[2]),
+      trainingDays: parseTrainingDays(row[3], defaultTrainingDays(name)),
+      seasonStart: normalizeSeasonStart(row[4])
     };
   }).filter(function(item) { return item.id && item.name; });
 }
@@ -198,6 +368,36 @@ function parseMembers(value) {
   } catch (err) {
     return [];
   }
+}
+
+function parseTrainingDays(value, fallback) {
+  var parsed = value;
+  if (typeof value === 'string') {
+    try { parsed = JSON.parse(value); } catch (err) { parsed = null; }
+  }
+  return normalizeTrainingDays(parsed, fallback);
+}
+
+function normalizeTrainingDays(value, fallback) {
+  var source = Array.isArray(value) ? value : (Array.isArray(fallback) ? fallback : []);
+  var seen = {};
+  return source.map(function(day) { return Number(day); }).filter(function(day) {
+    if (day < 0 || day > 6 || !isFinite(day) || seen[day]) return false;
+    seen[day] = true;
+    return true;
+  }).sort(function(a, b) { return a - b; });
+}
+
+function defaultTrainingDays(className) {
+  var key = String(className || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, '');
+  if (key === 'minigami') return [1, 2, 4];
+  if (key === 'gami') return [2, 4];
+  return [];
+}
+
+function normalizeSeasonStart(value) {
+  var parsed = parseDateKey(value);
+  return parsed ? normalizeDateKey(parsed) : DEFAULT_SEASON_START;
 }
 
 function uniqueNames(list) {
@@ -234,111 +434,285 @@ function getOrCreateClassSheet(ss, className) {
   return sheet;
 }
 
+function deleteClassSheet(ss, className) {
+  var sheet = ss.getSheetByName(sanitizeSheetName(className));
+  if (sheet && sheet.getName() !== META_SHEET_NAME) ss.deleteSheet(sheet);
+}
+
 function ensureAttendanceHeader(sheet) {
   if (sheet.getLastRow() === 0) {
-    sheet.getRange(1, 1).setValue('Date');
+    sheet.getRange(1, 1).setValue('Membro');
     sheet.setFrozenRows(1);
+    return;
   }
+
+  var firstHeader = String(sheet.getRange(1, 1).getValue() || '').trim().toLowerCase();
+  if (firstHeader === 'date' || firstHeader === 'data') transposeLegacyAttendanceSheet(sheet);
+  if (!String(sheet.getRange(1, 1).getValue() || '').trim()) sheet.getRange(1, 1).setValue('Membro');
+  sheet.setFrozenRows(1);
+}
+
+function transposeLegacyAttendanceSheet(sheet) {
+  var lastRow = sheet.getLastRow();
+  var lastColumn = sheet.getLastColumn();
+  if (lastColumn < 2) {
+    sheet.getRange(1, 1).setValue('Membro');
+    return;
+  }
+
+  var oldValues = sheet.getRange(1, 1, lastRow, lastColumn).getValues();
+  var memberNames = [];
+  var memberIndexes = {};
+  oldValues[0].slice(1).forEach(function(value, index) {
+    var name = String(value || '').trim();
+    var key = name.toLowerCase();
+    if (!name || memberIndexes[key] !== undefined) return;
+    memberIndexes[key] = index + 1;
+    memberNames.push(name);
+  });
+  memberNames = uniqueNames(memberNames);
+
+  var dates = {};
+  for (var rowIndex = 1; rowIndex < oldValues.length; rowIndex++) {
+    var parsedDate = parseDateKey(oldValues[rowIndex][0]);
+    if (!parsedDate) continue;
+    var dateKey = Utilities.formatDate(parsedDate, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    dates[dateKey] = { date: parsedDate, values: oldValues[rowIndex] };
+  }
+
+  var dateKeys = Object.keys(dates).sort();
+  var newValues = [['Membro'].concat(dateKeys.map(function(key) { return dates[key].date; }))];
+  var newColors = [];
+  memberNames.forEach(function(name) {
+    var oldIndex = memberIndexes[name.toLowerCase()];
+    var row = [name];
+    var colorRow = [];
+    dateKeys.forEach(function(key) {
+      var status = dates[key].values[oldIndex];
+      if (status === '' || status === null || status === undefined) {
+        row.push('');
+        colorRow.push('#000000');
+        return;
+      }
+      var semanticStatus = normalizeSemanticStatus(status);
+      row.push(STATUS_MAP[semanticStatus] || STATUS_MAP.pending);
+      colorRow.push(TEXT_COLORS[semanticStatus] || TEXT_COLORS.absent);
+    });
+    newValues.push(row);
+    newColors.push(colorRow);
+  });
+
+  sheet.clearContents();
+  sheet.setConditionalFormatRules([]);
+  sheet.getRange(1, 1, newValues.length, newValues[0].length).setValues(newValues);
+  if (newValues[0].length > 1) sheet.getRange(1, 2, 1, newValues[0].length - 1).setNumberFormat('dd/MM');
+  if (newColors.length && newColors[0].length) sheet.getRange(2, 2, newColors.length, newColors[0].length).setFontColors(newColors);
+  sheet.setFrozenRows(1);
+  sheet.setFrozenColumns(1);
+  applyAttendanceFormatting(sheet);
 }
 
 function ensureDateColumnDisplayFormat(sheet) {
-  if (sheet.getLastRow() < 2) return;
-  sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).setNumberFormat('dd/MM');
+  if (sheet.getLastColumn() < 2) return;
+  sheet.getRange(1, 2, 1, sheet.getLastColumn() - 1).setNumberFormat('dd/MM');
 }
 
 function normalizeAttendanceDates(sheet) {
-  if (sheet.getLastRow() < 2) return;
-  var range = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1);
+  if (sheet.getLastColumn() < 2) return;
+  var range = sheet.getRange(1, 2, 1, sheet.getLastColumn() - 1);
   var values = range.getValues();
   var changed = false;
-  for (var i = 0; i < values.length; i++) {
-    var parsed = parseDateKey(values[i][0]);
-    if (parsed && !(values[i][0] instanceof Date)) {
-      values[i][0] = parsed;
+  for (var i = 0; i < values[0].length; i++) {
+    var parsed = parseDateKey(values[0][i]);
+    if (parsed && !(values[0][i] instanceof Date)) {
+      values[0][i] = parsed;
       changed = true;
     }
   }
   if (changed) range.setValues(values);
-  range.setNumberFormat('dd/MM');
+  ensureDateColumnDisplayFormat(sheet);
 }
 
 function normalizeAllAttendanceDates(ss) {
+  var classes = arguments.length > 1 && arguments[1] ? arguments[1] : readClasses(ss);
+  var classSheets = {};
+  classes.forEach(function(item) { classSheets[sanitizeSheetName(item.name)] = true; });
   var sheets = ss.getSheets();
   sheets.forEach(function(sheet) {
     var name = sheet.getName();
-    if (name === META_SHEET_NAME) return;
+    if (name === META_SHEET_NAME || !classSheets[name]) return;
+    ensureAttendanceHeader(sheet);
     normalizeAttendanceDates(sheet);
+    deduplicateDateColumns(sheet);
     ensureDateColumnDisplayFormat(sheet);
   });
 }
 
 function ensureMemberHeaders(sheet, members) {
-  var lastCol = Math.max(sheet.getLastColumn(), 1);
-  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  if (!headers[0]) headers[0] = 'Date';
-  var map = {};
-  headers.forEach(function(h, i) {
-    var name = String(h || '').trim().toLowerCase();
-    if (name) map[name] = i;
-  });
-  members.forEach(function(name) {
-    var key = String(name || '').trim().toLowerCase();
-    if (!key || map[key] !== undefined) return;
-    headers.push(name);
-    map[key] = headers.length - 1;
-  });
-  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-  sheet.setFrozenRows(1);
-  return headers;
+  ensureMemberRows(sheet, members);
+  return sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
 }
 
-function findRowByDate(sheet, dateKey) {
-  if (sheet.getLastRow() < 2) return null;
-  var dates = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat();
-  var target = parseDateKey(dateKey);
-  for (var i = 0; i < dates.length; i++) {
-    var current = parseDateKey(dates[i]);
-    if (target && current && current.getFullYear() === target.getFullYear() && current.getMonth() === target.getMonth() && current.getDate() === target.getDate()) return i + 2;
+function ensureMemberRows(sheet, members) {
+  var lastRow = sheet.getLastRow();
+  var existing = lastRow >= 2 ? sheet.getRange(2, 1, lastRow - 1, 1).getValues() : [];
+  var names = existing.map(function(row) { return String(row[0] || '').trim(); }).filter(Boolean);
+  var seen = {};
+  names.forEach(function(name) { seen[name.toLowerCase()] = true; });
+
+  uniqueNames(members).forEach(function(name) {
+    if (seen[name.toLowerCase()]) return;
+    names.push(name);
+    seen[name.toLowerCase()] = true;
+  });
+
+  names = uniqueNames(names);
+  if (names.length) sheet.getRange(2, 1, names.length, 1).setValues(names.map(function(name) { return [name]; }));
+  sheet.setFrozenColumns(1);
+  return names;
+}
+
+function removeMemberRows(sheet, memberName) {
+  var target = String(memberName || '').trim().toLowerCase();
+  for (var row = sheet.getLastRow(); row >= 2; row--) {
+    var current = String(sheet.getRange(row, 1).getValue() || '').trim().toLowerCase();
+    if (current === target) sheet.deleteRow(row);
   }
-  return null;
 }
 
-function sortDataRowsByDate(sheet) {
-  if (sheet.getLastRow() < 3) return;
-  var range = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn());
-  var values = range.getValues();
-  values.sort(function(a, b) {
-    var aDate = parseDateKey(a[0]) || new Date(0);
-    var bDate = parseDateKey(b[0]) || new Date(0);
-    return aDate - bDate;
+function deduplicateDateColumns(sheet) {
+  if (sheet.getLastColumn() < 3) return;
+  var lastRow = sheet.getLastRow();
+  var dateCount = sheet.getLastColumn() - 1;
+  var headers = sheet.getRange(1, 2, 1, dateCount).getValues()[0];
+  var firstByDate = {};
+  var duplicates = [];
+
+  headers.forEach(function(value, index) {
+    var key = normalizeDateKey(value);
+    if (!key) return;
+    var column = index + 2;
+    if (!firstByDate[key]) {
+      firstByDate[key] = column;
+    } else {
+      duplicates.push({ column: column, target: firstByDate[key] });
+    }
   });
-  range.setValues(values);
+
+  duplicates.reverse().forEach(function(item) {
+    var rowCount = lastRow - 1;
+    if (rowCount > 0) {
+      var sourceValues = sheet.getRange(2, item.column, rowCount, 1).getValues();
+      var sourceColors = sheet.getRange(2, item.column, rowCount, 1).getFontColors();
+      var targetRange = sheet.getRange(2, item.target, rowCount, 1);
+      var targetValues = targetRange.getValues();
+      var targetColors = targetRange.getFontColors();
+      for (var row = 0; row < rowCount; row++) {
+        if (sourceValues[row][0] !== '' && sourceValues[row][0] !== null && sourceValues[row][0] !== undefined) {
+          targetValues[row][0] = sourceValues[row][0];
+          targetColors[row][0] = sourceColors[row][0];
+        }
+      }
+      targetRange.setValues(targetValues);
+      targetRange.setFontColors(targetColors);
+    }
+    sheet.deleteColumn(item.column);
+  });
+  ensureDateColumnDisplayFormat(sheet);
+}
+
+function findColumnByDate(sheet, dateKey) {
+  return getDateColumnMap(sheet)[normalizeDateKey(dateKey)] || null;
+}
+
+function getDateColumnMap(sheet) {
+  if (sheet.getLastColumn() < 2) return {};
+  var dates = sheet.getRange(1, 2, 1, sheet.getLastColumn() - 1).getValues()[0];
+  var map = {};
+  dates.forEach(function(value, index) {
+    var key = normalizeDateKey(value);
+    if (key && !map[key]) map[key] = index + 2;
+  });
+  return map;
+}
+
+function addDateColumn(sheet, dateKey) {
+  var column = Math.max(sheet.getLastColumn() + 1, 2);
+  var parsed = parseDateKey(dateKey);
+  sheet.getRange(1, column).setValue(parsed || dateKey).setNumberFormat('dd/MM');
+  return column;
+}
+
+function sortMemberRowsByName(sheet) {
+  if (sheet.getLastRow() < 3) return;
+  sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).sort({ column: 1, ascending: true });
+}
+
+function sortDateColumnsByDate(sheet) {
+  if (sheet.getLastColumn() < 3) return;
+  var columnCount = sheet.getLastColumn() - 1;
+  var rowCount = sheet.getLastRow();
+  var range = sheet.getRange(1, 2, rowCount, columnCount);
+  var values = range.getValues();
+  var colors = range.getFontColors();
+  var order = values[0].map(function(value, index) {
+    return { index: index, date: parseDateKey(value) || new Date(8640000000000000) };
+  }).sort(function(a, b) { return a.date - b.date; });
+  var sorted = values.map(function(row) {
+    return order.map(function(item) { return row[item.index]; });
+  });
+  var sortedColors = colors.map(function(row) {
+    return order.map(function(item) { return row[item.index]; });
+  });
+  range.setValues(sorted);
+  range.setFontColors(sortedColors);
+  sheet.getRange(1, 2, 1, columnCount).setNumberFormat('dd/MM');
 }
 
 function applyAttendanceFormatting(sheet) {
   if (sheet.getLastRow() < 2 || sheet.getLastColumn() < 2) return;
   var range = sheet.getRange(2, 2, sheet.getLastRow() - 1, sheet.getLastColumn() - 1);
-  var rules = [
-    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('Presente').setBackground('#e0ead9').setRanges([range]).build(),
-    SpreadsheetApp.newConditionalFormatRule().whenTextContains('Atrasado').setBackground('#f2e8bf').setRanges([range]).build(),
-    SpreadsheetApp.newConditionalFormatRule().whenTextContains('Falta').setBackground('#f2d9dd').setRanges([range]).build(),
-    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('Attended').setBackground('#e0ead9').setRanges([range]).build(),
-    SpreadsheetApp.newConditionalFormatRule().whenTextContains('Late').setBackground('#f2e8bf').setRanges([range]).build(),
-    SpreadsheetApp.newConditionalFormatRule().whenTextContains('Not attended').setBackground('#f2d9dd').setRanges([range]).build()
-  ];
-  sheet.setConditionalFormatRules(rules);
+  sheet.setConditionalFormatRules([]);
+  range.setBackground(null);
+}
+
+function normalizeSemanticStatus(status) {
+  var value = String(status || '').toLowerCase().trim();
+  if (!value) return 'pending';
+  if (value === '*' || value === 'attended' || value === 'presente') return 'attended';
+  if (value === 'a') return 'late';
+  if (value === 'f') return 'absent';
+  if (value === 'late_told') return 'late_told';
+  if (value === 'late_not_told') return 'late_not_told';
+  if (value === 'absent_justified') return 'absent_justified';
+  if (value === 'absent_not_justified') return 'absent_not_justified';
+  if (value === 'late - told us why' || value === 'atrasado — justificou') return 'late_told';
+  if (value === 'late - did not tell us why' || value === 'atrasado — não justificou') return 'late_not_told';
+  if (value === 'not attended - justified' || value === 'falta — justificada') return 'absent_justified';
+  if (value === 'not attended - not justified' || value === 'falta — não justificada') return 'absent_not_justified';
+  if (value === 'late' || value === 'atrasado') return 'late';
+  if (value === 'absent' || value === 'not attended' || value === 'falta' || value === 'pending') return 'absent';
+  return 'absent';
 }
 
 function normalizeStatus(status) {
-  var value = String(status || '').toLowerCase();
-  if (value === 'late - told us why' || value === 'atrasado — justificou') return STATUS_MAP.late_told;
-  if (value === 'late - did not tell us why' || value === 'atrasado — não justificou') return STATUS_MAP.late_not_told;
-  if (value === 'not attended - justified' || value === 'falta — justificada') return STATUS_MAP.absent_justified;
-  if (value === 'not attended - not justified' || value === 'falta — não justificada') return STATUS_MAP.absent_not_justified;
-  if (value === 'attended' || value === 'presente') return STATUS_MAP.attended;
-  if (value === 'late' || value === 'atrasado') return STATUS_MAP.late;
-  if (value === 'absent' || value === 'not attended' || value === 'falta' || value === 'pending') return STATUS_MAP.absent;
-  return STATUS_MAP[value] || STATUS_MAP.absent;
+  var semanticStatus = normalizeSemanticStatus(status);
+  return STATUS_MAP[semanticStatus] || STATUS_MAP.absent;
+}
+
+function statusFromSheetCell(value, fontColor) {
+  var semanticStatus = normalizeSemanticStatus(value);
+  if (semanticStatus === 'pending') return 'pending';
+  var color = String(fontColor || '').toLowerCase();
+  if (semanticStatus === 'late') {
+    if (color === TEXT_COLORS.late_not_told.toLowerCase()) return 'late_not_told';
+    if (color === TEXT_COLORS.late_told.toLowerCase()) return 'late_told';
+  }
+  if (semanticStatus === 'absent') {
+    if (color === TEXT_COLORS.absent_not_justified.toLowerCase()) return 'absent_not_justified';
+    if (color === TEXT_COLORS.absent_justified.toLowerCase()) return 'absent_justified';
+  }
+  return semanticStatus;
 }
 
 function sanitizeSheetName(name) {
@@ -385,8 +759,8 @@ function parseDateKey(value) {
     var second = Number(mdOrDm[2]);
     var year = new Date().getFullYear();
     if (first > 12) return new Date(year, second - 1, first);
-    if (second > 12) return new Date(year, first - 1, second);
-    return new Date(year, first - 1, second);
+  if (second > 12) return new Date(year, first - 1, second);
+    return new Date(year, second - 1, first);
   }
 
   var date = new Date(text);

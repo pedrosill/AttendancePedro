@@ -344,6 +344,28 @@
       color: var(--color-text-muted);
       font-size: var(--text-sm);
     }
+    .app-notice {
+      width: min(90vw, 760px);
+      margin: calc(44px + var(--space-4)) auto 0;
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-surface-2);
+      color: var(--color-text);
+      font-size: var(--text-sm);
+      font-weight: 700;
+      box-shadow: var(--shadow-sm);
+    }
+    .app-notice.error {
+      border-color: color-mix(in srgb, var(--color-error) 40%, var(--color-border));
+      background: var(--color-error-highlight);
+      color: var(--color-error);
+    }
+    .app-notice.success {
+      border-color: color-mix(in srgb, var(--color-success) 40%, var(--color-border));
+      background: var(--color-success-highlight);
+      color: var(--color-success);
+    }
     .action-grid { display: grid; grid-template-columns: 1fr; gap: var(--space-3); min-width: 0; width: 100%; }
     #screen-actions .action-grid {
       flex: 1;
@@ -477,6 +499,13 @@
       text-align: center;
       font-weight: 700;
     }
+    .date-display {
+      margin: 0;
+      color: var(--color-text-muted);
+      font-size: var(--text-sm);
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
     .member-progress {
       margin: 0;
       color: var(--color-text-muted);
@@ -535,6 +564,59 @@
     }
     .footer-actions.centered > * { width: min(100%, 320px); }
     .stack { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; width: 100%; }
+    .recent-training-section {
+      border-top: 1px solid var(--color-border);
+      padding-top: var(--space-4);
+    }
+    .recent-training-title {
+      margin: 0;
+      font-size: var(--text-sm);
+      font-weight: 700;
+    }
+    .recent-training-list {
+      display: grid;
+      gap: var(--space-2);
+    }
+    .recent-training-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      min-width: 0;
+      padding: 0.7rem 0.85rem;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-surface-2);
+    }
+    .recent-training-date {
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    .recent-training-status {
+      padding: 0.3rem 0.6rem;
+      border-radius: var(--radius-full);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .recent-training-item.is-filled {
+      border-color: color-mix(in srgb, var(--color-success) 35%, var(--color-border));
+      background: var(--color-success-highlight);
+    }
+    .recent-training-item.is-filled .recent-training-status {
+      color: var(--color-success);
+    }
+    .recent-training-item.is-missing {
+      border-color: color-mix(in srgb, var(--color-error) 35%, var(--color-border));
+      background: var(--color-error-highlight);
+    }
+    .recent-training-item.is-missing .recent-training-status {
+      color: var(--color-error);
+    }
+    .recent-training-item.is-loading .recent-training-status,
+    .recent-training-empty {
+      color: var(--color-text-muted);
+    }
     .toolbar { display: flex; gap: var(--space-3); flex-wrap: wrap; min-width: 0; width: 100%; }
     .toolbar > * { flex: 1 1 0; }
     .toolbar.add-class-toolbar { justify-content: flex-end; }
@@ -781,6 +863,8 @@
       </div>
     </header>
 
+    <div id="appNotice" class="app-notice" role="status" aria-live="polite" hidden></div>
+
     <section class="screen active" id="screen-class" aria-labelledby="class-title">
       <div class="screen-header">
         <p class="eyebrow">Passo 1</p>
@@ -809,7 +893,7 @@
       </div>
 
       <div class="footer-actions centered">
-        <button class="primary-btn" type="button" id="goToDateBtn">Continuar</button>
+        <button class="primary-btn" type="button" id="goToDateBtn" hidden>Continuar</button>
       </div>
     </section>
 
@@ -878,7 +962,13 @@
 
       <div class="field">
         <label for="actionAttendanceDateInput">Data da presença</label>
-        <input id="actionAttendanceDateInput" class="text-input" type="date" />
+        <input id="actionAttendanceDateInput" class="text-input" type="date" lang="pt-PT" aria-describedby="actionAttendanceDateDisplay" />
+        <p id="actionAttendanceDateDisplay" class="date-display" aria-live="polite"></p>
+      </div>
+
+      <div class="stack recent-training-section">
+        <h3 class="recent-training-title">Últimos treinos</h3>
+        <div id="recentTrainingList" class="recent-training-list" aria-live="polite"></div>
       </div>
 
       <div class="footer-actions centered">
@@ -923,7 +1013,8 @@
 
       <div class="field">
         <label for="attendanceDateInput">Data da presença</label>
-        <input id="attendanceDateInput" class="text-input" type="date" />
+        <input id="attendanceDateInput" class="text-input" type="date" lang="pt-PT" aria-describedby="attendanceDateDisplay" />
+        <p id="attendanceDateDisplay" class="date-display" aria-live="polite"></p>
       </div>
 
       <div class="member-list" id="memberList"></div>
@@ -1052,7 +1143,8 @@
       dateStepTouched: false,
       savingAttendance: false
     };
-    let classSaveDebounce = null;
+    let classMutationQueue = Promise.resolve();
+    let recentTrainingRequestId = 0;
     let pendingClassRemovalId = '';
     let pendingClassRemovalTrigger = null;
     const els = {
@@ -1064,7 +1156,6 @@
       dateClassLabel: document.getElementById('dateClassLabel'),
       actionsClassLabel: document.getElementById('actionsClassLabel'),
       attendanceClassLabel: document.getElementById('attendanceClassLabel'),
-      attendanceSingleClassLabel: document.getElementById('attendanceSingleClassLabel'),
       editClassLabel: document.getElementById('editClassLabel'),
       attendedCount: document.getElementById('attendedCount'),
       lateCount: document.getElementById('lateCount'),
@@ -1073,6 +1164,8 @@
       singleMemberProgress: document.getElementById('singleMemberProgress'),
       singleMemberName: document.getElementById('singleMemberName'),
       singleAttendanceDateInfo: document.getElementById('singleAttendanceDateInfo'),
+      actionAttendanceDateDisplay: document.getElementById('actionAttendanceDateDisplay'),
+      attendanceDateDisplay: document.getElementById('attendanceDateDisplay'),
       editMemberList: document.getElementById('editMemberList'),
       classListEditor: document.getElementById('classListEditor'),
       memberNameInput: document.getElementById('memberNameInput'),
@@ -1083,6 +1176,8 @@
       webhookInput: document.getElementById('webhookInput'),
       actionAttendanceDateInput: document.getElementById('actionAttendanceDateInput'),
       attendanceDateInput: document.getElementById('attendanceDateInput'),
+      recentTrainingList: document.getElementById('recentTrainingList'),
+      appNotice: document.getElementById('appNotice'),
       screens: {
         class: document.getElementById('screen-class'),
         settings: document.getElementById('screen-settings'),
@@ -1115,10 +1210,75 @@
         classPickerMode: state.classPickerMode
       }));
     }
+    let noticeTimer = null;
+    function showNotice(message, type = 'error', duration = 0) {
+      if (!els.appNotice) return;
+      if (noticeTimer) clearTimeout(noticeTimer);
+      els.appNotice.textContent = message;
+      els.appNotice.className = `app-notice ${type}`;
+      els.appNotice.hidden = false;
+      if (duration > 0) noticeTimer = setTimeout(() => clearNotice(), duration);
+    }
+    function clearNotice() {
+      if (noticeTimer) clearTimeout(noticeTimer);
+      noticeTimer = null;
+      if (els.appNotice) els.appNotice.hidden = true;
+    }
     function todayKey() { return new Date().toISOString().slice(0, 10); }
     function selectedDateKey() { return state.selectedDate || todayKey(); }
     function displayDate(value) { return new Intl.DateTimeFormat(undefined, { day: '2-digit', month: '2-digit' }).format(new Date(value + 'T12:00:00')); }
+    function displayTrainingDate(value) { return new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: '2-digit' }).format(new Date(value + 'T12:00:00')); }
+    function displayWeekday(value) { return new Intl.DateTimeFormat('pt-PT', { weekday: 'long' }).format(new Date(value + 'T12:00:00')); }
     function displaySingleDate(value) { return new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value + 'T12:00:00')); }
+    function displayAttendanceDate(value) {
+      const date = new Date(`${value}T12:00:00`);
+      const dateText = new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
+      const weekday = new Intl.DateTimeFormat('pt-PT', { weekday: 'long' }).format(date);
+      return `${dateText} - ${weekday}`;
+    }
+    function updateDateDisplays() {
+      const value = selectedDateKey();
+      if (els.actionAttendanceDateDisplay) els.actionAttendanceDateDisplay.textContent = displayWeekday(value);
+      if (els.attendanceDateDisplay) els.attendanceDateDisplay.textContent = displayAttendanceDate(value);
+    }
+    function renderRecentTrainingList(items, loading = false) {
+      if (!els.recentTrainingList) return;
+      if (!items.length) {
+        els.recentTrainingList.innerHTML = loading
+          ? '<p class="recent-training-empty tiny">A verificar...</p>'
+          : '<p class="recent-training-empty tiny">Não existem treinos definidos para este período.</p>';
+        return;
+      }
+      els.recentTrainingList.innerHTML = items.map(item => {
+        const statusClass = loading || item.loading ? 'is-loading' : item.filled ? 'is-filled' : item.error ? 'is-loading' : 'is-missing';
+        const statusText = loading || item.loading ? 'A verificar...' : item.error ? 'Sem ligação' : item.filled ? 'Preenchido' : 'Por preencher';
+        return `<div class="recent-training-item ${statusClass}">
+          <span class="recent-training-date">${displayTrainingDate(item.dateKey)} - ${displayWeekday(item.dateKey)}</span>
+          <span class="recent-training-status">${statusText}</span>
+        </div>`;
+      }).join('');
+    }
+    async function loadRecentTrainingStatus() {
+      const cls = currentClass();
+      const requestId = ++recentTrainingRequestId;
+      if (!cls || !state.webhookUrl) {
+        renderRecentTrainingList([]);
+        return;
+      }
+      renderRecentTrainingList([], true);
+      try {
+        const result = await apiGet('recentAttendance', { classId: cls.id, date: selectedDateKey(), count: 2 });
+        if (!result.ok) throw new Error(result.error || 'Não foi possível carregar os treinos');
+        if (!Array.isArray(result.dates)) throw new Error('O Apps Script ainda não suporta o resumo de treinos');
+        const items = Array.isArray(result.dates) ? result.dates.map(item => ({ dateKey: item.date, filled: !!item.filled })) : [];
+        if (requestId === recentTrainingRequestId) renderRecentTrainingList(items);
+      } catch {
+        if (requestId === recentTrainingRequestId) {
+          renderRecentTrainingList([]);
+          showNotice('Não foi possível verificar os últimos treinos.', 'error');
+        }
+      }
+    }
     function updateResponsiveLayout() {
       const width = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
       const height = window.innerHeight || 0;
@@ -1227,6 +1387,17 @@
       return res.json();
     }
 
+    function requireApiSuccess(result, fallbackMessage) {
+      if (!result || result.ok !== true) throw new Error(result?.error || fallbackMessage);
+      return result;
+    }
+
+    function queueClassMutation(payload) {
+      const operation = classMutationQueue.then(() => apiPost(payload));
+      classMutationQueue = operation.catch(() => {});
+      return operation;
+    }
+
     function renderClassOptions() {
       els.classSelect.innerHTML = '';
       state.classes.forEach(item => {
@@ -1238,6 +1409,8 @@
       });
       renderClassButtons();
       renderSettingsClassList();
+      const continueButton = document.getElementById('goToDateBtn');
+      if (continueButton) continueButton.hidden = state.classes.length === 0;
     }
 
     function renderClassButtons() {
@@ -1261,7 +1434,10 @@
       persistState();
       renderClassOptions();
       renderTopSummary();
-      refreshAttendance(state.selectedClassId, selectedDateKey()).catch(() => {});
+      refreshAttendance(state.selectedClassId, selectedDateKey()).catch(() => {
+        showNotice('Não foi possível carregar as presenças desta turma.');
+      });
+      if (els.screens.date?.classList.contains('active')) loadRecentTrainingStatus();
     }
 
     function renderTopSummary() {
@@ -1271,6 +1447,7 @@
         if (els.actionAttendanceDateInput) els.actionAttendanceDateInput.value = selectedDateKey();
         if (els.attendanceDateInput) els.attendanceDateInput.value = selectedDateKey();
         if (els.singleAttendanceDateInput) els.singleAttendanceDateInput.value = selectedDateKey();
+        updateDateDisplays();
         els.selectedClassLabel.textContent = 'Turma selecionada: —';
         els.attendanceClassLabel.textContent = 'Turma: —';
         els.editClassLabel.textContent = 'Turma: —';
@@ -1281,8 +1458,9 @@
       const map = currentAttendanceMap();
       applyClassAccent(colorFromString(cls.name));
       els.membersCount.textContent = cls.members.length;
-        if (els.actionAttendanceDateInput) els.actionAttendanceDateInput.value = selectedDateKey();
-        if (els.attendanceDateInput) els.attendanceDateInput.value = selectedDateKey();
+      if (els.actionAttendanceDateInput) els.actionAttendanceDateInput.value = selectedDateKey();
+      if (els.attendanceDateInput) els.attendanceDateInput.value = selectedDateKey();
+      updateDateDisplays();
       els.selectedClassLabel.textContent = `Turma selecionada: ${cls.name}`;
       if (els.actionsClassLabel) els.actionsClassLabel.textContent = `Turma selecionada: ${cls.name}`;
       els.attendanceClassLabel.textContent = `Turma: ${cls.name}`;
@@ -1331,7 +1509,7 @@
     function renderSingleAttendance() {
       const cls = currentClass();
       if (!cls || !cls.members.length) {
-        if (els.singleAttendanceDateInfo) els.singleAttendanceDateInfo.textContent = `Data: ${displaySingleDate(selectedDateKey())}`;
+        if (els.singleAttendanceDateInfo) els.singleAttendanceDateInfo.textContent = `Data: ${displayAttendanceDate(selectedDateKey())}`;
         if (els.singleMemberProgress) els.singleMemberProgress.textContent = '0 de 0';
         if (els.singleMemberName) els.singleMemberName.textContent = 'Sem membros';
         return;
@@ -1342,7 +1520,7 @@
       state.singleAttendanceIndex = index;
       const name = currentSingleMemberName();
       const isLast = index === cls.members.length - 1;
-      if (els.singleAttendanceDateInfo) els.singleAttendanceDateInfo.textContent = `Data: ${displaySingleDate(selectedDateKey())}`;
+      if (els.singleAttendanceDateInfo) els.singleAttendanceDateInfo.textContent = `Data: ${displayAttendanceDate(selectedDateKey())}`;
       if (els.singleMemberProgress) els.singleMemberProgress.textContent = `${index + 1} de ${cls.members.length}`;
       if (els.singleMemberName) els.singleMemberName.textContent = (isLast && state.singleLastCompleted) ? 'Concluído' : name;
       const status = map[name] || 'pending';
@@ -1443,6 +1621,7 @@
       if (key === 'edit') renderEditList();
       if (key === 'classes') renderClassEditor();
       if (key === 'settings') renderSettingsClassList();
+      if (key === 'date') loadRecentTrainingStatus();
       renderTopSummary();
     }
 
@@ -1511,12 +1690,15 @@
 
     function addMember() {
       const value = els.memberNameInput.value.trim();
-      if (!value) return;
+      if (!value) return showNotice('Indica o nome do membro.');
       const cls = currentClass();
-      if (!cls) return alert('Carregue primeiro uma turma.');
-      if (cls.members.some(name => name.toLowerCase() === value.toLowerCase())) return alert('Este membro já existe nesta turma.');
-      saveClassState([{ id: cls.id, name: cls.name, members: sortMembers(cls.members.concat(value)) }].concat(state.classes.filter(item => item.id !== cls.id)), cls.id, { stayOnPage: true });
-      hideAddMemberPanel();
+      if (!cls) return showNotice('Carregue primeiro uma turma.');
+      if (cls.members.some(name => name.toLowerCase() === value.toLowerCase())) return showNotice('Este membro já existe nesta turma.');
+      queueClassMutation({ action: 'addMember', classId: cls.id, memberName: value })
+        .then(requireApiSuccess)
+        .then(result => applySavedClass(result.class, cls.id))
+        .then(() => hideAddMemberPanel())
+        .catch(() => {});
     }
 
     function showAddMemberPanel() {
@@ -1534,28 +1716,27 @@
     function removeMember(name) {
       const cls = currentClass();
       if (!cls) return;
+      if (state.removingMemberNames[name]) return;
       state.removingMemberNames[name] = true;
       renderEditList();
-      if (classSaveDebounce) clearTimeout(classSaveDebounce);
-      classSaveDebounce = setTimeout(() => {
-        const nextClasses = state.classes.map(item => item.id === cls.id
-          ? { id: cls.id, name: cls.name, members: item.members.filter(member => !state.removingMemberNames[member]) }
-          : item);
-        saveClassState(nextClasses, cls.id, { stayOnPage: true })
-          .finally(() => {
-            state.removingMemberNames = {};
-            renderEditList();
-          });
-      }, 250);
+      queueClassMutation({ action: 'removeMember', classId: cls.id, memberName: name })
+        .then(requireApiSuccess)
+        .then(result => applySavedClass(result.class, cls.id))
+        .catch(() => {})
+        .finally(() => {
+          delete state.removingMemberNames[name];
+          renderEditList();
+        });
     }
 
     function addClass() {
       const value = els.classNameInput.value.trim();
-      if (!value) return;
+      if (!value) return showNotice('Indica o nome da turma.');
+      if (state.classes.some(item => item.name.toLowerCase() === value.toLowerCase())) return showNotice('Esta turma já existe.');
       const id = `class-${crypto.randomUUID ? crypto.randomUUID() : Date.now()}`;
-      els.classNameInput.value = '';
-      saveClassState(state.classes.concat({ id, name: value, members: [] }), id, { stayOnPage: true });
-      els.addClassPanel.hidden = true;
+      saveClassRecord({ id, name: value, members: [] }, id, { stayOnPage: true })
+        .then(() => hideAddClassPanel())
+        .catch(() => {});
     }
 
     function showClassRemovalDialog(id, trigger) {
@@ -1591,9 +1772,20 @@
         closeClassRemovalDialog(false);
         return;
       }
-      const nextClasses = state.classes.filter(item => item.id !== id);
       closeClassRemovalDialog(false);
-      saveClassState(nextClasses, nextClasses[0]?.id || '', { stayOnPage: true }).catch(() => {});
+      queueClassMutation({ action: 'removeClass', classId: id })
+        .then(requireApiSuccess)
+        .then(() => {
+          state.classes = state.classes.filter(item => item.id !== id);
+          state.selectedClassId = state.selectedClassId === id ? state.classes[0]?.id || '' : state.selectedClassId;
+          persistState();
+          renderClassOptions();
+          renderClassEditor();
+          renderSettingsClassList();
+          renderEditList();
+          renderTopSummary();
+        })
+        .catch(() => {});
     }
 
     function editClassMembers(id) {
@@ -1623,32 +1815,56 @@
       const value = input.value.trim();
       const cls = state.classes.find(item => item.id === id);
       if (!cls || !value || value === cls.name) return;
-      const nextClasses = state.classes.map(item => item.id === id ? { ...item, name: value } : item);
-      saveClassState(nextClasses, state.selectedClassId, { stayOnPage: true }).catch(() => {});
+      saveClassRecord({ id: cls.id, name: value }, state.selectedClassId, { stayOnPage: true }).catch(() => {});
     }
 
     function flushClassRenameSave(input) {
       saveClassRename(input);
     }
 
-    async function saveClassState(nextClasses, nextSelectedClassId, options = {}) {
-      const normalized = nextClasses.map(item => ({
-        id: String(item.id || `class-${Date.now()}`),
-        name: String(item.name || 'Class').trim(),
-        members: sortMembers(Array.isArray(item.members) ? item.members.map(name => String(name).trim()).filter(Boolean) : [])
-      })).filter(item => item.name);
-      const result = await apiPost({ action: 'saveClasses', classes: normalized });
-      if (!result.ok) throw new Error(result.error || 'Não foi possível guardar os dados da turma');
-      state.classes = normalized;
-      state.selectedClassId = nextSelectedClassId || normalized[0]?.id || '';
+    function applySavedClass(record, nextSelectedClassId) {
+      const saved = normalizeClass(record);
+      const exists = state.classes.some(item => item.id === saved.id);
+      state.classes = exists
+        ? state.classes.map(item => item.id === saved.id ? saved : item)
+        : state.classes.concat(saved);
+      state.selectedClassId = nextSelectedClassId || state.selectedClassId || saved.id;
       persistState();
       renderClassOptions();
       renderClassEditor();
       renderSettingsClassList();
       renderEditList();
       renderTopSummary();
-      if (state.selectedClassId) await refreshAttendance(state.selectedClassId, selectedDateKey()).catch(() => {});
-      if (!options.stayOnPage) switchScreen('class');
+    }
+
+    function normalizeClassPayload(classRecord) {
+      const payload = {
+        id: String(classRecord.id || `class-${Date.now()}`),
+        name: String(classRecord.name || '').trim()
+      };
+      if (Array.isArray(classRecord.members)) {
+        payload.members = sortMembers(classRecord.members.map(name => String(name).trim()).filter(Boolean));
+      }
+      if (Array.isArray(classRecord.trainingDays) && classRecord.trainingDays.length) {
+        payload.trainingDays = classRecord.trainingDays.map(Number).filter(day => Number.isInteger(day) && day >= 0 && day <= 6);
+      }
+      if (classRecord.seasonStart) payload.seasonStart = String(classRecord.seasonStart);
+      return payload;
+    }
+
+    async function saveClassRecord(classRecord, nextSelectedClassId, options = {}) {
+      try {
+        const payload = normalizeClassPayload(classRecord);
+        if (!payload.name) throw new Error('Missing className');
+        const result = await queueClassMutation({ action: 'saveClass', class: payload });
+        requireApiSuccess(result, 'Não foi possível guardar os dados da turma');
+        applySavedClass(result.class, nextSelectedClassId);
+        showNotice('Alterações guardadas.', 'success', 1800);
+        if (!options.stayOnPage) switchScreen('class');
+      } catch (error) {
+        showNotice('Não foi possível guardar as alterações. Tenta novamente.');
+        throw error;
+      }
     }
 
     function showAddClassPanel() {
@@ -1678,7 +1894,8 @@
       if (!cls) {
         savingAttendance = false;
         if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Guardar'; }
-        return alert('Carregue primeiro uma turma.');
+        showNotice('Carregue primeiro uma turma.');
+        return;
       }
       ensureRosterStatuses();
       const payload = {
@@ -1694,6 +1911,10 @@
         if (!res.ok) throw new Error(res.error || 'Save failed');
         await refreshAttendance(cls.id, selectedDateKey());
         switchScreen('class');
+        showNotice('Presenças guardadas.', 'success', 1800);
+      } catch (error) {
+        showNotice('Não foi possível guardar as presenças. Tenta novamente.');
+        throw error;
       } finally {
         if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Guardar'; }
         savingAttendance = false;
@@ -1734,7 +1955,34 @@
       }
     }
 
-    function saveSettings() { persistState(); switchScreen('class'); }
+    function saveSettings() {
+      const input = els.webhookInput;
+      const nextUrl = input ? input.value.trim() : '';
+      if (!nextUrl) {
+        showNotice('Indica o URL do Google Apps Script.');
+        input?.focus();
+        return;
+      }
+
+      try {
+        const parsedUrl = new URL(nextUrl);
+        if (!['http:', 'https:'].includes(parsedUrl.protocol)) throw new Error('Invalid protocol');
+      } catch {
+        showNotice('O URL do Google Apps Script não é válido.');
+        input?.focus();
+        return;
+      }
+
+      state.webhookUrl = nextUrl;
+      state.classes = [];
+      persistState();
+      renderClassOptions();
+      loadSharedState().then(loaded => {
+        renderClassOptions();
+        renderTopSummary();
+        if (loaded) switchScreen('class');
+      });
+    }
 
     function setShareStatus(message) {
       const status = document.getElementById('shareStatus');
@@ -1796,6 +2044,7 @@
       try {
         if (els.loadingClassesText) els.loadingClassesText.hidden = false;
         const res = await apiGet('state');
+        requireApiSuccess(res, 'O Apps Script devolveu um erro ao carregar as turmas');
         state.classes = Array.isArray(res.classes) ? res.classes.map(normalizeClass) : [];
         if (!state.selectedClassId || !state.classes.some(item => item.id === state.selectedClassId)) {
           state.selectedClassId = state.classes[0]?.id || '';
@@ -1804,23 +2053,22 @@
           await refreshAttendance(state.selectedClassId, selectedDateKey());
         }
       } catch {
-        if (state.webhookUrl !== DEFAULT_BACKEND_URL) {
-          state.webhookUrl = DEFAULT_BACKEND_URL;
-          persistState();
-          return loadSharedState();
-        }
         const title = els.loadingClassesText?.querySelector('strong');
         const message = els.loadingClassesText?.querySelector('span');
         if (title) title.textContent = 'Não foi possível carregar as turmas';
         if (message) message.textContent = 'Verifique o URL do Apps Script nas definições.';
+        showNotice('Não foi possível carregar as turmas. Verifica a ligação e o URL do Apps Script.');
+        return false;
       } finally {
         if (els.loadingClassesText) els.loadingClassesText.hidden = state.classes.length > 0;
       }
+      return true;
     }
 
     async function refreshAttendance(classId, dateKey) {
       if (!state.webhookUrl || !classId) return;
       const res = await apiGet('attendance', { classId, date: dateKey });
+      requireApiSuccess(res, 'O Apps Script devolveu um erro ao carregar as presenças');
       if (!state.attendanceByDate[dateKey]) state.attendanceByDate[dateKey] = {};
       state.attendanceByDate[dateKey][classId] = {};
       if (res && Array.isArray(res.members)) {
@@ -1836,7 +2084,9 @@
       return {
         id: String(item.id || `class-${Date.now()}`),
         name: String(item.name || 'Class'),
-        members: sortMembers(Array.isArray(item.members) ? item.members.map(name => String(name).trim()).filter(Boolean) : [])
+        members: sortMembers(Array.isArray(item.members) ? item.members.map(name => String(name).trim()).filter(Boolean) : []),
+        trainingDays: Array.isArray(item.trainingDays) ? item.trainingDays.map(Number).filter(day => Number.isInteger(day) && day >= 0 && day <= 6) : [],
+        seasonStart: String(item.seasonStart || '')
       };
     }
 
@@ -1889,8 +2139,8 @@
       document.getElementById('cancelAddMemberBtn').addEventListener('click', hideAddMemberPanel);
       document.getElementById('addMemberBtn').addEventListener('click', addMember);
       document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
-      document.getElementById('saveAttendanceBtn').addEventListener('click', saveAttendanceSession);
-      document.getElementById('saveSingleAttendanceBtn').addEventListener('click', saveSingleAttendanceSession);
+      document.getElementById('saveAttendanceBtn').addEventListener('click', () => saveAttendanceSession().catch(() => {}));
+      document.getElementById('saveSingleAttendanceBtn').addEventListener('click', () => saveSingleAttendanceSession().catch(() => {}));
       document.getElementById('singlePrevBtn').addEventListener('click', goToSinglePrevious);
       document.getElementById('singleNextBtn').addEventListener('click', goToSingleNextOrSave);
       document.getElementById('singleAttendedBtn').addEventListener('click', () => setSingleCurrentStatus('attended'));
@@ -1924,7 +2174,10 @@
         state.selectedDate = event.target.value || todayKey();
         persistState();
         renderTopSummary();
-        if (state.selectedClassId) refreshAttendance(state.selectedClassId, selectedDateKey()).catch(() => {});
+        if (state.selectedClassId) refreshAttendance(state.selectedClassId, selectedDateKey()).catch(() => {
+          showNotice('Não foi possível carregar as presenças desta data.');
+        });
+        if (els.screens.date?.classList.contains('active')) loadRecentTrainingStatus();
       };
       if (els.actionAttendanceDateInput) {
         els.actionAttendanceDateInput.addEventListener('change', syncAttendanceDate);

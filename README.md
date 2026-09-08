@@ -1,162 +1,76 @@
-# Gymnastics Attendance App
+# Presenças de Ginástica
 
-A mobile-first static web app for class attendance tracking.
+Aplicação web estática, mobile-first, para registar presenças de turmas de ginástica. O HTML/CSS/JavaScript é servido pelo Cloudflare e os dados partilhados são guardados no Google Sheets através de um Google Apps Script Web App.
 
-## What it does
-- Screen 1: choose a class from a dropdown
-- Screen 2: choose Edit, Attendance, or Go back
-- Screen 3: quickly mark each member as Attended, Late, or Not attended
-- Optional Google Sheets sync through a Google Apps Script webhook
+## Fluxo da aplicação
 
-## Best free stack
-- Frontend: static HTML, CSS and vanilla JavaScript
-- Data storage: browser localStorage for offline/simple use
-- Cloud sync: Google Sheets + Google Apps Script Web App webhook
-- Hosting: Cloudflare Pages or GitHub Pages
+1. Passo 1: escolher a turma.
+2. Passo 2: escolher a data. Os dois últimos treinos definidos para a turma aparecem com o estado `Preenchido` ou `Por preencher`.
+3. Passo 3: escolher o modo de registo, normal ou rápido.
+4. Registar `Presente`, `Atrasado` ou `Falta`, incluindo a justificação quando aplicável.
 
-## Why this stack
-- Free hosting
-- No backend server cost
-- Fast on mobile
-- Easy to maintain
-- Google Sheets works as a lightweight admin database
+As preferências locais limitam-se ao tema, ao modo de seleção de turmas, à última turma/data e ao URL configurado do Apps Script. Turmas, membros e presenças são dados partilhados no Sheets.
 
-## Recommended deployment
-1. Upload the HTML file to a GitHub repository.
-2. Deploy it with Cloudflare Pages or GitHub Pages.
-3. Create a Google Apps Script attached to the sheet using the code below.
-4. Deploy the Apps Script as a Web App with access for anyone with the link.
-5. Paste the generated webhook URL into the app's Class management screen.
+## API do Apps Script
 
-## Google Apps Script example
-```javascript
-const HEADER = ['savedAt', 'date', 'className', 'memberName', 'status'];
-const STATUS_COLORS = {
-  attended: '#e0ead9',
-  late: '#f2e8bf',
-  absent: '#f2d9dd'
-};
-const COLOR_TEXT = {
-  attended: '#437a22',
-  late: '#7a5600',
-  absent: '#a13544'
-};
+O endpoint é o URL `/exec` da implementação do Apps Script.
 
-function doPost(e) {
-  try {
-    var data = JSON.parse(e.postData.contents);
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = getOrCreateClassSheet(ss, data.className);
-    ensureHeaders(sheet);
+- `GET ?action=state`: devolve todas as turmas, membros e configuração dos treinos.
+- `GET ?action=attendance&classId=...&date=yyyy-MM-dd`: devolve presenças de uma turma/data.
+- `GET ?action=recentAttendance&classId=...&date=yyyy-MM-dd&count=2`: devolve os últimos treinos agendados e indica se estão preenchidos.
+- `POST { action: "saveClass", class: {...} }`: cria ou renomeia uma turma sem substituir as restantes.
+- `POST { action: "addMember", classId, memberName }`: adiciona um membro à turma.
+- `POST { action: "removeMember", classId, memberName }`: remove um membro e a respetiva linha da folha.
+- `POST { action: "removeClass", classId }`: remove a turma e a respetiva folha.
+- `POST { action: "saveClasses", classes: [...] }`: mantém-se para compatibilidade e sincronização completa.
+- `POST { action: "saveAttendance", classId, className, date, members: [...] }`: guarda ou atualiza uma presença.
 
-    var row = findOrCreateDateRow(sheet, data.date, data.savedAt, data.className);
-    var memberMap = {};
-    data.members.forEach(function(member) {
-      memberMap[member.name] = member.status;
-    });
+As gravações são protegidas por `LockService` para evitar que duas gravações simultâneas criem a mesma data duas vezes.
 
-    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    var headerIndex = {};
-    headers.forEach(function(header, index) {
-      headerIndex[header] = index + 1;
-    });
+## Estrutura do Sheets
 
-    Object.keys(memberMap).forEach(function(name) {
-      var column = ensureMemberColumn(sheet, name, headerIndex);
-      sheet.getRange(row, column).setValue(memberMap[name]);
-      applyStatusColor(sheet.getRange(row, column), memberMap[name]);
-    });
+A folha `__classes__` contém:
 
-    sortSheetByDate(sheet);
+`id | name | membersJson | trainingDaysJson | seasonStart`
 
-    return ContentService
-      .createTextOutput(JSON.stringify({ ok: true, sheetName: sheet.getName() }))
-      .setMimeType(ContentService.MimeType.JSON);
-  } catch (error) {
-    return ContentService
-      .createTextOutput(JSON.stringify({ ok: false, error: String(error) }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}
+Cada turma tem uma folha com o mesmo nome. O formato de presenças é:
 
-function getOrCreateClassSheet(ss, className) {
-  var name = sanitizeSheetName(className);
-  var sheet = ss.getSheetByName(name);
-  if (!sheet) sheet = ss.insertSheet(name);
-  return sheet;
-}
+`Membro | 08/09 | 10/09 | ...`
 
-function ensureHeaders(sheet) {
-  var headers = sheet.getLastColumn() ? sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0] : [];
-  var existing = headers.filter(String);
-  if (!existing.length) {
-    sheet.getRange(1, 1, 1, HEADER.length).setValues([HEADER]);
-    return;
-  }
+Os membros ficam nas linhas e as datas nas colunas. A mesma data é atualizada em vez de duplicada, as datas ficam ordenadas da mais antiga para a mais recente e as cores são:
 
-  HEADER.forEach(function(header, index) {
-    if (existing[index] !== header) {
-      sheet.getRange(1, index + 1).setValue(header);
-    }
-  });
-}
+- Presente: `*`, com texto verde.
+- Atrasado: `A`, com texto amarelo quando justificado e vermelho quando não justificado.
+- Falta: `F`, com texto amarelo quando justificada e vermelho quando não justificada.
 
-function findOrCreateDateRow(sheet, dateValue, savedAt, className) {
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 2) {
-    var row = 2;
-    sheet.getRange(row, 1, 1, 3).setValues([[savedAt, dateValue, className]]);
-    return row;
-  }
+As células não usam fundos coloridos. A cor do texto conserva a informação da justificação quando a folha é lida novamente pela aplicação.
 
-  var dates = sheet.getRange(2, 2, lastRow - 1, 1).getValues().flat();
-  for (var i = 0; i < dates.length; i++) {
-    if (String(dates[i]) === String(dateValue)) {
-      sheet.getRange(i + 2, 1, 1, 3).setValues([[savedAt, dateValue, className]]);
-      return i + 2;
-    }
-  }
+As folhas no formato antigo, com datas nas linhas, são migradas automaticamente na primeira leitura. Células vazias são preservadas e os códigos com as respetivas cores de texto são reaplicados.
 
-  var nextRow = lastRow + 1;
-  sheet.getRange(nextRow, 1, 1, 3).setValues([[savedAt, dateValue, className]]);
-  return nextRow;
-}
+## Configuração dos treinos
 
-function ensureMemberColumn(sheet, memberName, headerIndex) {
-  if (headerIndex[memberName]) return headerIndex[memberName];
-  var nextColumn = sheet.getLastColumn() + 1;
-  sheet.getRange(1, nextColumn).setValue(memberName);
-  headerIndex[memberName] = nextColumn;
-  return nextColumn;
-}
+Os dias da semana usam o formato JavaScript `0 = domingo` até `6 = sábado`. A configuração atual por defeito é aplicada pelo Apps Script apenas quando uma turma ainda não tem configuração guardada:
 
-function sortSheetByDate(sheet) {
-  var lastRow = sheet.getLastRow();
-  var lastColumn = sheet.getLastColumn();
-  if (lastRow <= 2 || lastColumn < 2) return;
+- `Minigami`: `1, 2, 4` (segunda, terça e quinta).
+- `Gami`: `2, 4` (terça e quinta).
+- Início da época: `2026-09-08`.
 
-  var range = sheet.getRange(2, 1, lastRow - 1, lastColumn);
-  range.sort({ column: 2, ascending: true });
-}
+Depois de guardada, a configuração fica em `trainingDaysJson` e `seasonStart` na folha `__classes__`.
 
-function applyStatusColor(range, status) {
-  var fill = STATUS_COLORS[status];
-  var text = COLOR_TEXT[status];
-  if (!fill || !text) return;
-  range.setBackground(fill).setFontColor(text);
-}
+## Publicação
 
-function sanitizeSheetName(value) {
-  return String(value || 'Class')
-    .replace(/[\[\]\:\*\?\/\\]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 100);
-}
+1. Publicar o conteúdo de `ScriptForSheets` numa nova versão do Google Apps Script como Web App.
+2. Confirmar que o acesso da implementação permite o uso pela aplicação.
+3. Guardar o URL `/exec` nas definições da aplicação, se for diferente do predefinido.
+4. Fazer push de `index.html` para o repositório ligado ao Cloudflare.
+
+O endpoint é público na configuração atual. Não devem ser guardados dados sensíveis sem adicionar autenticação ou uma camada de proteção.
+
+## Testes locais
+
+Validar sintaxe e executar os testes:
+
+```powershell
+node --check ScriptForSheets
+node --test tests/attendance.test.js
 ```
-
-## Suggested next version
-- Add login with Supabase if you want multi-device sync without relying on one browser.
-- Add export CSV per class and date.
-- Add student notes and attendance history.
-- Add class/date filters for reports.
