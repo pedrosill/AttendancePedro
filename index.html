@@ -1301,6 +1301,13 @@
       return `${state.webhookUrl}::${classId}::${dateKey}`;
     }
 
+    function renderRecentTrainingSelection() {
+      const cls = currentClass();
+      if (!cls) return;
+      const items = recentTrainingCache.get(recentTrainingRequestKey(cls.id, todayKey()));
+      if (items) renderRecentTrainingList(items);
+    }
+
     function isCurrentClassDate(classId, dateKey) {
       return state.selectedClassId === classId && selectedDateKey() === dateKey;
     }
@@ -1336,7 +1343,7 @@
         return [];
       }
 
-      const dateKey = selectedDateKey();
+      const dateKey = todayKey();
       const key = recentTrainingRequestKey(cls.id, dateKey);
       const force = options.force === true;
       if (!force && recentTrainingCache.has(key)) {
@@ -1346,7 +1353,7 @@
       }
       if (recentTrainingRequests.has(key)) {
         const items = await recentTrainingRequests.get(key);
-        if (isCurrentClassDate(cls.id, dateKey)) renderRecentTrainingList(items);
+        if (state.selectedClassId === cls.id) renderRecentTrainingList(items);
         return items;
       }
 
@@ -1360,12 +1367,12 @@
           if (!Array.isArray(result.dates)) throw new Error('O Apps Script ainda não suporta o resumo de treinos');
           const items = result.dates.map(item => ({ dateKey: item.date, filled: !!item.filled }));
           if (requestRevision === recentTrainingRevision) recentTrainingCache.set(key, items);
-          if (requestRevision === recentTrainingRevision && requestId === recentTrainingRequestId && isCurrentClassDate(cls.id, dateKey)) {
+          if (requestRevision === recentTrainingRevision && requestId === recentTrainingRequestId && state.selectedClassId === cls.id) {
             renderRecentTrainingList(items);
           }
           return items;
         } catch (error) {
-          if (requestRevision === recentTrainingRevision && requestId === recentTrainingRequestId && isCurrentClassDate(cls.id, dateKey)) {
+          if (requestRevision === recentTrainingRevision && requestId === recentTrainingRequestId && state.selectedClassId === cls.id) {
             renderRecentTrainingList([]);
             showNotice('Não foi possível verificar os últimos treinos.', 'error');
           }
@@ -2349,7 +2356,7 @@
         if (state.selectedClassId) refreshAttendance(state.selectedClassId, selectedDateKey(), { force: true }).catch(() => {
           showNotice('Não foi possível carregar as presenças desta data.');
         });
-        if (els.screens.date?.classList.contains('active')) loadRecentTrainingStatus({ force: true });
+        if (els.screens.date?.classList.contains('active')) renderRecentTrainingSelection();
       };
       if (els.actionAttendanceDateInput) {
         els.actionAttendanceDateInput.addEventListener('change', syncAttendanceDate);
@@ -2361,17 +2368,21 @@
         const button = event.target.closest('[data-recent-training-date]');
         if (!button) return;
         const dateKey = button.dataset.recentTrainingDate;
-        if (!dateKey || dateKey === selectedDateKey()) return;
-        state.selectedDate = dateKey;
-        if (els.actionAttendanceDateInput) els.actionAttendanceDateInput.value = dateKey;
-        if (els.attendanceDateInput) els.attendanceDateInput.value = dateKey;
-        persistState();
-        updateDateDisplays();
-        renderTopSummary();
-        refreshAttendance(state.selectedClassId, dateKey, { force: true }).catch(() => {
-          showNotice('Não foi possível carregar as presenças desta data.');
-        });
-        loadRecentTrainingStatus({ force: true });
+        if (!dateKey) return;
+        const isTodayMissing = dateKey === todayKey() && button.classList.contains('is-missing');
+        if (dateKey !== selectedDateKey()) {
+          state.selectedDate = dateKey;
+          if (els.actionAttendanceDateInput) els.actionAttendanceDateInput.value = dateKey;
+          if (els.attendanceDateInput) els.attendanceDateInput.value = dateKey;
+          persistState();
+          updateDateDisplays();
+          renderTopSummary();
+          renderRecentTrainingSelection();
+          refreshAttendance(state.selectedClassId, dateKey, { force: true }).catch(() => {
+            showNotice('Não foi possível carregar as presenças desta data.');
+          });
+        }
+        if (isTodayMissing) switchScreen('actions');
       });
 
       els.memberNameInput.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); addMember(); } });
