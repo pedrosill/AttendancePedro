@@ -160,4 +160,16 @@ Opções úteis:
 .\Start-AttendanceApp.ps1 -CheckOnly -BackendUrl "https://script.google.com/macros/s/.../exec"
 ```
 
-Se o `ScriptForSheets` ou o Worker tiverem sido alterados, o lançador avisa. A publicação continua a ser manual: Apps Script requer uma nova implementação e o Worker requer `npx wrangler deploy`.
+Se o `ScriptForSheets` ou o Worker tiverem sido alterados, o lançador avisa. A publicação continua a ser manual: Apps Script requer uma nova implementação e os Workers requerem `npx wrangler deploy`.
+
+### Publicar a app estática
+
+O HTML público usa o Worker `attendance-pedro`. A configuração [static-wrangler.jsonc](static-wrangler.jsonc) publica apenas a pasta `public/`, evitando expor o Apps Script, a base D1 ou as configurações locais.
+
+Depois de alterar `index.html`, logótipos, manifesto ou avatares:
+
+```powershell
+Copy-Item .\index.html, .\Logo1.png, .\LogoAppSCP.png, .\manifest.webmanifest -Destination .\public\ -Force
+Copy-Item .\assets\avatars\*.png -Destination .\public\assets\avatars\ -Force
+npx wrangler deploy --config static-wrangler.jsonc
+```

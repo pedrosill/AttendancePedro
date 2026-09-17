@@ -1,0 +1,2947 @@
+﻿<!DOCTYPE html>
+<html lang="pt-PT" class="theme-light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Presenças de Ginástica</title>
+  <meta name="description" content="Registo de presenças das aulas de ginástica." />
+  <meta name="theme-color" content="#01696f" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Presenças" />
+  <link rel="icon" type="image/png" href="./Logo1.png" />
+  <link rel="apple-touch-icon" href="./Logo1.png" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="preconnect" href="https://api.fontshare.com" />
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" rel="stylesheet" />
+  <style>
+    :root, .theme-light {
+      --text-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
+      --text-sm: clamp(0.875rem, 0.8rem + 0.35vw, 1rem);
+      --text-base: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+      --text-lg: clamp(1.125rem, 1rem + 0.75vw, 1.5rem);
+      --text-xl: clamp(1.5rem, 1.2rem + 1.25vw, 2rem);
+      --space-1: 0.25rem;
+      --space-2: 0.5rem;
+      --space-3: 0.75rem;
+      --space-4: 1rem;
+      --space-5: 1.25rem;
+      --space-6: 1.5rem;
+      --space-8: 2rem;
+      --space-10: 2.5rem;
+      --space-12: 3rem;
+      --radius-sm: 0.375rem;
+      --radius-md: 0.75rem;
+      --radius-lg: 1rem;
+      --radius-xl: 1.25rem;
+      --radius-full: 9999px;
+      --transition-interactive: 180ms cubic-bezier(0.16, 1, 0.3, 1);
+      --font-body: 'Satoshi', 'Inter', sans-serif;
+      --color-bg: #f7f6f2;
+      --color-surface: #f9f8f5;
+      --color-surface-2: #ffffff;
+      --color-surface-offset: #edeae5;
+      --color-border: #d4d1ca;
+      --color-text: #28251d;
+      --color-text-muted: #6f6d66;
+      --color-text-faint: #9b988f;
+      --color-text-inverse: #f9f8f4;
+      --color-primary: #01696f;
+      --color-primary-hover: #0c4e54;
+      --color-primary-highlight: #dceceb;
+      --color-accent-soft: #dceceb;
+      --color-success: #437a22;
+      --color-success-highlight: #e0ead9;
+      --color-warning: #d19900;
+      --color-warning-highlight: #f2e8bf;
+      --color-error: #a13544;
+      --color-error-highlight: #f2d9dd;
+      --shadow-sm: 0 1px 2px rgba(40, 37, 29, 0.06);
+      --shadow-md: 0 8px 24px rgba(40, 37, 29, 0.08);
+      --screen-vertical-gap: max(4.5rem, 10dvh);
+      --screen-inline-edge: max(var(--space-4), calc((100% - 90vw) / 2));
+      --top-control-size: 56px;
+    }
+    .theme-dark {
+      --color-bg: #171614;
+      --color-surface: #1c1b19;
+      --color-surface-2: #22211f;
+      --color-surface-offset: #2a2927;
+      --color-border: #393836;
+      --color-text: #e3e0da;
+      --color-text-muted: #aaa8a2;
+      --color-text-faint: #7f7d78;
+      --color-text-inverse: #171614;
+      --color-primary: #4f98a3;
+      --color-primary-hover: #71aeb6;
+      --color-primary-highlight: #25373a;
+      --color-accent-soft: #25373a;
+      --color-success: #80b95a;
+      --color-success-highlight: #2d3926;
+      --color-warning: #e8af34;
+      --color-warning-highlight: #433b29;
+      --color-error: #dd6974;
+      --color-error-highlight: #40292c;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,.24);
+      --shadow-md: 0 14px 34px rgba(0,0,0,.34);
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: none; text-size-adjust: none; }
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      background: var(--color-bg);
+      color: var(--color-text);
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      line-height: 1.5;
+    }
+    button, select, input {
+      font: inherit;
+      color: inherit;
+      min-width: 0;
+      touch-action: manipulation;
+    }
+    button { cursor: pointer; }
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+    }
+    :focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: 3px;
+      border-radius: var(--radius-sm);
+    }
+    .app-shell {
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      padding: calc(env(safe-area-inset-top) + var(--space-4)) var(--space-4) calc(env(safe-area-inset-bottom) + var(--space-4));
+      max-width: 520px;
+      margin: 0 auto;
+      gap: 0;
+    }
+    .topbar { position: absolute; top: calc(env(safe-area-inset-top) + var(--space-3)); left: var(--screen-inline-edge); right: var(--screen-inline-edge); z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: nowrap; }
+    .topbar-actions { display: flex; align-items: center; gap: var(--space-3); margin-left: auto; }
+    .topbar-actions.single { justify-content: flex-end; }
+    .topbar .round-btn[hidden] { display: none !important; }
+    .round-btn {
+      min-width: var(--top-control-size);
+      min-height: var(--top-control-size);
+      width: var(--top-control-size);
+      height: var(--top-control-size);
+      border-radius: var(--radius-full);
+      border: 1px solid rgba(40,37,29,.1);
+      background: var(--color-surface);
+      color: inherit;
+      display: inline-grid;
+      place-items: center;
+      box-shadow: var(--shadow-sm);
+    }
+    .topbar .round-btn svg { width: 24px; height: 24px; }
+    .screen {
+      background: var(--color-surface);
+      border: 1px solid rgba(40,37,29,.08);
+      border-radius: var(--radius-xl);
+      padding: var(--space-5);
+      box-shadow: var(--shadow-md);
+      display: none;
+      flex-direction: column;
+      gap: var(--space-5);
+    }
+    .screen.active {
+      display: flex;
+      width: 90vw;
+      max-width: 100%;
+      min-height: calc(100dvh - var(--screen-vertical-gap) - var(--screen-vertical-gap));
+      margin: var(--screen-vertical-gap) auto;
+      padding-top: calc(var(--space-5) + 3.5rem);
+    }
+    .screen.active > .footer-actions { margin-top: auto; }
+    .screen.selected-class {
+      border-color: color-mix(in srgb, var(--class-accent) 28%, rgba(40,37,29,.08));
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--class-accent) 14%, transparent), var(--shadow-md);
+    }
+    .screen-header { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+    .eyebrow {
+      margin: 0;
+      color: var(--class-accent, var(--color-primary));
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .screen-header h1,
+    .screen-header h2 {
+      margin: 0;
+      font-size: var(--text-xl);
+      line-height: 1.02;
+      letter-spacing: -0.02em;
+    }
+    .screen-header p { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
+    .field { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; width: 100%; }
+    #screen-class .field { margin-top: var(--space-3); }
+    label { font-weight: 700; font-size: var(--text-sm); }
+    .color-row { display: flex; align-items: center; gap: var(--space-2); }
+    .class-color-preview {
+      width: 14px;
+      height: 14px;
+      border-radius: 9999px;
+      border: 1px solid rgba(40,37,29,.12);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.35);
+      flex: 0 0 auto;
+    }
+    select, .text-input {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      min-height: 52px;
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(40,37,29,.12);
+      background: var(--color-surface-2);
+      padding: 0 var(--space-4);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.45);
+    }
+    .class-button-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-2);
+      width: 100%;
+    }
+    .class-choice {
+      min-width: 0;
+      min-height: 52px;
+      padding: 0.7rem 0.8rem;
+      border: 1px solid rgba(40,37,29,.12);
+      border-radius: var(--radius-lg);
+      background: var(--color-surface-2);
+      color: var(--color-text);
+      font-weight: 700;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+      transition: transform var(--transition-interactive), background var(--transition-interactive), border-color var(--transition-interactive), color var(--transition-interactive);
+    }
+    .class-choice:active { transform: scale(0.98); }
+    .class-choice.active {
+      background: var(--class-accent-soft, var(--color-primary-highlight));
+      border-color: color-mix(in srgb, var(--class-accent, var(--color-primary)) 45%, transparent);
+      color: var(--class-accent, var(--color-primary));
+    }
+    .settings-choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+    .settings-choice { width: 100%; }
+    .settings-choice.active { background: var(--class-accent-soft, var(--color-primary-highlight)); border-color: var(--class-accent, var(--color-primary)); color: var(--class-accent, var(--color-primary)); }
+    .share-actions { display: flex; gap: var(--space-3); min-width: 0; }
+    .share-actions > * { flex: 1 1 0; }
+    .share-status { min-height: 1.25rem; color: var(--color-primary); }
+    .sheets-settings-btn {
+      min-height: 64px;
+      font-size: var(--text-base);
+      box-shadow: 0 8px 18px color-mix(in srgb, var(--color-primary) 18%, transparent);
+    }
+    .removal-mode-btn { width: 100%; }
+    .removal-mode-btn.active {
+      background: var(--color-error-highlight);
+      border-color: color-mix(in srgb, var(--color-error) 36%, var(--color-border));
+      color: var(--color-error);
+    }
+    .remove-class-btn {
+      flex: 0 0 auto;
+      min-width: 44px;
+      width: 44px;
+      min-height: 44px;
+      padding: 0;
+      border-radius: var(--radius-full);
+      color: var(--color-error);
+      font-size: 1.7rem;
+      line-height: 1;
+    }
+    .confirm-dialog-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: grid;
+      place-items: center;
+      padding: var(--space-4);
+      background: rgba(23, 22, 20, 0.46);
+      backdrop-filter: blur(4px);
+    }
+    .confirm-dialog {
+      width: min(100%, 440px);
+      padding: var(--space-6);
+      border: 1px solid rgba(40, 37, 29, 0.1);
+      border-radius: var(--radius-xl);
+      background: var(--color-surface);
+      color: var(--color-text);
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.2);
+    }
+    .confirm-dialog h3 { margin: 0; font-size: var(--text-lg); line-height: 1.1; }
+    .confirm-dialog p { margin: var(--space-2) 0 0; color: var(--color-text-muted); font-size: var(--text-sm); }
+    .confirm-dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-6); }
+    .danger-btn {
+      min-height: 52px;
+      padding: 0 var(--space-4);
+      border: 1px solid transparent;
+      border-radius: var(--radius-lg);
+      background: var(--color-error);
+      color: #fff;
+      font: inherit;
+      font-size: var(--text-sm);
+      font-weight: 700;
+    }
+    .danger-btn:hover { filter: brightness(0.92); }
+    .viewport-short .app-shell { padding-top: calc(env(safe-area-inset-top) + var(--space-2)); padding-bottom: calc(env(safe-area-inset-bottom) + var(--space-3)); }
+    .viewport-short .screen { gap: var(--space-3); }
+    .viewport-compact .screen { padding-inline: var(--space-3); }
+    .viewport-compact .single-attendance-card { min-height: 300px; }
+    .viewport-compact .status-btn { padding-inline: 0.25rem; }
+    .viewport-compact .class-button-list,
+    .viewport-compact .settings-choice-grid { grid-template-columns: 1fr; }
+    input[type="date"] {
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .primary-btn, .secondary-btn, .ghost-btn, .status-btn, .small-action {
+      min-height: 52px;
+      border-radius: var(--radius-lg);
+      padding: 0 var(--space-4);
+      border: 1px solid transparent;
+      transition: transform var(--transition-interactive), background var(--transition-interactive), border-color var(--transition-interactive), color var(--transition-interactive), opacity var(--transition-interactive);
+      font-weight: 700;
+      font-size: var(--text-sm);
+      line-height: 1.2;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    .primary-btn:active, .secondary-btn:active, .ghost-btn:active, .status-btn:active, .card-action:active, .small-action:active { transform: scale(0.98); }
+    .primary-btn { background: var(--color-primary); color: var(--color-text-inverse); }
+    .primary-btn:hover { background: var(--class-accent-hover, var(--color-primary-hover)); }
+    .secondary-btn { background: var(--color-surface-2); border-color: rgba(40,37,29,.1); }
+    .ghost-btn, .small-action { background: transparent; border-color: rgba(40,37,29,.1); color: var(--color-text-muted); }
+    .small-action { min-height: 44px; }
+    .small-action.removing {
+      background: var(--color-error-highlight);
+      color: var(--color-error);
+      border-color: rgba(161,53,68,.3);
+    }
+    .summary-grid { display: flex; align-items: center; justify-content: flex-start; gap: var(--space-3); min-width: 0; width: 100%; }
+    .summary-card, .member-card, .inline-note {
+      background: var(--color-surface-2);
+      border: 1px solid rgba(40,37,29,.08);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+    }
+    .summary-card {
+      min-width: 0;
+      background: transparent;
+      border: 0;
+      padding: 0;
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.45rem;
+    }
+    .summary-card strong {
+      font-size: clamp(1.45rem, 3vw, 1.9rem);
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      color: var(--color-text);
+    }
+    .summary-card span {
+      font-size: var(--text-sm);
+      color: var(--color-text-muted);
+      letter-spacing: 0.01em;
+    }
+    .loading-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      width: 100%;
+      padding: var(--space-4);
+      border-radius: var(--radius-lg);
+      border: 1px solid color-mix(in srgb, var(--color-primary) 25%, rgba(40,37,29,.08));
+      background: color-mix(in srgb, var(--color-primary-highlight) 65%, var(--color-surface-2));
+      color: var(--color-text);
+    }
+    .loading-banner strong {
+      display: block;
+      font-size: var(--text-base);
+      line-height: 1.1;
+    }
+    .loading-banner span {
+      display: block;
+      margin-top: 0.15rem;
+      color: var(--color-text-muted);
+      font-size: var(--text-sm);
+    }
+    .app-notice {
+      width: min(90vw, 760px);
+      margin: calc(44px + var(--space-4)) auto 0;
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-surface-2);
+      color: var(--color-text);
+      font-size: var(--text-sm);
+      font-weight: 700;
+      box-shadow: var(--shadow-sm);
+    }
+    .app-notice.error {
+      border-color: color-mix(in srgb, var(--color-error) 40%, var(--color-border));
+      background: var(--color-error-highlight);
+      color: var(--color-error);
+    }
+    .app-notice.success {
+      border-color: color-mix(in srgb, var(--color-success) 40%, var(--color-border));
+      background: var(--color-success-highlight);
+      color: var(--color-success);
+    }
+    .action-grid { display: grid; grid-template-columns: 1fr; gap: var(--space-3); min-width: 0; width: 100%; }
+    #screen-actions .action-grid {
+      flex: 1;
+      align-content: center;
+      margin-block: 0;
+    }
+    #screen-actions .card-action {
+      min-height: clamp(132px, 18vh, 190px);
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    #screen-actions .card-action .title-row {
+      justify-content: center;
+      width: 100%;
+    }
+    .card-action {
+      text-align: left;
+      min-height: 112px;
+      border-radius: var(--radius-xl);
+      background: var(--color-surface-2);
+      border: 1px solid rgba(40,37,29,.08);
+      padding: var(--space-4);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: var(--space-4);
+      box-shadow: var(--shadow-sm);
+      transition: transform var(--transition-interactive), border-color var(--transition-interactive), box-shadow var(--transition-interactive), background var(--transition-interactive), opacity var(--transition-interactive);
+    }
+    .card-action:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+    .card-action h3 { margin: 0; font-size: var(--text-lg); line-height: 1.05; letter-spacing: -0.01em; }
+    .card-action p { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); }
+    .card-action .title-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-width: 0; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      border-radius: var(--radius-full);
+      padding: 0.35rem 0.7rem;
+      background: var(--class-accent-soft, var(--color-primary-highlight));
+      color: var(--class-accent, var(--color-primary));
+      font-size: var(--text-xs);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .card-action.subtle {
+      opacity: 0.86;
+      border-style: dashed;
+    }
+    .member-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+    #screen-attendance {
+      overflow: visible;
+    }
+    .member-card { display: flex; flex-direction: column; gap: var(--space-3); }
+    .member-top { display: flex; align-items: start; justify-content: space-between; gap: var(--space-3); }
+    .member-identity { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+    .member-identity > div { min-width: 0; }
+    .member-avatar {
+      width: 52px;
+      height: 52px;
+      flex: 0 0 auto;
+      border: 2px solid color-mix(in srgb, var(--class-accent, var(--color-primary)) 28%, var(--color-surface));
+      border-radius: var(--radius-full);
+      object-fit: cover;
+      background: var(--color-surface-offset);
+      box-shadow: var(--shadow-sm);
+    }
+    .member-avatar-trigger {
+      display: inline-flex;
+      flex: 0 0 auto;
+      padding: 0;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      cursor: zoom-in;
+      transition: transform 160ms ease;
+    }
+    .member-avatar-trigger:hover { transform: scale(1.05); }
+    .member-avatar-trigger:active { transform: scale(0.96); }
+    .member-avatar-trigger:focus-visible { outline: 3px solid var(--class-accent, var(--color-primary)); outline-offset: 3px; }
+    .member-avatar-large {
+      width: clamp(104px, 24vw, 148px);
+      height: clamp(104px, 24vw, 148px);
+      margin-inline: auto;
+      border-width: 3px;
+    }
+    .member-photo-preview { display: flex; align-items: center; gap: var(--space-3); }
+    .member-photo-preview .member-avatar { width: 72px; height: 72px; }
+    .member-photo-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+    .photo-file-input { width: 100%; min-height: 44px; }
+    .photo-dialog-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: grid;
+      place-items: center;
+      padding: var(--space-5);
+      opacity: 0;
+      background: rgba(20, 19, 17, 0.6);
+      backdrop-filter: blur(8px);
+      transition: opacity 180ms ease;
+    }
+    .photo-dialog-backdrop.is-open { opacity: 1; }
+    .photo-dialog {
+      position: relative;
+      width: min(100%, 430px);
+      padding: var(--space-5);
+      border: 1px solid rgba(40, 37, 29, 0.12);
+      border-radius: var(--radius-xl);
+      background: var(--color-surface);
+      color: var(--color-text);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
+      text-align: center;
+      transform: scale(0.86);
+      transition: transform 180ms cubic-bezier(.2, .9, .25, 1.15);
+    }
+    .photo-dialog-backdrop.is-open .photo-dialog { transform: scale(1); }
+    .photo-dialog-image {
+      display: block;
+      width: min(72vw, 300px);
+      aspect-ratio: 1;
+      margin: var(--space-2) auto var(--space-4);
+      border-radius: var(--radius-xl);
+      object-fit: cover;
+      border: 3px solid color-mix(in srgb, var(--class-accent, var(--color-primary)) 32%, var(--color-surface));
+    }
+    .photo-dialog-name { margin: 0 0 var(--space-4); font-size: var(--text-lg); font-weight: 800; }
+    .photo-dialog-actions { display: grid; gap: var(--space-2); }
+    .member-name { margin: 0; font-size: var(--text-base); font-weight: 700; letter-spacing: -0.01em; }
+    .member-meta { margin: 0.2rem 0 0; color: var(--color-text-muted); font-size: var(--text-sm); }
+    .status-tag {
+      padding: 0.4rem 0.7rem;
+      border-radius: var(--radius-full);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+    .status-tag.pending { background: var(--color-surface-offset); color: var(--color-text-muted); }
+    .status-tag.attended { background: var(--color-success-highlight); color: var(--color-success); }
+    .status-tag.late { background: var(--color-warning-highlight); color: #7a5600; }
+    .status-tag.absent { background: var(--color-error-highlight); color: var(--color-error); }
+    .status-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); }
+    .status-btn {
+      min-height: 48px;
+      padding: 0.75rem 0.5rem;
+      font-size: var(--text-xs);
+      border-color: rgba(40,37,29,.08);
+      background: var(--color-surface);
+    }
+    .status-btn[data-status="attended"].active { background: var(--color-success-highlight); color: var(--color-success); border-color: rgba(67,122,34,.24); }
+    .status-btn[data-status="late"].active { background: var(--color-warning-highlight); color: #7a5600; border-color: rgba(209,153,0,.3); }
+    .status-btn[data-status="absent"].active { background: var(--color-error-highlight); color: var(--color-error); border-color: rgba(161,53,68,.3); }
+    .status-detail-row .status-btn[data-status="late_told"].active,
+    .status-detail-row .status-btn[data-status="late_not_told"].active { background: var(--color-warning-highlight); color: #7a5600; border-color: rgba(209,153,0,.3); }
+    .status-detail-row .status-btn[data-status="absent_justified"].active,
+    .status-detail-row .status-btn[data-status="absent_not_justified"].active { background: var(--color-error-highlight); color: var(--color-error); border-color: rgba(161,53,68,.3); }
+    .status-btn.flash-attended { background: var(--color-success-highlight) !important; color: var(--color-success) !important; border-color: rgba(67,122,34,.24) !important; }
+    .status-btn.flash-late { background: var(--color-warning-highlight) !important; color: #7a5600 !important; border-color: rgba(209,153,0,.3) !important; }
+    .status-btn.flash-absent { background: var(--color-error-highlight) !important; color: var(--color-error) !important; border-color: rgba(161,53,68,.3) !important; }
+    .status-detail-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-2);
+    }
+    .status-detail-row.is-placeholder {
+      visibility: hidden;
+      pointer-events: none;
+    }
+    .status-detail-row.is-placeholder .status-btn { visibility: hidden; }
+    .status-detail-row.completed { visibility: hidden; pointer-events: none; }
+    .status-detail-row .status-btn { min-height: 44px; }
+    .single-attendance-card {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+      width: 100%;
+      min-height: 320px;
+      padding-top: clamp(1rem, 4vh, 2.5rem);
+    }
+    #screen-attendance-single .single-attendance-card { flex: 1; }
+    #screen-attendance-single .single-attendance-card > .status-row {
+      margin-top: clamp(1.5rem, 6vh, 3.5rem);
+    }
+    #screen-attendance-single .single-attendance-card > .status-row .status-btn {
+      min-height: 84px;
+      padding-inline: 0.85rem;
+      font-size: var(--text-base);
+    }
+    #screen-attendance-single .status-detail-row .status-btn {
+      min-height: 56px;
+      font-size: var(--text-sm);
+    }
+    .single-date-info {
+      margin: 0;
+      color: var(--color-text-muted);
+      font-size: var(--text-sm);
+      text-align: center;
+      font-weight: 700;
+    }
+    .date-display {
+      margin: 0;
+      color: var(--color-text-muted);
+      font-size: var(--text-sm);
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+    .member-progress {
+      margin: 0;
+      color: var(--color-text-muted);
+      font-size: var(--text-sm);
+      text-align: center;
+    }
+    .member-name-large {
+      margin: 0;
+      font-size: clamp(2rem, 7vw, 3rem);
+      line-height: 1.02;
+      letter-spacing: -0.03em;
+      text-align: center;
+      overflow-wrap: anywhere;
+    }
+    .single-nav {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-3);
+      margin-top: auto;
+    }
+    .single-nav .primary-btn,
+    .single-nav .secondary-btn {
+      width: 100%;
+      min-width: 0;
+    }
+    .single-nav .primary-btn[hidden],
+    .single-nav .secondary-btn[hidden] {
+      display: block !important;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    .single-save {
+      display: flex;
+      justify-content: center;
+    }
+    .single-save .primary-btn {
+      width: min(100%, 320px);
+    }
+    .class-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.7rem;
+      border-radius: var(--radius-full);
+      background: var(--class-accent-soft, var(--color-surface-offset));
+      color: var(--class-accent, var(--color-text-muted));
+      font-size: var(--text-xs);
+      font-weight: 700;
+      width: fit-content;
+    }
+    .footer-actions { display: grid; grid-template-columns: 1fr; gap: var(--space-3); min-width: 0; width: 100%; }
+    .footer-actions.centered {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .footer-actions.centered > * { width: min(100%, 320px); }
+    .stack { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; width: 100%; }
+    .recent-training-section {
+      border-top: 1px solid var(--color-border);
+      padding-top: var(--space-4);
+    }
+    .recent-training-title {
+      margin: 0;
+      font-size: var(--text-sm);
+      font-weight: 700;
+    }
+    .recent-training-list {
+      display: grid;
+      gap: var(--space-2);
+    }
+    .recent-training-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      gap: var(--space-3);
+      min-width: 0;
+      padding: 0.7rem 0.85rem;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-surface-2);
+      text-align: left;
+      transition: transform var(--transition-interactive), border-color var(--transition-interactive), box-shadow var(--transition-interactive);
+    }
+    .recent-training-item:not(:disabled):active { transform: scale(0.99); }
+    .recent-training-item.is-selected { box-shadow: 0 0 0 2px var(--class-accent, var(--color-primary)); }
+    .recent-training-date {
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    .recent-training-status {
+      padding: 0.3rem 0.6rem;
+      border-radius: var(--radius-full);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .recent-training-item.is-filled {
+      border-color: color-mix(in srgb, var(--color-success) 35%, var(--color-border));
+      background: var(--color-success-highlight);
+    }
+    .recent-training-item.is-filled .recent-training-status {
+      color: var(--color-success);
+    }
+    .recent-training-item.is-missing {
+      border-color: color-mix(in srgb, var(--color-error) 35%, var(--color-border));
+      background: var(--color-error-highlight);
+    }
+    .recent-training-item.is-missing .recent-training-status {
+      color: var(--color-error);
+    }
+    .recent-training-item.is-loading .recent-training-status,
+    .recent-training-empty {
+      color: var(--color-text-muted);
+    }
+    .toolbar { display: flex; gap: var(--space-3); flex-wrap: wrap; min-width: 0; width: 100%; }
+    .toolbar > * { flex: 1 1 0; }
+    .toolbar.add-class-toolbar { justify-content: flex-end; }
+    .toolbar.add-class-toolbar > * { flex: 0 0 auto; }
+    .add-class-toolbar .round-btn { font-size: 1.5rem; line-height: 1; font-weight: 500; }
+    .toolbar.add-member-toolbar { justify-content: center; }
+    .toolbar.add-member-toolbar > * { flex: 0 0 auto; }
+    .add-member-toolbar .round-btn { min-width: 68px; min-height: 68px; width: 68px; height: 68px; font-size: 2.25rem; line-height: 1; font-weight: 500; }
+    .toolbar .small-action { flex: 0 0 auto; }
+    .class-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: nowrap; width: auto; }
+    .class-actions .small-action { min-width: 0; padding: 0 0.7rem; min-height: 40px; white-space: nowrap; }
+    .class-editor-card {
+      cursor: pointer;
+      transition: transform var(--transition-interactive), border-color var(--transition-interactive), background var(--transition-interactive), box-shadow var(--transition-interactive);
+    }
+    .class-editor-card:hover {
+      border-color: color-mix(in srgb, var(--class-accent, var(--color-primary)) 34%, var(--color-border));
+      background: var(--class-accent-soft, var(--color-primary-highlight));
+    }
+    .class-editor-card:active { transform: scale(0.99); }
+    .class-editor-card-main { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+    .class-editor-card-main > div { min-width: 0; }
+    .class-editor-card-hint { margin: var(--space-1) 0 0; color: var(--color-text-muted); font-size: var(--text-sm); }
+    .class-editor-card-arrow { flex: 0 0 auto; color: var(--class-accent, var(--color-primary)); font-size: 2rem; line-height: 1; }
+    .muted { color: var(--color-text-muted); }
+    .tiny { font-size: var(--text-xs); }
+    .row-between { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+    [hidden] { display: none !important; }
+    @media (min-width: 640px) {
+      .app-shell { max-width: 100%; }
+      .action-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 680px; margin-inline: auto; }
+      .footer-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (min-width: 1080px) {
+      .app-shell {
+        max-width: 100%;
+        padding: calc(env(safe-area-inset-top) + var(--space-4)) var(--space-6) calc(env(safe-area-inset-bottom) + var(--space-4));
+      }
+      .topbar {
+        left: var(--screen-inline-edge);
+        right: var(--screen-inline-edge);
+      }
+      .screen {
+        padding: var(--space-6);
+        gap: var(--space-6);
+        border-radius: 1.4rem;
+      }
+      .screen-header h1,
+      .screen-header h2 {
+        font-size: clamp(2rem, 2vw, 2.55rem);
+      }
+      .screen-header p {
+        font-size: var(--text-base);
+      }
+      .summary-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .summary-card {
+        padding: var(--space-5);
+      }
+      .summary-card strong {
+        font-size: 1.7rem;
+      }
+      .card-action {
+        min-height: 150px;
+        padding: var(--space-5);
+      }
+      .card-action h3 {
+        font-size: 1.5rem;
+      }
+      .text-input,
+      select,
+      .primary-btn,
+      .secondary-btn,
+      .ghost-btn,
+      .status-btn,
+      .small-action {
+        min-height: 56px;
+      }
+      .member-card {
+        padding: var(--space-5);
+      }
+      .member-name {
+        font-size: 1.08rem;
+      }
+      .member-meta {
+        font-size: var(--text-base);
+      }
+      .status-btn {
+        font-size: var(--text-sm);
+      }
+    }
+    @media (min-width: 1280px) and (min-height: 720px) {
+      :root { --screen-inline-edge: max(var(--space-4), calc((100% - min(90vw, 60rem)) / 2)); }
+      .app-shell {
+        max-width: 1000px;
+        padding-inline: var(--space-5);
+      }
+      .topbar {
+        left: var(--screen-inline-edge);
+        right: var(--screen-inline-edge);
+      }
+      .screen {
+        width: min(90vw, 960px);
+        padding: var(--space-5);
+        gap: var(--space-5);
+        border-radius: var(--radius-lg);
+      }
+      .screen.active {
+        width: min(90vw, 960px);
+      }
+      .screen-header h1,
+      .screen-header h2 {
+        font-size: clamp(1.65rem, 1.8vw, 2.1rem);
+      }
+      .screen-header p {
+        font-size: var(--text-sm);
+      }
+      .primary-btn,
+      .secondary-btn,
+      .ghost-btn,
+      .status-btn,
+      .small-action {
+        min-height: 46px;
+        padding-inline: 1rem;
+        border-radius: var(--radius-md);
+        font-size: var(--text-sm);
+      }
+      .text-input,
+      select {
+        min-height: 48px;
+        border-radius: var(--radius-md);
+      }
+      .settings-choice-grid {
+        max-width: 520px;
+      }
+      #screen-settings {
+        width: min(90vw, 800px);
+      }
+      #screen-settings .settings-choice-grid {
+        grid-template-columns: repeat(2, minmax(0, 220px));
+        justify-content: start;
+      }
+      #screen-settings .settings-choice {
+        width: 220px;
+      }
+      #screen-settings > .secondary-btn {
+        width: 240px;
+        align-self: flex-start;
+      }
+      #screen-settings .toolbar {
+        width: auto;
+      }
+      #screen-settings .toolbar > .secondary-btn {
+        flex: 0 0 auto;
+        width: 180px;
+      }
+      #screen-settings .share-actions {
+        width: min(100%, 420px);
+      }
+      .footer-actions {
+        max-width: 520px;
+        margin-inline: auto;
+      }
+      .footer-actions.centered,
+      .footer-actions.centered > * {
+        width: min(100%, 260px);
+      }
+      .toolbar {
+        justify-content: flex-start;
+      }
+      .toolbar > * {
+        flex: 0 1 auto;
+      }
+      .action-grid {
+        max-width: 560px;
+        gap: var(--space-3);
+      }
+      #screen-actions .card-action {
+        min-height: 124px;
+        padding: var(--space-4);
+      }
+      #screen-actions .card-action h3 {
+        font-size: 1.25rem;
+      }
+      .confirm-dialog {
+        padding: var(--space-5);
+        border-radius: var(--radius-lg);
+      }
+      .danger-btn {
+        min-height: 46px;
+        border-radius: var(--radius-md);
+      }
+    }
+    @media (max-width: 639px) {
+      .screen { padding: var(--space-4); gap: var(--space-4); }
+      .screen.active { padding-top: calc(var(--space-4) + 3.5rem); }
+      .screen-header h1,
+      .screen-header h2 { font-size: clamp(1.35rem, 6vw, 1.8rem); }
+      input[type="date"] {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        font-size: 16px;
+      }
+      .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .summary-grid .summary-card:last-child { grid-column: 1 / -1; }
+      .toolbar, .footer-actions { width: 100%; min-width: 0; }
+      .toolbar > *, .footer-actions > * { width: 100%; }
+      .toolbar.add-class-toolbar > *, .toolbar.add-member-toolbar > * { width: auto; }
+      .share-actions { flex-direction: column; }
+      .confirm-dialog-actions { flex-direction: column-reverse; }
+      .confirm-dialog-actions > * { width: 100%; }
+      .card-action { min-height: 96px; }
+      .status-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .status-btn { min-height: 44px; padding: 0.6rem 0.35rem; }
+      .status-detail-row .status-btn { padding-inline: 0.3rem; }
+      .topbar { gap: var(--space-2); }
+      .round-btn { flex: 0 0 auto; }
+      .class-actions { gap: var(--space-1); }
+      .class-actions .small-action { padding: 0 0.6rem; font-size: var(--text-xs); }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
+  </style>
+</head>
+<body>
+  <a href="#main" class="sr-only">Saltar para o conteúdo</a>
+  <main class="app-shell" id="main">
+    <header class="topbar">
+      <button class="round-btn" type="button" id="backToClassesTopBtn" aria-label="Voltar" hidden>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg>
+      </button>
+      <div class="topbar-actions">
+        <button class="round-btn" type="button" id="editClassesTopBtn" aria-label="Editar turmas">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16v4z"></path><path d="M13 7l4 4"></path></svg>
+        </button>
+        <button class="round-btn" type="button" id="settingsTopBtn" aria-label="Abrir definições">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-1.7 1.7-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V22h-2.4v-.2a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06-1.7-1.7.06-.06A1.7 1.7 0 0 0 8.4 15a1.7 1.7 0 0 0-1.56-1.03H6.6v-2.4h.24A1.7 1.7 0 0 0 8.4 10a1.7 1.7 0 0 0-.34-1.88L8 8.06l1.7-1.7.06.06a1.7 1.7 0 0 0 1.88.34 1.7 1.7 0 0 0 1.03-1.56V5h2.4v.2a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 1.7 1.7-.06.06A1.7 1.7 0 0 0 19.4 10a1.7 1.7 0 0 0 1.56 1.03h.24v2.4h-.24A1.7 1.7 0 0 0 19.4 15z"></path></svg>
+        </button>
+      </div>
+    </header>
+
+    <div id="appNotice" class="app-notice" role="status" aria-live="polite" hidden></div>
+
+    <section class="screen active" id="screen-class" aria-labelledby="class-title">
+      <div class="screen-header">
+        <p class="eyebrow">Passo 1</p>
+        <h1 id="class-title">Escolher turma</h1>
+      </div>
+
+      <div class="field">
+        <label for="classSelect">Turma</label>
+        <select id="classSelect" aria-describedby="class-help"></select>
+        <div id="classButtonList" class="class-button-list" hidden aria-label="Escolher turma"></div>
+        <p class="tiny muted" id="class-help">Escolha uma turma para continuar.</p>
+      </div>
+
+      <div class="loading-banner" id="loadingClassesText">
+        <div>
+            <strong>A carregar turmas</strong>
+          <span>A obter turmas e membros...</span>
+        </div>
+      </div>
+
+      <div class="summary-grid" aria-label="Current class quick stats">
+        <div class="summary-card" aria-live="polite">
+          <strong id="membersCount">0</strong>
+          <span>membros</span>
+        </div>
+      </div>
+
+      <div class="footer-actions centered">
+        <button class="primary-btn" type="button" id="goToDateBtn" hidden>Continuar</button>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-settings" aria-labelledby="settings-title">
+      <div class="screen-header">
+        <h2 id="settings-title">Definições</h2>
+      </div>
+
+      <button class="primary-btn sheets-settings-btn" type="button" id="openSheetsSettingsBtn">Abrir Google Sheets</button>
+
+      <div class="stack">
+        <label>Forma de escolher a turma</label>
+        <div class="settings-choice-grid">
+          <button class="secondary-btn settings-choice" type="button" id="pickerDropdownBtn">Lista suspensa</button>
+          <button class="secondary-btn settings-choice" type="button" id="pickerButtonsBtn">Botões</button>
+        </div>
+      </div>
+
+      <div class="stack">
+        <label>Modo de apresentação</label>
+        <div class="settings-choice-grid">
+          <button class="secondary-btn settings-choice" type="button" id="themeLightBtn">Modo claro</button>
+          <button class="secondary-btn settings-choice" type="button" id="themeDarkBtn">Modo escuro</button>
+        </div>
+      </div>
+
+      <div class="stack">
+        <label>Partilhar aplicação</label>
+        <div class="share-actions">
+          <button class="secondary-btn" type="button" id="copyShareLinkBtn">Copiar link</button>
+          <button class="primary-btn" type="button" id="nativeShareBtn">Partilhar</button>
+        </div>
+        <p class="tiny share-status" id="shareStatus" aria-live="polite"></p>
+      </div>
+
+      <div class="stack">
+        <div class="toolbar">
+          <button class="secondary-btn" type="button" id="toggleScriptBtn">Editar script</button>
+        </div>
+        <div id="scriptPanel" class="stack" hidden>
+          <div class="field">
+            <label for="webhookInput">URL do backend</label>
+            <input id="webhookInput" class="text-input" type="url" placeholder="https://script.google.com/macros/s/.../exec" />
+          </div>
+          <div class="field">
+            <label for="photoApiInput">URL do servidor de fotografias</label>
+            <input id="photoApiInput" class="text-input" type="url" placeholder="https://media.exemplo.pt" />
+            <p class="tiny muted">Necessário apenas para fotografias próprias. Os avatars de exemplo funcionam sem configuração.</p>
+          </div>
+          <div class="toolbar">
+            <button class="primary-btn" type="button" id="saveBackendSettingsBtn">Guardar ligações</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="stack">
+        <label>Gerir turmas</label>
+        <button class="secondary-btn removal-mode-btn" type="button" id="toggleClassRemovalBtn" aria-expanded="false">Remover turmas</button>
+        <div id="settingsClassList" class="member-list" aria-live="polite" hidden></div>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-date" aria-labelledby="date-title">
+      <div class="screen-header">
+        <p class="eyebrow">Passo 2</p>
+        <h2 id="date-title">Escolher data</h2>
+        <p id="dateClassLabel">Turma selecionada: —</p>
+      </div>
+
+      <div class="field">
+        <label for="actionAttendanceDateInput">Data da presença</label>
+        <input id="actionAttendanceDateInput" class="text-input" type="date" lang="pt-PT" aria-describedby="actionAttendanceDateDisplay" />
+        <p id="actionAttendanceDateDisplay" class="date-display" aria-live="polite"></p>
+      </div>
+
+      <div class="stack recent-training-section">
+        <h3 class="recent-training-title">Últimos treinos</h3>
+        <div id="recentTrainingList" class="recent-training-list" aria-live="polite"></div>
+      </div>
+
+      <div class="footer-actions centered">
+        <button class="primary-btn" type="button" id="goToActionsBtn">Continuar</button>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-actions" aria-labelledby="actions-title">
+      <div class="screen-header">
+        <p class="eyebrow">Passo 3</p>
+        <h2 id="actions-title">Escolher ação</h2>
+        <p id="actionsClassLabel">Turma selecionada: —</p>
+      </div>
+
+      <div class="action-grid">
+        <button class="card-action" type="button" id="openAttendanceBtn">
+          <div class="title-row">
+            <h3>Presenças</h3>
+          </div>
+        </button>
+
+        <button class="card-action subtle" type="button" id="openAttendanceSingleBtn">
+          <div class="title-row">
+            <h3>Presença rápida</h3>
+          </div>
+        </button>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-attendance" aria-labelledby="attendance-title">
+      <div class="screen-header">
+        <p class="eyebrow">Passo 3</p>
+        <h2 id="attendance-title">Registar presenças</h2>
+        <p id="attendanceClassLabel">Turma: —</p>
+      </div>
+
+      <div class="summary-grid" aria-label="Resumo das presenças">
+        <div class="summary-card"><strong id="attendedCount">0</strong><span>Presentes</span></div>
+        <div class="summary-card"><strong id="lateCount">0</strong><span>Atrasados</span></div>
+        <div class="summary-card"><strong id="absentCount">0</strong><span>Faltas</span></div>
+      </div>
+
+      <div class="field">
+        <label for="attendanceDateInput">Data da presença</label>
+        <input id="attendanceDateInput" class="text-input" type="date" lang="pt-PT" aria-describedby="attendanceDateDisplay" />
+        <p id="attendanceDateDisplay" class="date-display" aria-live="polite"></p>
+      </div>
+
+      <div class="member-list" id="memberList"></div>
+
+      <div class="footer-actions centered">
+        <button class="primary-btn" type="button" id="saveAttendanceBtn">Guardar</button>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-attendance-single" aria-label="Registar presença individual">
+      <div class="screen-header">
+        <p class="single-date-info" id="singleAttendanceDateInfo">Data: -</p>
+      </div>
+
+      <div class="single-attendance-card">
+        <button class="member-avatar-trigger" type="button" id="singleMemberAvatarTrigger" aria-label="Ampliar fotografia do membro">
+          <img class="member-avatar member-avatar-large" id="singleMemberAvatar" src="assets/avatars/example-1.png" alt="" />
+        </button>
+        <h3 class="member-name-large" id="singleMemberName">-</h3>
+        <p class="member-progress" id="singleMemberProgress">1 de 1</p>
+        <div class="status-row">
+          <button class="status-btn" data-status="attended" type="button" id="singleAttendedBtn">Presente</button>
+          <button class="status-btn" data-status="late" type="button" id="singleLateBtn">Atrasado</button>
+          <button class="status-btn" data-status="absent" type="button" id="singleAbsentBtn">Falta</button>
+        </div>
+        <div class="status-detail-row" hidden></div>
+        <div class="single-nav">
+          <button class="secondary-btn" type="button" id="singlePrevBtn">Anterior</button>
+          <button class="primary-btn" type="button" id="singleNextBtn">Seguinte</button>
+          <button class="primary-btn" type="button" id="saveSingleAttendanceBtn">Guardar</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-edit" aria-labelledby="edit-title">
+      <div class="screen-header">
+        <h2 id="edit-title">Editar membros</h2>
+        <p id="editClassLabel">Turma: —</p>
+      </div>
+
+      <div class="stack">
+        <div class="toolbar add-member-toolbar">
+          <button class="round-btn" type="button" id="toggleAddMemberBtn" aria-label="Adicionar membro" title="Adicionar membro">+</button>
+        </div>
+        <div id="addMemberPanel" class="stack" hidden>
+          <div class="field">
+            <label for="memberNameInput">Nome do membro</label>
+            <input id="memberNameInput" class="text-input" type="text" />
+          </div>
+          <div class="field">
+            <label for="memberPhotoInput">Fotografia</label>
+            <input id="memberPhotoInput" class="photo-file-input" type="file" accept="image/jpeg,image/png,image/webp" capture="user" />
+          </div>
+          <div id="memberPhotoPreview" class="member-photo-preview" hidden>
+            <img class="member-avatar" id="memberPhotoPreviewImage" src="assets/avatars/example-1.png" alt="Pré-visualização da fotografia" />
+            <button class="ghost-btn" type="button" id="clearMemberPhotoBtn">Remover fotografia</button>
+          </div>
+          <div class="toolbar">
+            <button class="primary-btn" type="button" id="addMemberBtn">Guardar membro</button>
+            <button class="ghost-btn" type="button" id="cancelAddMemberBtn">Cancelar</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="stack">
+        <label for="editMemberList">Membros atuais</label>
+        <div id="editMemberList" class="member-list" aria-live="polite"></div>
+      </div>
+
+      <div class="footer-actions">
+        <button class="primary-btn" type="button" id="saveSettingsBtn">Concluir</button>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-classes" aria-labelledby="classes-title">
+      <div class="screen-header">
+        <h2 id="classes-title">Turmas</h2>
+      </div>
+
+      <div class="toolbar add-class-toolbar">
+        <button class="round-btn" type="button" id="toggleAddClassBtn" aria-label="Adicionar turma" title="Adicionar turma">+</button>
+      </div>
+      <div id="addClassPanel" class="stack" hidden>
+        <div class="field">
+          <label for="classNameInput">Nome da turma</label>
+          <input id="classNameInput" class="text-input" type="text" />
+        </div>
+        <div class="toolbar">
+          <button class="primary-btn" type="button" id="addClassBtn">Guardar turma</button>
+          <button class="ghost-btn" type="button" id="cancelAddClassBtn">Cancelar</button>
+        </div>
+      </div>
+      <div id="classListEditor" class="member-list" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <div class="confirm-dialog-backdrop" id="confirmClassRemovalDialog" hidden aria-hidden="true">
+    <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirmClassRemovalTitle" aria-describedby="confirmClassRemovalMessage">
+      <h3 id="confirmClassRemovalTitle">Remover turma?</h3>
+      <p id="confirmClassRemovalMessage">Esta ação não pode ser anulada.</p>
+      <div class="confirm-dialog-actions">
+        <button class="ghost-btn" type="button" id="cancelClassRemovalBtn">Cancelar</button>
+        <button class="danger-btn" type="button" id="confirmClassRemovalBtn">Remover turma</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="photo-dialog-backdrop" id="memberPhotoDialog" hidden aria-hidden="true">
+    <div class="photo-dialog" id="memberPhotoDialogPanel" role="dialog" aria-modal="true" aria-labelledby="memberPhotoDialogName" tabindex="-1">
+      <img class="photo-dialog-image" id="memberPhotoDialogImage" src="assets/avatars/example-1.png" alt="" />
+      <p class="photo-dialog-name" id="memberPhotoDialogName"></p>
+      <div class="photo-dialog-actions" id="memberPhotoDialogActions" hidden>
+        <button class="primary-btn" type="button" id="chooseDialogMemberPhotoBtn">Adicionar fotografia</button>
+        <button class="ghost-btn" type="button" id="clearDialogMemberPhotoBtn" hidden>Remover fotografia</button>
+        <input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp" id="dialogMemberPhotoInput" />
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'gym-attendance-prefs-v4';
+    const DEFAULT_BACKEND_URL = 'https://attendance-pedro-data.pedrosill1944.workers.dev';
+    const LEGACY_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbzWfzY9w2-Q3SiDZlTZP2H4ZZyKPmc70eCy-o_RhTs_kZ7_LrAUnVAtJBMrxX4OQ7r4Hw/exec';
+    const DEFAULT_PHOTO_API_URL = '';
+    const APP_SHARE_URL = 'https://attendance-pedro.pedrosill1944.workers.dev/';
+    const APP_SHARE_TITLE = 'Presenças de Ginástica';
+    const APP_SHARE_TEXT = 'Abra a aplicação de presenças de ginástica.';
+    const defaultState = {
+      selectedClassId: 'class-1',
+      webhookUrl: '',
+      selectedDate: new Date().toISOString().slice(0, 10),
+      classes: [
+        { id: 'class-1', name: 'Beginner Kids', color: 'teal', members: ['Ines Costa', 'Marta Silva', 'Leonor Dias', 'Rita Santos'] },
+        { id: 'class-2', name: 'Intermediate Teens', color: 'gold', members: ['Sofia Almeida', 'Matilde Rocha', 'Carolina Sousa', 'Beatriz Lopes'] },
+        { id: 'class-3', name: 'Advanced Squad', color: 'rose', members: ['Ana Gomes', 'Maria Faria', 'Joana Pires', 'Helena Costa'] }
+      ],
+      attendanceByDate: {}
+    };
+
+    let state = {
+      selectedClassId: '',
+      webhookUrl: '',
+      photoApiUrl: '',
+      selectedDate: new Date().toISOString().slice(0, 10),
+      theme: 'light',
+      classPickerMode: 'dropdown',
+      classes: [],
+      attendanceByDate: {},
+      singleAttendanceIndex: 0,
+      singleLastCompleted: false,
+      removingMemberNames: {},
+      dateStepTouched: false,
+      savingAttendance: false
+    };
+    let classMutationQueue = Promise.resolve();
+    let recentTrainingRequestId = 0;
+    let recentTrainingRevision = 0;
+    let attendanceRevision = 0;
+    const attendanceCacheKeys = new Set();
+    const attendanceDirtyMembers = new Set();
+    const attendanceRequests = new Map();
+    const recentTrainingCache = new Map();
+    const recentTrainingRequests = new Map();
+    let classRemovalMode = false;
+    let pendingClassRemovalId = '';
+    let pendingClassRemovalTrigger = null;
+    let activePhotoDialog = null;
+    const els = {
+      classSelect: document.getElementById('classSelect'),
+      classButtonList: document.getElementById('classButtonList'),
+      membersCount: document.getElementById('membersCount'),
+      loadingClassesText: document.getElementById('loadingClassesText'),
+      selectedClassLabel: document.getElementById('dateClassLabel'),
+      dateClassLabel: document.getElementById('dateClassLabel'),
+      actionsClassLabel: document.getElementById('actionsClassLabel'),
+      attendanceClassLabel: document.getElementById('attendanceClassLabel'),
+      editClassLabel: document.getElementById('editClassLabel'),
+      attendedCount: document.getElementById('attendedCount'),
+      lateCount: document.getElementById('lateCount'),
+      absentCount: document.getElementById('absentCount'),
+      memberList: document.getElementById('memberList'),
+      singleMemberProgress: document.getElementById('singleMemberProgress'),
+      singleMemberName: document.getElementById('singleMemberName'),
+      singleAttendanceDateInfo: document.getElementById('singleAttendanceDateInfo'),
+      actionAttendanceDateDisplay: document.getElementById('actionAttendanceDateDisplay'),
+      attendanceDateDisplay: document.getElementById('attendanceDateDisplay'),
+      editMemberList: document.getElementById('editMemberList'),
+      classListEditor: document.getElementById('classListEditor'),
+      memberNameInput: document.getElementById('memberNameInput'),
+      addMemberPanel: document.getElementById('addMemberPanel'),
+      classNameInput: document.getElementById('classNameInput'),
+      addClassPanel: document.getElementById('addClassPanel'),
+      scriptPanel: document.getElementById('scriptPanel'),
+      webhookInput: document.getElementById('webhookInput'),
+      photoApiInput: document.getElementById('photoApiInput'),
+      memberPhotoInput: document.getElementById('memberPhotoInput'),
+      memberPhotoPreview: document.getElementById('memberPhotoPreview'),
+      memberPhotoPreviewImage: document.getElementById('memberPhotoPreviewImage'),
+      singleMemberAvatar: document.getElementById('singleMemberAvatar'),
+      singleMemberAvatarTrigger: document.getElementById('singleMemberAvatarTrigger'),
+      memberPhotoDialog: document.getElementById('memberPhotoDialog'),
+      memberPhotoDialogPanel: document.getElementById('memberPhotoDialogPanel'),
+      memberPhotoDialogImage: document.getElementById('memberPhotoDialogImage'),
+      memberPhotoDialogName: document.getElementById('memberPhotoDialogName'),
+      memberPhotoDialogActions: document.getElementById('memberPhotoDialogActions'),
+      chooseDialogMemberPhotoBtn: document.getElementById('chooseDialogMemberPhotoBtn'),
+      clearDialogMemberPhotoBtn: document.getElementById('clearDialogMemberPhotoBtn'),
+      dialogMemberPhotoInput: document.getElementById('dialogMemberPhotoInput'),
+      actionAttendanceDateInput: document.getElementById('actionAttendanceDateInput'),
+      attendanceDateInput: document.getElementById('attendanceDateInput'),
+      recentTrainingList: document.getElementById('recentTrainingList'),
+      appNotice: document.getElementById('appNotice'),
+      screens: {
+        class: document.getElementById('screen-class'),
+        settings: document.getElementById('screen-settings'),
+        date: document.getElementById('screen-date'),
+        actions: document.getElementById('screen-actions'),
+        attendance: document.getElementById('screen-attendance'),
+        attendanceSingle: document.getElementById('screen-attendance-single'),
+        edit: document.getElementById('screen-edit'),
+        classes: document.getElementById('screen-classes')
+      }
+    };
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, photoApiUrl: DEFAULT_PHOTO_API_URL, selectedDate: new Date().toISOString().slice(0, 10), theme: 'light' };
+        const parsed = JSON.parse(raw);
+        const savedWebhookUrl = parsed.webhookUrl === LEGACY_BACKEND_URL ? DEFAULT_BACKEND_URL : parsed.webhookUrl;
+        return { selectedClassId: parsed.selectedClassId || '', webhookUrl: savedWebhookUrl || DEFAULT_BACKEND_URL, photoApiUrl: parsed.photoApiUrl || DEFAULT_PHOTO_API_URL, selectedDate: parsed.selectedDate || new Date().toISOString().slice(0, 10), theme: parsed.theme === 'dark' ? 'dark' : 'light', classPickerMode: parsed.classPickerMode === 'buttons' ? 'buttons' : 'dropdown' };
+      } catch {
+        return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, photoApiUrl: DEFAULT_PHOTO_API_URL, selectedDate: new Date().toISOString().slice(0, 10), theme: 'light' };
+      }
+    }
+
+    function persistState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        selectedClassId: state.selectedClassId,
+        webhookUrl: state.webhookUrl,
+        photoApiUrl: state.photoApiUrl,
+        selectedDate: state.selectedDate,
+        theme: state.theme,
+        classPickerMode: state.classPickerMode
+      }));
+    }
+    let noticeTimer = null;
+    function showNotice(message, type = 'error', duration = 0) {
+      if (!els.appNotice) return;
+      if (noticeTimer) clearTimeout(noticeTimer);
+      els.appNotice.textContent = message;
+      els.appNotice.className = `app-notice ${type}`;
+      els.appNotice.hidden = false;
+      if (duration > 0) noticeTimer = setTimeout(() => clearNotice(), duration);
+    }
+    function clearNotice() {
+      if (noticeTimer) clearTimeout(noticeTimer);
+      noticeTimer = null;
+      if (els.appNotice) els.appNotice.hidden = true;
+    }
+    function todayKey() { return new Date().toISOString().slice(0, 10); }
+    function selectedDateKey() { return state.selectedDate || todayKey(); }
+    function displayDate(value) { return new Intl.DateTimeFormat(undefined, { day: '2-digit', month: '2-digit' }).format(new Date(value + 'T12:00:00')); }
+    function displayTrainingDate(value) { return new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: '2-digit' }).format(new Date(value + 'T12:00:00')); }
+    function displayWeekday(value) { return new Intl.DateTimeFormat('pt-PT', { weekday: 'long' }).format(new Date(value + 'T12:00:00')); }
+    function displaySingleDate(value) { return new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value + 'T12:00:00')); }
+    function displayAttendanceDate(value) {
+      const date = new Date(`${value}T12:00:00`);
+      const dateText = new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
+      const weekday = new Intl.DateTimeFormat('pt-PT', { weekday: 'long' }).format(date);
+      return `${dateText} - ${weekday}`;
+    }
+    function updateDateDisplays() {
+      const value = selectedDateKey();
+      if (els.actionAttendanceDateDisplay) els.actionAttendanceDateDisplay.textContent = displayWeekday(value);
+      if (els.attendanceDateDisplay) els.attendanceDateDisplay.textContent = displayAttendanceDate(value);
+    }
+    function renderRecentTrainingList(items, loading = false) {
+      if (!els.recentTrainingList) return;
+      if (!items.length) {
+        els.recentTrainingList.innerHTML = loading
+          ? '<p class="recent-training-empty tiny">A verificar...</p>'
+          : '<p class="recent-training-empty tiny">Não existem treinos definidos para este período.</p>';
+        return;
+      }
+      els.recentTrainingList.innerHTML = items.map(item => {
+        const statusClass = loading || item.loading ? 'is-loading' : item.filled ? 'is-filled' : item.error ? 'is-loading' : 'is-missing';
+        const statusText = loading || item.loading ? 'A verificar...' : item.error ? 'Sem ligação' : item.filled ? 'Preenchido' : 'Por preencher';
+        const isSelected = item.dateKey === selectedDateKey();
+        return `<button class="recent-training-item ${statusClass}${isSelected ? ' is-selected' : ''}" type="button" data-recent-training-date="${escapeAttr(item.dateKey)}" aria-pressed="${isSelected}" ${loading || item.loading ? 'disabled' : ''}>
+          <span class="recent-training-date">${displayTrainingDate(item.dateKey)} - ${displayWeekday(item.dateKey)}</span>
+          <span class="recent-training-status">${statusText}</span>
+        </button>`;
+      }).join('');
+    }
+    function attendanceRequestKey(classId, dateKey) {
+      return `${state.webhookUrl}::${classId}::${dateKey}`;
+    }
+
+    function recentTrainingRequestKey(classId, dateKey) {
+      return `${state.webhookUrl}::${classId}::${dateKey}`;
+    }
+
+    function renderRecentTrainingSelection() {
+      const cls = currentClass();
+      if (!cls) return;
+      const items = recentTrainingCache.get(recentTrainingRequestKey(cls.id, todayKey()));
+      if (items) renderRecentTrainingList(items);
+    }
+
+    function isCurrentClassDate(classId, dateKey) {
+      return state.selectedClassId === classId && selectedDateKey() === dateKey;
+    }
+
+    function attendanceDirtyMemberKey(classId, dateKey, memberName) {
+      return `${attendanceRequestKey(classId, dateKey)}::${String(memberName || '').toLowerCase()}`;
+    }
+
+    function markAttendanceDirty(memberName) {
+      const cls = currentClass();
+      if (cls) attendanceDirtyMembers.add(attendanceDirtyMemberKey(cls.id, selectedDateKey(), memberName));
+    }
+
+    function clearAttendanceDirty(classId, dateKey) {
+      const prefix = `${attendanceRequestKey(classId, dateKey)}::`;
+      [...attendanceDirtyMembers].forEach(key => {
+        if (key.startsWith(prefix)) attendanceDirtyMembers.delete(key);
+      });
+    }
+
+    function clearAttendanceDirtyForMember(classId, memberName) {
+      const prefix = `${state.webhookUrl}::${classId}::`;
+      const suffix = `::${String(memberName || '').toLowerCase()}`;
+      [...attendanceDirtyMembers].forEach(key => {
+        if (key.startsWith(prefix) && key.endsWith(suffix)) attendanceDirtyMembers.delete(key);
+      });
+    }
+
+    async function loadRecentTrainingStatus(options = {}) {
+      const cls = currentClass();
+      if (!cls || !state.webhookUrl) {
+        renderRecentTrainingList([]);
+        return [];
+      }
+
+      const dateKey = todayKey();
+      const key = recentTrainingRequestKey(cls.id, dateKey);
+      const force = options.force === true;
+      if (!force && recentTrainingCache.has(key)) {
+        const items = recentTrainingCache.get(key);
+        renderRecentTrainingList(items);
+        return items;
+      }
+      if (recentTrainingRequests.has(key)) {
+        const items = await recentTrainingRequests.get(key);
+        if (state.selectedClassId === cls.id) renderRecentTrainingList(items);
+        return items;
+      }
+
+      const requestId = ++recentTrainingRequestId;
+      const requestRevision = recentTrainingRevision;
+      renderRecentTrainingList([], true);
+      const request = (async () => {
+        try {
+          const result = await apiGet('recentAttendance', { classId: cls.id, date: dateKey, count: 2 });
+          requireApiSuccess(result, 'Não foi possível carregar os treinos');
+          if (!Array.isArray(result.dates)) throw new Error('O Apps Script ainda não suporta o resumo de treinos');
+          const items = result.dates.map(item => ({ dateKey: item.date, filled: !!item.filled }));
+          if (requestRevision === recentTrainingRevision) recentTrainingCache.set(key, items);
+          if (requestRevision === recentTrainingRevision && requestId === recentTrainingRequestId && state.selectedClassId === cls.id) {
+            renderRecentTrainingList(items);
+          }
+          return items;
+        } catch (error) {
+          if (requestRevision === recentTrainingRevision && requestId === recentTrainingRequestId && state.selectedClassId === cls.id) {
+            renderRecentTrainingList([]);
+            showNotice('Não foi possível verificar os últimos treinos.', 'error');
+          }
+          return [];
+        }
+      })();
+      recentTrainingRequests.set(key, request);
+      try {
+        return await request;
+      } finally {
+        if (recentTrainingRequests.get(key) === request) recentTrainingRequests.delete(key);
+      }
+    }
+    function updateResponsiveLayout() {
+      const width = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+      const height = window.innerHeight || 0;
+      const root = document.documentElement;
+      root.classList.toggle('viewport-compact', width < 390);
+      root.classList.toggle('viewport-short', height < 720);
+      root.dataset.viewport = width >= 1080 ? 'desktop' : width >= 640 ? 'tablet' : 'mobile';
+      root.style.setProperty('--viewport-width', `${width}px`);
+      root.style.setProperty('--viewport-height', `${height}px`);
+    }
+    function sortMembers(members) {
+      return [...members].sort((a, b) => a.localeCompare(b, 'pt-PT', { sensitivity: 'base' }));
+    }
+    function defaultAvatarPath(value) {
+      let hash = 0;
+      for (const char of String(value || 'membro')) hash = ((hash << 5) - hash) + char.charCodeAt(0);
+      return `assets/avatars/example-${(Math.abs(hash) % 4) + 1}.png`;
+    }
+    function createMemberId() {
+      return `member-${crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
+    }
+    function normalizeMemberProfile(value, name, fallbackId = '') {
+      const source = value && typeof value === 'object' ? value : {};
+      return {
+        id: String(source.id || fallbackId || createMemberId()),
+        name: String(name || source.name || '').trim(),
+        photoKey: String(source.photoKey || '').trim(),
+        photoVersion: Number(source.photoVersion || 0) || 0
+      };
+    }
+    function memberProfile(cls, name) {
+      const profile = cls?.memberProfiles?.find(item => String(item.name || '').toLocaleLowerCase('pt-PT') === String(name).toLocaleLowerCase('pt-PT'));
+      return profile || normalizeMemberProfile(null, name, `legacy-${String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`);
+    }
+    function memberPhotoUrl(cls, name) {
+      const profile = memberProfile(cls, name);
+      if (profile.photoKey.startsWith('assets/')) return profile.photoKey;
+      if (profile.photoKey && state.photoApiUrl && profile.id) {
+        return `${state.photoApiUrl.replace(/\/$/, '')}/photos/${encodeURIComponent(cls.id)}/${encodeURIComponent(profile.id)}?v=${profile.photoVersion}`;
+      }
+      return defaultAvatarPath(profile.id || name);
+    }
+    function memberAvatarMarkup(cls, name, options = {}) {
+      const extraClass = options.large ? ' member-avatar-large' : '';
+      const loading = options.eager ? 'eager' : 'lazy';
+      const image = '<img class="member-avatar' + extraClass + '" src="' + escapeAttr(memberPhotoUrl(cls, name)) + '" alt="Retrato de ' + escapeAttr(name) + '" loading="' + loading + '" />';
+      if (!options.expandable) return image;
+      const profile = memberProfile(cls, name);
+      return '<button class="member-avatar-trigger" type="button" data-open-member-photo="' + escapeAttr(profile.id) + '" data-member-photo-name="' + escapeAttr(name) + '" aria-label="Ampliar fotografia de ' + escapeAttr(name) + '">' + image + '</button>';
+    }
+    function refreshMemberPhotoDialog() {
+      if (!activePhotoDialog || !els.memberPhotoDialogImage) return;
+      const cls = currentClass();
+      if (!cls || cls.id !== activePhotoDialog.classId) return closeMemberPhotoDialog(false);
+      const profile = memberProfile(cls, activePhotoDialog.name);
+      const hasCustomPhoto = !!profile.photoKey && !profile.photoKey.startsWith('assets/');
+      els.memberPhotoDialogImage.src = memberPhotoUrl(cls, activePhotoDialog.name);
+      els.memberPhotoDialogImage.alt = 'Retrato de ' + activePhotoDialog.name;
+      els.memberPhotoDialogName.textContent = activePhotoDialog.name;
+      els.chooseDialogMemberPhotoBtn.textContent = hasCustomPhoto ? 'Alterar fotografia' : 'Adicionar fotografia';
+      els.clearDialogMemberPhotoBtn.hidden = !hasCustomPhoto;
+    }
+    function openMemberPhotoDialog(memberId, name, trigger) {
+      const cls = currentClass();
+      if (!cls || !name || !els.memberPhotoDialog) return;
+      const profile = cls.memberProfiles?.find(item => item.id === memberId) || memberProfile(cls, name);
+      activePhotoDialog = {
+        classId: cls.id,
+        memberId: profile.id,
+        name,
+        trigger: trigger || document.activeElement
+      };
+      const editable = els.screens.edit.classList.contains('active');
+      els.memberPhotoDialogActions.hidden = !editable;
+      refreshMemberPhotoDialog();
+      els.memberPhotoDialog.hidden = false;
+      els.memberPhotoDialog.setAttribute('aria-hidden', 'false');
+      requestAnimationFrame(() => els.memberPhotoDialog?.classList.add('is-open'));
+      els.memberPhotoDialogPanel?.focus();
+    }
+    function closeMemberPhotoDialog(restoreFocus = true) {
+      const dialog = els.memberPhotoDialog;
+      if (!dialog || dialog.hidden) return;
+      const trigger = activePhotoDialog?.trigger;
+      dialog.classList.remove('is-open');
+      dialog.setAttribute('aria-hidden', 'true');
+      window.setTimeout(() => {
+        if (!dialog.classList.contains('is-open')) dialog.hidden = true;
+      }, 180);
+      activePhotoDialog = null;
+      if (restoreFocus && trigger?.focus) trigger.focus();
+    }
+    function currentClass() {
+      const cls = state.classes.find(item => item.id === state.selectedClassId) || state.classes[0] || null;
+      if (cls) cls.members = sortMembers(cls.members || []);
+      return cls;
+    }
+
+    function currentAttendanceMap() {
+      const cls = currentClass();
+      if (!cls) return {};
+      const classId = cls.id;
+      const key = selectedDateKey();
+      if (!state.attendanceByDate[key]) state.attendanceByDate[key] = {};
+      if (!state.attendanceByDate[key][classId]) state.attendanceByDate[key][classId] = {};
+      return state.attendanceByDate[key][classId];
+    }
+
+    function currentSingleAttendanceMap() {
+      return currentAttendanceMap();
+    }
+
+    function currentSingleMemberIndex() {
+      const cls = currentClass();
+      if (!cls || !cls.members.length) return 0;
+      return Math.min(Math.max(state.singleAttendanceIndex || 0, 0), cls.members.length - 1);
+    }
+
+    function currentSingleMemberName() {
+      const cls = currentClass();
+      if (!cls || !cls.members.length) return '';
+      return cls.members[currentSingleMemberIndex()] || '';
+    }
+
+    function setSingleMemberStatus(status) {
+      const name = currentSingleMemberName();
+      if (!name) return;
+      markAttendanceDirty(name);
+      currentSingleAttendanceMap()[name] = status;
+      const cls = currentClass();
+      state.singleLastCompleted = !!cls && currentSingleMemberIndex() === cls.members.length - 1 && status !== 'late' && status !== 'absent';
+      flashSingleStatus(status);
+      renderSingleAttendance();
+    }
+
+    function flashSingleStatus(status) {
+      const btn = document.getElementById(`single${status.charAt(0).toUpperCase()}${status.slice(1)}Btn`);
+      if (!btn) return;
+      const flashClass = `flash-${status}`;
+      btn.classList.add(flashClass);
+      setTimeout(() => btn.classList.remove(flashClass), 220);
+    }
+
+    function ensureRosterStatuses() {
+      const cls = currentClass();
+      if (!cls) return;
+      const map = currentAttendanceMap();
+      cls.members.forEach(name => { if (!map[name]) map[name] = 'pending'; });
+      Object.keys(map).forEach(name => { if (!cls.members.includes(name)) delete map[name]; });
+    }
+
+    function colorFromString(value) {
+      const palette = ['#01696f', '#437a22', '#d19900', '#a13544', '#5f6770', '#5c4d9b'];
+      const text = String(value || '');
+      let hash = 0;
+      for (let i = 0; i < text.length; i += 1) {
+        hash = ((hash << 5) - hash) + text.charCodeAt(i);
+        hash |= 0;
+      }
+      return palette[Math.abs(hash) % palette.length];
+    }
+
+    function apiUrl(action, query = {}) {
+      const base = state.webhookUrl || els.webhookInput.value.trim();
+      const url = new URL(base);
+      url.searchParams.set('action', action);
+      Object.entries(query).forEach(([key, value]) => url.searchParams.set(key, value));
+      return url.toString();
+    }
+
+    async function apiGet(action, query = {}) {
+      const res = await fetch(apiUrl(action, query), { method: 'GET' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    }
+
+    async function apiPost(payload) {
+      const url = state.webhookUrl || els.webhookInput.value.trim();
+      if (!url) throw new Error('Backend URL is missing');
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    }
+
+    function requireApiSuccess(result, fallbackMessage) {
+      if (!result || result.ok !== true) throw new Error(result?.error || fallbackMessage);
+      return result;
+    }
+
+    function queueClassMutation(payload) {
+      const operation = classMutationQueue.then(() => apiPost(payload));
+      classMutationQueue = operation.catch(() => {});
+      return operation;
+    }
+
+    function renderClassOptions() {
+      els.classSelect.innerHTML = '';
+      state.classes.forEach(item => {
+        const opt = document.createElement('option');
+        opt.value = item.id;
+        opt.textContent = item.name;
+        if (item.id === state.selectedClassId) opt.selected = true;
+        els.classSelect.appendChild(opt);
+      });
+      renderClassButtons();
+      renderSettingsClassList();
+      const continueButton = document.getElementById('goToDateBtn');
+      if (continueButton) continueButton.hidden = state.classes.length === 0;
+    }
+
+    function renderClassButtons() {
+      if (!els.classButtonList) return;
+      els.classButtonList.innerHTML = '';
+      state.classes.forEach(item => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `class-choice ${item.id === state.selectedClassId ? 'active' : ''}`;
+        button.dataset.classId = item.id;
+        button.textContent = item.name;
+        els.classButtonList.appendChild(button);
+      });
+      const buttonsMode = state.classPickerMode === 'buttons';
+      els.classSelect.hidden = buttonsMode;
+      els.classButtonList.hidden = !buttonsMode;
+    }
+
+    function selectClass(classId) {
+      state.selectedClassId = classId;
+      persistState();
+      renderClassOptions();
+      renderTopSummary();
+      refreshAttendance(state.selectedClassId, selectedDateKey(), { force: true }).catch(() => {
+        showNotice('Não foi possível carregar as presenças desta turma.');
+      });
+      if (els.screens.date?.classList.contains('active')) loadRecentTrainingStatus({ force: true });
+    }
+
+    function renderTopSummary() {
+      const cls = currentClass();
+      if (!cls) {
+        els.membersCount.textContent = '0';
+        if (els.actionAttendanceDateInput) els.actionAttendanceDateInput.value = selectedDateKey();
+        if (els.attendanceDateInput) els.attendanceDateInput.value = selectedDateKey();
+        if (els.singleAttendanceDateInput) els.singleAttendanceDateInput.value = selectedDateKey();
+        updateDateDisplays();
+        els.selectedClassLabel.textContent = 'Turma selecionada: —';
+        els.attendanceClassLabel.textContent = 'Turma: —';
+        els.editClassLabel.textContent = 'Turma: —';
+        els.webhookInput.value = state.webhookUrl || '';
+        if (els.photoApiInput) els.photoApiInput.value = state.photoApiUrl || '';
+        return;
+      }
+      ensureRosterStatuses();
+      const map = currentAttendanceMap();
+      applyClassAccent(colorFromString(cls.name));
+      els.membersCount.textContent = cls.members.length;
+      if (els.actionAttendanceDateInput) els.actionAttendanceDateInput.value = selectedDateKey();
+      if (els.attendanceDateInput) els.attendanceDateInput.value = selectedDateKey();
+      updateDateDisplays();
+      els.selectedClassLabel.textContent = `Turma selecionada: ${cls.name}`;
+      if (els.actionsClassLabel) els.actionsClassLabel.textContent = `Turma selecionada: ${cls.name}`;
+      els.attendanceClassLabel.textContent = `Turma: ${cls.name}`;
+      els.editClassLabel.textContent = `Turma: ${cls.name}`;
+      els.webhookInput.value = state.webhookUrl || '';
+      if (els.photoApiInput) els.photoApiInput.value = state.photoApiUrl || '';
+    }
+
+    function renderAttendance() {
+      const cls = currentClass();
+      ensureRosterStatuses();
+      const map = currentAttendanceMap();
+      els.memberList.innerHTML = '';
+      let attended = 0, late = 0, absent = 0;
+
+      cls.members.forEach((name, index) => {
+        const status = map[name] || 'pending';
+        if (status === 'attended') attended += 1;
+        if (status.startsWith('late')) late += 1;
+        if (status.startsWith('absent')) absent += 1;
+
+        const card = document.createElement('article');
+        card.className = 'member-card';
+        card.innerHTML = `
+          <div class="member-top">
+            <div class="member-identity">
+              ${memberAvatarMarkup(cls, name, { expandable: true })}
+              <div>
+                <h3 class="member-name">${escapeHtml(name)}</h3>
+                <p class="member-meta">Membro ${index + 1}</p>
+              </div>
+            </div>
+            <span class="status-tag ${statusClass(status)}">${statusLabel(status)}</span>
+          </div>
+          <div class="status-row">
+            <button class="status-btn ${status === 'attended' ? 'active' : ''}" data-name="${escapeAttr(name)}" data-status="attended" type="button">Presente</button>
+            <button class="status-btn ${status === 'late' || status.startsWith('late_') ? 'active' : ''}" data-name="${escapeAttr(name)}" data-status="late" type="button">Atrasado</button>
+            <button class="status-btn ${status === 'absent' || status.startsWith('absent_') ? 'active' : ''}" data-name="${escapeAttr(name)}" data-status="absent" type="button">Falta</button>
+          </div>
+          ${detailButtons(name, status)}`;
+        els.memberList.appendChild(card);
+      });
+
+      els.attendedCount.textContent = attended;
+      els.lateCount.textContent = late;
+      els.absentCount.textContent = absent;
+      renderTopSummary();
+    }
+
+    function renderSingleAttendance() {
+      const cls = currentClass();
+      if (!cls || !cls.members.length) {
+        if (els.singleAttendanceDateInfo) els.singleAttendanceDateInfo.textContent = `Data: ${displayAttendanceDate(selectedDateKey())}`;
+        if (els.singleMemberProgress) els.singleMemberProgress.textContent = '0 de 0';
+        if (els.singleMemberName) els.singleMemberName.textContent = 'Sem membros';
+        if (els.singleMemberAvatar) els.singleMemberAvatar.src = defaultAvatarPath('sem-membros');
+        return;
+      }
+      ensureRosterStatuses();
+      const map = currentSingleAttendanceMap();
+      const index = currentSingleMemberIndex();
+      state.singleAttendanceIndex = index;
+      const name = currentSingleMemberName();
+      const isLast = index === cls.members.length - 1;
+      if (els.singleMemberAvatar) {
+        els.singleMemberAvatar.src = memberPhotoUrl(cls, name);
+        els.singleMemberAvatar.alt = `Retrato de ${name}`;
+      }
+      if (els.singleAttendanceDateInfo) els.singleAttendanceDateInfo.textContent = `Data: ${displayAttendanceDate(selectedDateKey())}`;
+      if (els.singleMemberProgress) els.singleMemberProgress.textContent = `${index + 1} de ${cls.members.length}`;
+      if (els.singleMemberName) els.singleMemberName.textContent = (isLast && state.singleLastCompleted) ? 'Concluído' : name;
+      const status = map[name] || 'pending';
+      const completed = isLast && state.singleLastCompleted;
+      const statusRow = document.querySelector('#screen-attendance-single .status-row');
+      if (statusRow) {
+        statusRow.hidden = false;
+        statusRow.style.visibility = completed ? 'hidden' : 'visible';
+        statusRow.style.pointerEvents = completed ? 'none' : 'auto';
+      }
+      document.getElementById('singleAttendedBtn')?.classList.toggle('active', status === 'attended');
+      document.getElementById('singleLateBtn')?.classList.toggle('active', status === 'late' || status.startsWith('late_'));
+      document.getElementById('singleAbsentBtn')?.classList.toggle('active', status === 'absent' || status.startsWith('absent_'));
+      const detailRow = document.querySelector('#screen-attendance-single .status-detail-row');
+      if (detailRow) {
+        detailRow.outerHTML = detailButtons('', status, true);
+        document.querySelector('#screen-attendance-single .status-detail-row')?.classList.toggle('completed', completed);
+      }
+      document.getElementById('singlePrevBtn').disabled = index === 0;
+      document.getElementById('singleNextBtn').hidden = index === cls.members.length - 1;
+      const saveBtn = document.getElementById('saveSingleAttendanceBtn');
+      if (saveBtn) {
+        saveBtn.hidden = false;
+        saveBtn.style.visibility = (isLast && state.singleLastCompleted) ? 'visible' : 'hidden';
+        saveBtn.style.pointerEvents = (isLast && state.singleLastCompleted) ? 'auto' : 'none';
+      }
+    }
+
+    function renderEditList() {
+      const cls = currentClass();
+      els.editMemberList.innerHTML = '';
+      if (!cls.members.length) {
+        els.editMemberList.innerHTML = '<div class="inline-note"><p style="margin:0;" class="muted">Ainda não há membros. Adicione o primeiro membro acima.</p></div>';
+        return;
+      }
+      cls.members.forEach((name, index) => {
+        const profile = memberProfile(cls, name);
+        const row = document.createElement('article');
+        row.className = 'member-card';
+        row.innerHTML = `
+          <div class="member-top">
+            <div class="member-identity">
+              ${memberAvatarMarkup(cls, name, { expandable: true })}
+              <div>
+                <h3 class="member-name">${escapeHtml(name)}</h3>
+                <p class="member-meta">Membro ${index + 1}</p>
+              </div>
+            </div>
+            <button class="small-action ${state.removingMemberNames[name] ? 'removing' : ''}" type="button" data-remove-member="${escapeAttr(name)}">${state.removingMemberNames[name] ? 'A remover...' : 'Remover'}</button>
+          </div>
+          </div>`;
+        els.editMemberList.appendChild(row);
+      });
+    }
+
+    function renderClassEditor() {
+      els.classListEditor.innerHTML = '';
+      state.classes.forEach((item) => {
+        const row = document.createElement('article');
+        row.className = 'member-card class-editor-card';
+        row.tabIndex = 0;
+        row.setAttribute('role', 'button');
+        row.setAttribute('data-edit-members-class', item.id);
+        row.setAttribute('aria-label', `Abrir membros da turma ${item.name}`);
+        row.innerHTML = `
+          <div class="stack">
+            <div class="class-editor-card-main">
+              <div>
+                <h3 class="member-name" data-rename-trigger="${item.id}" title="Duplo clique para alterar o nome">${escapeHtml(item.name)}</h3>
+                <p class="class-editor-card-hint">Gerir membros</p>
+              </div>
+              <span class="class-editor-card-arrow" aria-hidden="true">›</span>
+            </div>
+            <div class="field" data-rename-wrapper="${item.id}" hidden>
+              <label for="rename-${item.id}">Alterar nome</label>
+              <input id="rename-${item.id}" class="text-input" type="text" value="${escapeAttr(item.name)}" data-rename-class="${item.id}" />
+            </div>
+          </div>`;
+        els.classListEditor.appendChild(row);
+      });
+    }
+
+    function renderSettingsClassList() {
+      const list = document.getElementById('settingsClassList');
+      const toggle = document.getElementById('toggleClassRemovalBtn');
+      if (!list) return;
+      list.innerHTML = '';
+      list.hidden = !classRemovalMode;
+      if (toggle) {
+        toggle.classList.toggle('active', classRemovalMode);
+        toggle.setAttribute('aria-expanded', String(classRemovalMode));
+        toggle.textContent = classRemovalMode ? 'Concluir remoção' : 'Remover turmas';
+      }
+      if (!classRemovalMode) return;
+      state.classes.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'row-between member-card';
+        row.innerHTML = `<strong class="member-name">${escapeHtml(item.name)}</strong>
+          <button class="small-action remove-class-btn" type="button" data-remove-class="${escapeAttr(item.id)}" aria-label="Remover ${escapeAttr(item.name)}" title="Remover ${escapeAttr(item.name)}" ${state.classes.length === 1 ? 'disabled' : ''}>×</button>`;
+        list.appendChild(row);
+      });
+    }
+
+    function switchScreen(key) {
+      if (key !== 'settings') classRemovalMode = false;
+      Object.entries(els.screens).forEach(([name, node]) => node.classList.toggle('active', name === key));
+      const backBtn = document.getElementById('backToClassesTopBtn');
+      if (backBtn) backBtn.hidden = key === 'class';
+      const editBtn = document.getElementById('editClassesTopBtn');
+      if (editBtn) editBtn.hidden = key !== 'class';
+      const settingsBtn = document.getElementById('settingsTopBtn');
+      if (settingsBtn) settingsBtn.hidden = key !== 'class';
+      if (key === 'attendance') renderAttendance();
+      if (key === 'attendanceSingle') renderSingleAttendance();
+      if (key === 'edit') renderEditList();
+      if (key === 'classes') renderClassEditor();
+      if (key === 'settings') renderSettingsClassList();
+      if (key === 'date') loadRecentTrainingStatus();
+      renderTopSummary();
+    }
+
+    function baseStatus(status) {
+      if (status.startsWith('late')) return 'late';
+      if (status.startsWith('absent')) return 'absent';
+      return status;
+    }
+    function statusLabel(status) {
+      return ({ pending: 'Por preencher', attended: 'Presente', late: 'Atrasado', late_told: 'Atrasado', late_not_told: 'Atrasado', absent: 'Falta', absent_justified: 'Falta', absent_not_justified: 'Falta' })[status] || 'Por preencher';
+    }
+    function statusClass(status) { return baseStatus(status) || 'pending'; }
+    function normalizeAttendanceStatus(status) {
+      const value = String(status || '').toLowerCase();
+      if (value === 'attended' || value === 'presente') return 'attended';
+      if ((value.includes('late') || value.includes('atrasado')) && (value.includes('told') || value.includes('disse') || value.includes('justificou'))) return value.includes('not') || value.includes('did not') || value.includes('não') ? 'late_not_told' : 'late_told';
+      if (value === 'late' || value === 'atrasado') return 'late';
+      if ((value.includes('not attended') || value.includes('falta')) && value.includes('justified') || value.includes('justificada')) return value.includes('not justified') || value.includes('não justificada') ? 'absent_not_justified' : 'absent_justified';
+      if (value === 'not attended' || value === 'absent' || value === 'falta') return 'absent';
+      return 'pending';
+    }
+    function detailButtons(name, status, single = false) {
+      const nameAttr = single ? '' : `data-name="${escapeAttr(name)}"`;
+      if (status === 'late' || status.startsWith('late_')) {
+        return `<div class="status-detail-row" data-detail-row="late">
+          <button class="status-btn ${status === 'late_told' ? 'active' : ''}" ${nameAttr} data-status="late_told" type="button">Disse o motivo</button>
+          <button class="status-btn ${status === 'late_not_told' ? 'active' : ''}" ${nameAttr} data-status="late_not_told" type="button">Não disse o motivo</button>
+        </div>`;
+      }
+      if (status === 'absent' || status.startsWith('absent_')) {
+        return `<div class="status-detail-row" data-detail-row="absent">
+          <button class="status-btn ${status === 'absent_justified' ? 'active' : ''}" ${nameAttr} data-status="absent_justified" type="button">Justificada</button>
+          <button class="status-btn ${status === 'absent_not_justified' ? 'active' : ''}" ${nameAttr} data-status="absent_not_justified" type="button">Não justificada</button>
+        </div>`;
+      }
+      if (single) {
+        return `<div class="status-detail-row is-placeholder" aria-hidden="true">
+          <button class="status-btn" type="button">Disse o motivo</button>
+          <button class="status-btn" type="button">Não disse o motivo</button>
+        </div>`;
+      }
+      return '';
+    }
+    function setMemberStatus(name, status) {
+      markAttendanceDirty(name);
+      currentAttendanceMap()[name] = status;
+      renderAttendance();
+    }
+    async function setSingleCurrentStatus(status, sourceButton = null) {
+      if (sourceButton) {
+        const feedbackClass = status.startsWith('late') ? 'flash-late' : 'flash-absent';
+        sourceButton.classList.add('active', feedbackClass);
+        await new Promise(resolve => setTimeout(resolve, 220));
+        sourceButton.classList.remove('active', feedbackClass);
+      }
+      setSingleMemberStatus(status);
+      if (status !== 'late' && status !== 'absent') await goToSingleNextOrSave();
+    }
+
+    function applyClassAccent(colorKey) {
+      document.documentElement.style.setProperty('--class-accent', colorKey);
+      document.documentElement.style.setProperty('--class-accent-soft', hexToRgba(colorKey, 0.12));
+      document.documentElement.style.setProperty('--class-accent-hover', hexToRgba(colorKey, 0.9));
+      const active = document.querySelector('.screen.active');
+      if (active) active.classList.toggle('selected-class', active.id !== 'screen-class');
+    }
+
+    async function fileToWebp(file) {
+      if (!file || !file.type.startsWith('image/')) throw new Error('Escolha uma imagem válida.');
+      if (file.size > 10 * 1024 * 1024) throw new Error('A fotografia é demasiado grande.');
+      let source;
+      let release = () => {};
+      if (typeof createImageBitmap === 'function') {
+        source = await createImageBitmap(file);
+        release = () => source.close?.();
+      } else {
+        const objectUrl = URL.createObjectURL(file);
+        const image = new Image();
+        try {
+          await new Promise((resolve, reject) => {
+            image.onload = resolve;
+            image.onerror = () => reject(new Error('Não foi possível ler a fotografia.'));
+            image.src = objectUrl;
+          });
+          source = image;
+        } finally {
+          release = () => URL.revokeObjectURL(objectUrl);
+        }
+      }
+      try {
+        const sourceWidth = source.width || source.naturalWidth;
+        const sourceHeight = source.height || source.naturalHeight;
+        const size = Math.min(256, sourceWidth, sourceHeight);
+        const sourceSize = Math.min(sourceWidth, sourceHeight);
+        const sourceX = Math.max(0, (sourceWidth - sourceSize) / 2);
+        const sourceY = Math.max(0, (sourceHeight - sourceSize) / 2);
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const context = canvas.getContext('2d');
+        context.drawImage(source, sourceX, sourceY, sourceSize, sourceSize, 0, 0, size, size);
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.82));
+        if (!blob || blob.size > 1024 * 1024) throw new Error('Não foi possível otimizar a fotografia.');
+        return blob;
+      } finally {
+        release();
+      }
+    }
+
+    async function uploadMemberPhoto(classId, profile, file) {
+      if (!state.photoApiUrl) throw new Error('Configure o URL do servidor de fotografias nas definições.');
+      const image = await fileToWebp(file);
+      const response = await fetch(`${state.photoApiUrl.replace(/\/$/, '')}/photos/${encodeURIComponent(classId)}/${encodeURIComponent(profile.id)}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'image/webp' },
+        body: image
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Não foi possível enviar a fotografia.');
+      return { ...profile, photoKey: result.photoKey, photoVersion: Date.now() };
+    }
+
+    async function deleteMemberPhoto(classId, profile) {
+      if (!profile?.photoKey || profile.photoKey.startsWith('assets/') || !state.photoApiUrl) return;
+      const response = await fetch(`${state.photoApiUrl.replace(/\/$/, '')}/photos/${encodeURIComponent(classId)}/${encodeURIComponent(profile.id)}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Não foi possível remover a fotografia.');
+    }
+
+    async function saveMemberProfiles(cls, profiles) {
+      return saveClassRecord({ id: cls.id, name: cls.name, members: cls.members, memberProfiles: profiles }, cls.id, { stayOnPage: true });
+    }
+
+    async function addMember() {
+      const value = els.memberNameInput.value.trim();
+      if (!value) return showNotice('Indica o nome do membro.');
+      const cls = currentClass();
+      if (!cls) return showNotice('Carregue primeiro uma turma.');
+      if (cls.members.some(name => name.toLowerCase() === value.toLowerCase())) return showNotice('Este membro já existe nesta turma.');
+      const button = document.getElementById('addMemberBtn');
+      const originalText = button?.textContent;
+      const initialProfile = { id: createMemberId(), name: value, photoKey: defaultAvatarPath(value), photoVersion: 0 };
+      let profile = initialProfile;
+      let uploadedPhoto = false;
+      if (button) { button.disabled = true; button.textContent = 'A guardar...'; }
+      try {
+        const file = els.memberPhotoInput?.files?.[0];
+        if (file) {
+          profile = await uploadMemberPhoto(cls.id, initialProfile, file);
+          uploadedPhoto = true;
+        }
+        const result = await queueClassMutation({ action: 'addMember', classId: cls.id, member: profile });
+        requireApiSuccess(result, 'Não foi possível adicionar o membro.');
+        applySavedClass(result.class, cls.id);
+        hideAddMemberPanel();
+        showNotice('Membro adicionado.', 'success', 1800);
+      } catch (error) {
+        if (uploadedPhoto) deleteMemberPhoto(cls.id, profile).catch(() => {});
+        showNotice(error.message || 'Não foi possível adicionar o membro.');
+        throw error;
+      } finally {
+        if (button) { button.disabled = false; button.textContent = originalText || 'Guardar membro'; }
+      }
+    }
+
+    function showAddMemberPanel() {
+      if (!els.addMemberPanel) return;
+      els.addMemberPanel.hidden = false;
+      els.memberNameInput.focus();
+    }
+
+    function hideAddMemberPanel() {
+      if (!els.addMemberPanel) return;
+      els.addMemberPanel.hidden = true;
+      els.memberNameInput.value = '';
+      if (els.memberPhotoInput) els.memberPhotoInput.value = '';
+      if (els.memberPhotoPreview) els.memberPhotoPreview.hidden = true;
+    }
+
+    function removeMember(name) {
+      const cls = currentClass();
+      if (!cls) return;
+      if (state.removingMemberNames[name]) return;
+      state.removingMemberNames[name] = true;
+      renderEditList();
+      queueClassMutation({ action: 'removeMember', classId: cls.id, memberName: name })
+        .then(requireApiSuccess)
+        .then(result => {
+          clearAttendanceDirtyForMember(cls.id, name);
+          applySavedClass(result.class, cls.id);
+          deleteMemberPhoto(cls.id, result.removedMember).catch(() => {
+            showNotice('Membro removido, mas a fotografia não pôde ser apagada.');
+          });
+        })
+        .catch(() => {})
+        .finally(() => {
+          delete state.removingMemberNames[name];
+          renderEditList();
+        });
+    }
+
+    async function changeMemberPhoto(memberId, file) {
+      const cls = currentClass();
+      const profile = cls?.memberProfiles?.find(item => item.id === memberId);
+      if (!cls || !profile || !file) return false;
+      try {
+        const updated = await uploadMemberPhoto(cls.id, profile, file);
+        await saveMemberProfiles(cls, cls.memberProfiles.map(item => item.id === memberId ? updated : item));
+        showNotice('Fotografia atualizada.', 'success', 1800);
+        refreshMemberPhotoDialog();
+        return true;
+      } catch (error) {
+        showNotice(error.message || 'Não foi possível atualizar a fotografia.');
+        return false;
+      }
+    }
+
+    async function clearMemberPhoto(memberId) {
+      const cls = currentClass();
+      const profile = cls?.memberProfiles?.find(item => item.id === memberId);
+      if (!cls || !profile) return false;
+      try {
+        await deleteMemberPhoto(cls.id, profile);
+        const updated = { ...profile, photoKey: defaultAvatarPath(profile.id), photoVersion: Date.now() };
+        await saveMemberProfiles(cls, cls.memberProfiles.map(item => item.id === memberId ? updated : item));
+        showNotice('Fotografia removida.', 'success', 1800);
+        refreshMemberPhotoDialog();
+        return true;
+      } catch (error) {
+        showNotice(error.message || 'Não foi possível remover a fotografia.');
+        return false;
+      }
+    }
+
+    function addClass() {
+      const value = els.classNameInput.value.trim();
+      if (!value) return showNotice('Indica o nome da turma.');
+      if (state.classes.some(item => item.name.toLowerCase() === value.toLowerCase())) return showNotice('Esta turma já existe.');
+      const id = `class-${crypto.randomUUID ? crypto.randomUUID() : Date.now()}`;
+      saveClassRecord({ id, name: value, members: [] }, id, { stayOnPage: true })
+        .then(() => hideAddClassPanel())
+        .catch(() => {});
+    }
+
+    function showClassRemovalDialog(id, trigger) {
+      const cls = state.classes.find(item => item.id === id);
+      const dialog = document.getElementById('confirmClassRemovalDialog');
+      const message = document.getElementById('confirmClassRemovalMessage');
+      const confirmButton = document.getElementById('confirmClassRemovalBtn');
+      if (!cls || state.classes.length === 1 || !dialog) return;
+      pendingClassRemovalId = id;
+      pendingClassRemovalTrigger = trigger || null;
+      if (message) message.textContent = `Tem a certeza de que quer remover a turma «${cls.name}»? Esta ação não pode ser anulada.`;
+      dialog.hidden = false;
+      dialog.setAttribute('aria-hidden', 'false');
+      confirmButton?.focus();
+    }
+
+    function closeClassRemovalDialog(restoreFocus = true) {
+      const dialog = document.getElementById('confirmClassRemovalDialog');
+      if (dialog) {
+        dialog.hidden = true;
+        dialog.setAttribute('aria-hidden', 'true');
+      }
+      const trigger = pendingClassRemovalTrigger;
+      pendingClassRemovalId = '';
+      pendingClassRemovalTrigger = null;
+      if (restoreFocus) trigger?.focus();
+    }
+
+    function confirmClassRemoval() {
+      const id = pendingClassRemovalId;
+      const cls = state.classes.find(item => item.id === id);
+      if (!cls || state.classes.length === 1) {
+        closeClassRemovalDialog(false);
+        return;
+      }
+      closeClassRemovalDialog(false);
+      queueClassMutation({ action: 'removeClass', classId: id })
+        .then(requireApiSuccess)
+        .then(() => {
+          state.classes = state.classes.filter(item => item.id !== id);
+          state.selectedClassId = state.selectedClassId === id ? state.classes[0]?.id || '' : state.selectedClassId;
+          persistState();
+          renderClassOptions();
+          renderClassEditor();
+          renderSettingsClassList();
+          renderEditList();
+          renderTopSummary();
+        })
+        .catch(() => {});
+    }
+
+    function editClassMembers(id) {
+      const cls = state.classes.find(item => item.id === id);
+      if (!cls) return;
+      state.selectedClassId = cls.id;
+      persistState();
+      renderTopSummary();
+      renderEditList();
+      switchScreen('edit');
+    }
+
+    function toggleClassRename(id) {
+      const wrapper = document.querySelector(`[data-rename-wrapper="${CSS.escape(id)}"]`);
+      if (!wrapper) return;
+      const isHidden = wrapper.hidden;
+      wrapper.hidden = !isHidden;
+      if (isHidden) {
+        const input = wrapper.querySelector('[data-rename-class]');
+        if (input) input.focus();
+      }
+    }
+
+    function saveClassRename(input) {
+      if (!input) return;
+      const id = input.dataset.renameClass;
+      const value = input.value.trim();
+      const cls = state.classes.find(item => item.id === id);
+      if (!cls || !value || value === cls.name) return;
+      saveClassRecord({ id: cls.id, name: value }, state.selectedClassId, { stayOnPage: true }).catch(() => {});
+    }
+
+    function flushClassRenameSave(input) {
+      saveClassRename(input);
+    }
+
+    function applySavedClass(record, nextSelectedClassId) {
+      const saved = normalizeClass(record);
+      const exists = state.classes.some(item => item.id === saved.id);
+      state.classes = exists
+        ? state.classes.map(item => item.id === saved.id ? saved : item)
+        : state.classes.concat(saved);
+      state.selectedClassId = nextSelectedClassId || state.selectedClassId || saved.id;
+      persistState();
+      renderClassOptions();
+      renderClassEditor();
+      renderSettingsClassList();
+      renderEditList();
+      renderTopSummary();
+    }
+
+    function normalizeClassPayload(classRecord) {
+      const payload = {
+        id: String(classRecord.id || `class-${Date.now()}`),
+        name: String(classRecord.name || '').trim()
+      };
+      if (Array.isArray(classRecord.members)) {
+        payload.members = sortMembers(classRecord.members.map(name => String(name).trim()).filter(Boolean));
+      }
+      if (Array.isArray(classRecord.memberProfiles)) {
+        payload.memberProfiles = classRecord.memberProfiles.map(profile => normalizeMemberProfile(profile, profile.name));
+      }
+      if (Array.isArray(classRecord.trainingDays) && classRecord.trainingDays.length) {
+        payload.trainingDays = classRecord.trainingDays.map(Number).filter(day => Number.isInteger(day) && day >= 0 && day <= 6);
+      }
+      if (classRecord.seasonStart) payload.seasonStart = String(classRecord.seasonStart);
+      return payload;
+    }
+
+    async function saveClassRecord(classRecord, nextSelectedClassId, options = {}) {
+      try {
+        const payload = normalizeClassPayload(classRecord);
+        if (!payload.name) throw new Error('Missing className');
+        const result = await queueClassMutation({ action: 'saveClass', class: payload });
+        requireApiSuccess(result, 'Não foi possível guardar os dados da turma');
+        applySavedClass(result.class, nextSelectedClassId);
+        showNotice('Alterações guardadas.', 'success', 1800);
+        if (!options.stayOnPage) switchScreen('class');
+      } catch (error) {
+        showNotice('Não foi possível guardar as alterações. Tenta novamente.');
+        throw error;
+      }
+    }
+
+    function showAddClassPanel() {
+      els.addClassPanel.hidden = false;
+      els.classNameInput.focus();
+    }
+
+    function hideAddClassPanel() {
+      els.addClassPanel.hidden = true;
+      els.classNameInput.value = '';
+    }
+
+    function toggleScriptPanel() {
+      if (!els.scriptPanel) return;
+      els.scriptPanel.hidden = !els.scriptPanel.hidden;
+      if (!els.scriptPanel.hidden && els.webhookInput) els.webhookInput.focus();
+    }
+
+    let savingAttendance = false;
+    async function saveAttendanceSession() {
+      if (savingAttendance) return;
+      savingAttendance = true;
+      const saveBtn = document.getElementById('saveAttendanceBtn');
+      if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'A guardar...'; }
+
+      const cls = currentClass();
+      if (!cls) {
+        savingAttendance = false;
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Guardar'; }
+        showNotice('Carregue primeiro uma turma.');
+        return;
+      }
+      ensureRosterStatuses();
+      const savedDateKey = selectedDateKey();
+      const payload = {
+        action: 'saveAttendance',
+        savedAt: new Date().toISOString(),
+        date: savedDateKey,
+        classId: cls.id,
+        className: cls.name,
+        members: cls.members.map(name => ({ name, status: currentAttendanceMap()[name] || 'pending' }))
+      };
+      try {
+        const res = await apiPost(payload);
+        if (!res.ok) throw new Error(res.error || 'Save failed');
+        attendanceRevision += 1;
+        recentTrainingRevision += 1;
+        attendanceRequests.clear();
+        recentTrainingRequests.clear();
+        recentTrainingRequestId += 1;
+        recentTrainingCache.clear();
+        await refreshAttendance(cls.id, savedDateKey, { force: true });
+        clearAttendanceDirty(cls.id, savedDateKey);
+        switchScreen('class');
+        showNotice('Presenças guardadas.', 'success', 1800);
+      } catch (error) {
+        showNotice('Não foi possível guardar as presenças. Tenta novamente.');
+        throw error;
+      } finally {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Guardar'; }
+        savingAttendance = false;
+      }
+    }
+
+    let savingSingleAttendance = false;
+    async function saveSingleAttendanceSession() {
+      if (savingSingleAttendance) return;
+      savingSingleAttendance = true;
+      const saveBtn = document.getElementById('saveSingleAttendanceBtn');
+      if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'A guardar...'; }
+
+      try {
+        await saveAttendanceSession();
+      } finally {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Guardar'; }
+        savingSingleAttendance = false;
+      }
+    }
+
+    function goToSinglePrevious() {
+      if (state.singleAttendanceIndex > 0) {
+        state.singleAttendanceIndex -= 1;
+        state.singleLastCompleted = false;
+        renderSingleAttendance();
+      }
+    }
+
+    async function goToSingleNextOrSave() {
+      const cls = currentClass();
+      if (!cls) return;
+      if (state.singleAttendanceIndex < cls.members.length - 1) {
+        state.singleAttendanceIndex += 1;
+        state.singleLastCompleted = false;
+        renderSingleAttendance();
+        return;
+      }
+    }
+
+    async function saveSettings() {
+      const input = els.webhookInput;
+      const nextUrl = input ? input.value.trim() : '';
+      const nextPhotoApiUrl = els.photoApiInput ? els.photoApiInput.value.trim().replace(/\/$/, '') : '';
+      if (!nextUrl) {
+        showNotice('Indica o URL do Google Apps Script.');
+        input?.focus();
+        return;
+      }
+
+      try {
+        const parsedUrl = new URL(nextUrl);
+        if (!['http:', 'https:'].includes(parsedUrl.protocol)) throw new Error('Invalid protocol');
+      } catch {
+        showNotice('O URL do Google Apps Script não é válido.');
+        input?.focus();
+        return;
+      }
+      if (nextPhotoApiUrl) {
+        try {
+          const parsedPhotoUrl = new URL(nextPhotoApiUrl);
+          if (!['http:', 'https:'].includes(parsedPhotoUrl.protocol)) throw new Error('Invalid protocol');
+        } catch {
+          showNotice('O URL do servidor de fotografias não é válido.');
+          els.photoApiInput?.focus();
+          return;
+        }
+      }
+
+      state.webhookUrl = nextUrl;
+      state.photoApiUrl = nextPhotoApiUrl;
+      state.classes = [];
+      state.attendanceByDate = {};
+      attendanceRevision += 1;
+      attendanceDirtyMembers.clear();
+      attendanceCacheKeys.clear();
+      attendanceRequests.clear();
+      recentTrainingCache.clear();
+      recentTrainingRequests.clear();
+      recentTrainingRequestId += 1;
+      recentTrainingRevision += 1;
+      persistState();
+      renderClassOptions();
+      const button = document.getElementById('saveBackendSettingsBtn');
+      const originalText = button?.textContent;
+      if (button) {
+        button.disabled = true;
+        button.textContent = 'A ligar...';
+      }
+      try {
+        const loaded = await loadSharedState();
+        renderClassOptions();
+        renderTopSummary();
+        if (!loaded) throw new Error('Não foi possível carregar as turmas com este URL.');
+        showNotice('Ligações guardadas.', 'success', 1800);
+        switchScreen('class');
+      } catch (error) {
+        showNotice(error.message || 'Não foi possível ligar ao Apps Script.');
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.textContent = originalText || 'Guardar ligações';
+        }
+      }
+    }
+
+    async function finishMemberEditing() {
+      const button = document.getElementById('saveSettingsBtn');
+      const originalText = button?.textContent;
+      if (button) {
+        button.disabled = true;
+        button.textContent = 'A guardar...';
+      }
+      try {
+        await classMutationQueue;
+        switchScreen('class');
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.textContent = originalText || 'Concluir';
+        }
+      }
+    }
+
+    function setShareStatus(message) {
+      const status = document.getElementById('shareStatus');
+      if (status) status.textContent = message;
+    }
+
+    async function copyAppLink() {
+      try {
+        await navigator.clipboard.writeText(APP_SHARE_URL);
+        setShareStatus('Link copiado.');
+        return true;
+      } catch {
+        window.prompt('Copie o link da aplicação:', APP_SHARE_URL);
+        setShareStatus('Copie o link apresentado.');
+        return false;
+      }
+    }
+
+    async function shareApp() {
+      if (typeof navigator.share === 'function') {
+        try {
+          await navigator.share({ title: APP_SHARE_TITLE, text: APP_SHARE_TEXT, url: APP_SHARE_URL });
+          setShareStatus('Partilha concluída.');
+          return;
+        } catch (error) {
+          if (error?.name === 'AbortError') return;
+        }
+      }
+      await copyAppLink();
+    }
+
+    function setClassPickerMode(mode) {
+      state.classPickerMode = mode === 'buttons' ? 'buttons' : 'dropdown';
+      persistState();
+      renderClassOptions();
+      document.getElementById('pickerDropdownBtn')?.classList.toggle('active', state.classPickerMode === 'dropdown');
+      document.getElementById('pickerButtonsBtn')?.classList.toggle('active', state.classPickerMode === 'buttons');
+    }
+
+    function setTheme(theme) {
+      state.theme = theme === 'dark' ? 'dark' : 'light';
+      document.documentElement.classList.toggle('theme-dark', state.theme === 'dark');
+      document.documentElement.classList.toggle('theme-light', state.theme !== 'dark');
+      updateThemeControls(state.theme);
+      persistState();
+    }
+
+    function updateThemeControls(theme) {
+      document.getElementById('themeLightBtn')?.classList.toggle('active', theme === 'light');
+      document.getElementById('themeDarkBtn')?.classList.toggle('active', theme === 'dark');
+    }
+
+    async function loadSharedState() {
+      if (!state.webhookUrl) return false;
+      try {
+        if (els.loadingClassesText) els.loadingClassesText.hidden = false;
+        const res = await apiGet('state');
+        requireApiSuccess(res, 'O Apps Script devolveu um erro ao carregar as turmas');
+        state.classes = Array.isArray(res.classes) ? res.classes.map(normalizeClass) : [];
+        if (!state.selectedClassId || !state.classes.some(item => item.id === state.selectedClassId)) {
+          state.selectedClassId = state.classes[0]?.id || '';
+        }
+        renderClassOptions();
+        renderTopSummary();
+        if (state.selectedClassId) {
+          refreshAttendance(state.selectedClassId, selectedDateKey(), { force: true }).catch(() => {
+            showNotice('Não foi possível carregar as presenças desta turma.');
+          });
+        }
+      } catch {
+        const title = els.loadingClassesText?.querySelector('strong');
+        const message = els.loadingClassesText?.querySelector('span');
+        if (title) title.textContent = 'Não foi possível carregar as turmas';
+        if (message) message.textContent = 'Verifique o URL do Apps Script nas definições.';
+        showNotice('Não foi possível carregar as turmas. Verifica a ligação e o URL do Apps Script.');
+        return false;
+      } finally {
+        if (els.loadingClassesText) els.loadingClassesText.hidden = state.classes.length > 0;
+      }
+      return true;
+    }
+
+    async function refreshAttendance(classId, dateKey, options = {}) {
+      if (!state.webhookUrl || !classId) return;
+      const key = attendanceRequestKey(classId, dateKey);
+      const force = options.force === true;
+      if (!force && attendanceCacheKeys.has(key)) {
+        if (isCurrentClassDate(classId, dateKey)) {
+          renderTopSummary();
+          if (els.screens.attendance?.classList.contains('active')) renderAttendance();
+          if (els.screens.attendanceSingle?.classList.contains('active')) renderSingleAttendance();
+        }
+        return state.attendanceByDate[dateKey]?.[classId] || {};
+      }
+      if (attendanceRequests.has(key)) return attendanceRequests.get(key);
+
+      const request = (async () => {
+        const requestRevision = attendanceRevision;
+        const res = await apiGet('attendance', { classId, date: dateKey });
+        requireApiSuccess(res, 'O Apps Script devolveu um erro ao carregar as presenças');
+        if (requestRevision !== attendanceRevision) return state.attendanceByDate[dateKey]?.[classId] || {};
+        const previousMap = state.attendanceByDate[dateKey]?.[classId] || {};
+        if (!state.attendanceByDate[dateKey]) state.attendanceByDate[dateKey] = {};
+        const attendanceMap = {};
+        if (res && Array.isArray(res.members)) {
+          res.members.forEach(member => {
+            attendanceMap[member.name] = normalizeAttendanceStatus(member.status);
+          });
+        }
+        Object.keys(previousMap).forEach(memberName => {
+          if (attendanceDirtyMembers.has(attendanceDirtyMemberKey(classId, dateKey, memberName))) {
+            attendanceMap[memberName] = previousMap[memberName];
+          }
+        });
+        state.attendanceByDate[dateKey][classId] = attendanceMap;
+        attendanceCacheKeys.add(key);
+        if (isCurrentClassDate(classId, dateKey)) {
+          renderTopSummary();
+          if (els.screens.attendance?.classList.contains('active')) renderAttendance();
+          if (els.screens.attendanceSingle?.classList.contains('active')) renderSingleAttendance();
+        }
+        return attendanceMap;
+      })();
+      attendanceRequests.set(key, request);
+      try {
+        return await request;
+      } finally {
+        if (attendanceRequests.get(key) === request) attendanceRequests.delete(key);
+      }
+    }
+
+    function normalizeClass(item) {
+      const members = sortMembers(Array.isArray(item.members) ? item.members.map(name => String(name).trim()).filter(Boolean) : []);
+      const profileByName = new Map((Array.isArray(item.memberProfiles) ? item.memberProfiles : []).map(profile => [String(profile.name || '').toLocaleLowerCase('pt-PT'), profile]));
+      return {
+        id: String(item.id || `class-${Date.now()}`),
+        name: String(item.name || 'Class'),
+        members,
+        memberProfiles: members.map(name => normalizeMemberProfile(profileByName.get(name.toLocaleLowerCase('pt-PT')), name)),
+        trainingDays: Array.isArray(item.trainingDays) ? item.trainingDays.map(Number).filter(day => Number.isInteger(day) && day >= 0 && day <= 6) : [],
+        seasonStart: String(item.seasonStart || '')
+      };
+    }
+
+    function hexToRgba(hex, alpha) {
+      const normalized = hex.replace('#', '');
+      const value = normalized.length === 3
+        ? normalized.split('').map(char => char + char).join('')
+        : normalized;
+      const int = parseInt(value, 16);
+      const r = (int >> 16) & 255;
+      const g = (int >> 8) & 255;
+      const b = int & 255;
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]); }
+    function escapeAttr(value) { return escapeHtml(value); }
+
+    function bindEvents() {
+      document.getElementById('openSheetsSettingsBtn').addEventListener('click', () => {
+        window.open('https://docs.google.com/spreadsheets/d/1k7tv6lmwYWUhn4D5rMy5oMvIBhYzaOIdsc5V4ivnJ6U/edit?usp=sharing', '_blank', 'noopener,noreferrer');
+      });
+      document.getElementById('copyShareLinkBtn').addEventListener('click', copyAppLink);
+      document.getElementById('nativeShareBtn').addEventListener('click', shareApp);
+      document.getElementById('goToDateBtn').addEventListener('click', () => {
+        if (!state.dateStepTouched) {
+          state.selectedDate = todayKey();
+          state.dateStepTouched = true;
+        }
+        switchScreen('date');
+      });
+      document.getElementById('goToActionsBtn').addEventListener('click', () => switchScreen('actions'));
+      document.getElementById('editClassesTopBtn').addEventListener('click', () => switchScreen('classes'));
+      document.getElementById('settingsTopBtn').addEventListener('click', () => switchScreen('settings'));
+      document.getElementById('pickerDropdownBtn').addEventListener('click', () => setClassPickerMode('dropdown'));
+      document.getElementById('pickerButtonsBtn').addEventListener('click', () => setClassPickerMode('buttons'));
+      document.getElementById('themeLightBtn').addEventListener('click', () => setTheme('light'));
+      document.getElementById('themeDarkBtn').addEventListener('click', () => setTheme('dark'));
+      document.getElementById('toggleClassRemovalBtn').addEventListener('click', () => {
+        classRemovalMode = !classRemovalMode;
+        renderSettingsClassList();
+      });
+      document.getElementById('toggleAddClassBtn').addEventListener('click', showAddClassPanel);
+      document.getElementById('cancelAddClassBtn').addEventListener('click', hideAddClassPanel);
+      document.getElementById('addClassBtn').addEventListener('click', addClass);
+      document.getElementById('toggleScriptBtn').addEventListener('click', toggleScriptPanel);
+      document.getElementById('openAttendanceBtn').addEventListener('click', () => switchScreen('attendance'));
+      document.getElementById('openAttendanceSingleBtn').addEventListener('click', () => {
+        state.singleAttendanceIndex = 0;
+        state.singleLastCompleted = false;
+        switchScreen('attendanceSingle');
+      });
+      document.getElementById('toggleAddMemberBtn').addEventListener('click', showAddMemberPanel);
+      document.getElementById('cancelAddMemberBtn').addEventListener('click', hideAddMemberPanel);
+      document.getElementById('addMemberBtn').addEventListener('click', () => addMember().catch(() => {}));
+      document.getElementById('clearMemberPhotoBtn').addEventListener('click', () => {
+        if (els.memberPhotoInput) els.memberPhotoInput.value = '';
+        if (els.memberPhotoPreview) els.memberPhotoPreview.hidden = true;
+      });
+      els.memberPhotoInput.addEventListener('change', () => {
+        const file = els.memberPhotoInput.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+          showNotice('Escolha uma imagem válida.');
+          els.memberPhotoInput.value = '';
+          return;
+        }
+        const previewUrl = URL.createObjectURL(file);
+        if (els.memberPhotoPreviewImage) els.memberPhotoPreviewImage.src = previewUrl;
+        if (els.memberPhotoPreview) els.memberPhotoPreview.hidden = false;
+      });
+      document.getElementById('saveBackendSettingsBtn').addEventListener('click', () => saveSettings().catch(() => {}));
+      document.getElementById('saveSettingsBtn').addEventListener('click', () => finishMemberEditing().catch(() => {}));
+      document.getElementById('saveAttendanceBtn').addEventListener('click', () => saveAttendanceSession().catch(() => {}));
+      document.getElementById('saveSingleAttendanceBtn').addEventListener('click', () => saveSingleAttendanceSession().catch(() => {}));
+      document.getElementById('singlePrevBtn').addEventListener('click', goToSinglePrevious);
+      document.getElementById('singleNextBtn').addEventListener('click', goToSingleNextOrSave);
+      document.getElementById('singleAttendedBtn').addEventListener('click', () => setSingleCurrentStatus('attended'));
+      document.getElementById('singleLateBtn').addEventListener('click', () => setSingleCurrentStatus('late'));
+      document.getElementById('singleAbsentBtn').addEventListener('click', () => setSingleCurrentStatus('absent'));
+      document.querySelector('#screen-attendance-single .single-attendance-card').addEventListener('click', event => {
+        const btn = event.target.closest('.status-detail-row .status-btn');
+        if (btn) setSingleCurrentStatus(btn.dataset.status, btn);
+      });
+      document.getElementById('backToClassesTopBtn').addEventListener('click', () => {
+        const activeId = document.querySelector('.screen.active')?.id;
+        if (activeId === 'screen-settings') return switchScreen('class');
+        if (activeId === 'screen-date') return switchScreen('class');
+        if (activeId === 'screen-actions') return switchScreen('date');
+        if (activeId === 'screen-edit') return switchScreen('classes');
+        if (activeId === 'screen-attendance' || activeId === 'screen-attendance-single') {
+          state.singleLastCompleted = false;
+          return switchScreen('actions');
+        }
+        if (activeId === 'screen-classes') return switchScreen('class');
+      });
+      els.classSelect.addEventListener('change', event => {
+        selectClass(event.target.value);
+      });
+      els.classButtonList.addEventListener('click', event => {
+        const button = event.target.closest('[data-class-id]');
+        if (button) selectClass(button.dataset.classId);
+      });
+
+      const syncAttendanceDate = event => {
+        state.selectedDate = event.target.value || todayKey();
+        persistState();
+        renderTopSummary();
+        if (state.selectedClassId) refreshAttendance(state.selectedClassId, selectedDateKey(), { force: true }).catch(() => {
+          showNotice('Não foi possível carregar as presenças desta data.');
+        });
+        if (els.screens.date?.classList.contains('active')) renderRecentTrainingSelection();
+      };
+      if (els.actionAttendanceDateInput) {
+        els.actionAttendanceDateInput.addEventListener('change', syncAttendanceDate);
+      }
+      if (els.attendanceDateInput) {
+        els.attendanceDateInput.addEventListener('change', syncAttendanceDate);
+      }
+      els.recentTrainingList.addEventListener('click', event => {
+        const button = event.target.closest('[data-recent-training-date]');
+        if (!button) return;
+        const dateKey = button.dataset.recentTrainingDate;
+        if (!dateKey) return;
+        const isTodayMissing = dateKey === todayKey() && button.classList.contains('is-missing');
+        if (dateKey !== selectedDateKey()) {
+          state.selectedDate = dateKey;
+          if (els.actionAttendanceDateInput) els.actionAttendanceDateInput.value = dateKey;
+          if (els.attendanceDateInput) els.attendanceDateInput.value = dateKey;
+          persistState();
+          updateDateDisplays();
+          renderTopSummary();
+          renderRecentTrainingSelection();
+          refreshAttendance(state.selectedClassId, dateKey, { force: true }).catch(() => {
+            showNotice('Não foi possível carregar as presenças desta data.');
+          });
+        }
+        if (isTodayMissing) switchScreen('actions');
+      });
+
+      els.memberNameInput.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); addMember(); } });
+      els.classNameInput.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); addClass(); } });
+
+      els.memberList.addEventListener('click', event => {
+        const btn = event.target.closest('.status-btn');
+        if (!btn) return;
+        setMemberStatus(btn.dataset.name, btn.dataset.status);
+      });
+
+      document.addEventListener('click', event => {
+        const photoTrigger = event.target.closest('[data-open-member-photo]');
+        if (!photoTrigger) return;
+        openMemberPhotoDialog(photoTrigger.dataset.openMemberPhoto, photoTrigger.dataset.memberPhotoName, photoTrigger);
+      });
+      els.singleMemberAvatarTrigger?.addEventListener('click', event => {
+        const cls = currentClass();
+        const name = currentSingleMemberName();
+        if (!cls || !name) return;
+        openMemberPhotoDialog(memberProfile(cls, name).id, name, event.currentTarget);
+      });
+      els.memberPhotoDialog?.addEventListener('click', event => {
+        if (event.target === els.memberPhotoDialog) closeMemberPhotoDialog();
+      });
+      els.chooseDialogMemberPhotoBtn?.addEventListener('click', () => els.dialogMemberPhotoInput?.click());
+      els.clearDialogMemberPhotoBtn?.addEventListener('click', () => {
+        if (activePhotoDialog) clearMemberPhoto(activePhotoDialog.memberId);
+      });
+      els.dialogMemberPhotoInput?.addEventListener('change', async () => {
+        const file = els.dialogMemberPhotoInput.files?.[0];
+        if (file && activePhotoDialog) await changeMemberPhoto(activePhotoDialog.memberId, file);
+        els.dialogMemberPhotoInput.value = '';
+      });
+
+      els.editMemberList.addEventListener('click', event => {
+        const btn = event.target.closest('[data-remove-member]');
+        if (!btn) return;
+        removeMember(btn.dataset.removeMember);
+      });
+
+      els.classListEditor.addEventListener('click', event => {
+        const renameTrigger = event.target.closest('[data-rename-trigger]');
+        if (renameTrigger) return;
+        if (event.target.closest('[data-rename-wrapper]')) return;
+        const editBtn = event.target.closest('[data-edit-members-class]');
+        if (editBtn) {
+          editClassMembers(editBtn.dataset.editMembersClass);
+          return;
+        }
+        const renameBtn = event.target.closest('[data-toggle-rename-class]');
+        if (renameBtn) {
+          toggleClassRename(renameBtn.dataset.toggleRenameClass);
+          return;
+        }
+        const removeBtn = event.target.closest('[data-remove-class]');
+        if (removeBtn) showClassRemovalDialog(removeBtn.dataset.removeClass, removeBtn);
+      });
+      els.classListEditor.addEventListener('dblclick', event => {
+        const name = event.target.closest('[data-rename-trigger]');
+        if (name) toggleClassRename(name.dataset.renameTrigger);
+      });
+
+      document.getElementById('settingsClassList').addEventListener('click', event => {
+        const removeBtn = event.target.closest('[data-remove-class]');
+        if (removeBtn) showClassRemovalDialog(removeBtn.dataset.removeClass, removeBtn);
+      });
+      els.classListEditor.addEventListener('blur', event => {
+        const input = event.target.closest('[data-rename-class]');
+        if (input) flushClassRenameSave(input);
+      }, true);
+      els.classListEditor.addEventListener('keydown', event => {
+        const input = event.target.closest('[data-rename-class]');
+        if (input && event.key === 'Enter') {
+          event.preventDefault();
+          flushClassRenameSave(input);
+          input.blur();
+          return;
+        }
+        const card = event.target.closest('[data-edit-members-class]');
+        if (card && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault();
+          editClassMembers(card.dataset.editMembersClass);
+        }
+      });
+      document.getElementById('cancelClassRemovalBtn').addEventListener('click', () => closeClassRemovalDialog());
+      document.getElementById('confirmClassRemovalBtn').addEventListener('click', confirmClassRemoval);
+      document.getElementById('confirmClassRemovalDialog').addEventListener('click', event => {
+        if (event.target.id === 'confirmClassRemovalDialog') closeClassRemovalDialog();
+      });
+      document.addEventListener('keydown', event => {
+        const dialog = document.getElementById('confirmClassRemovalDialog');
+        if (event.key === 'Escape' && els.memberPhotoDialog && !els.memberPhotoDialog.hidden) {
+          closeMemberPhotoDialog();
+          return;
+        }
+        if (event.key === 'Escape' && dialog && !dialog.hidden) closeClassRemovalDialog();
+      });
+
+      els.webhookInput.addEventListener('change', () => {
+        state.webhookUrl = els.webhookInput.value.trim();
+        persistState();
+      });
+      els.photoApiInput.addEventListener('change', () => {
+        state.photoApiUrl = els.photoApiInput.value.trim().replace(/\/$/, '');
+        persistState();
+      });
+
+      updateThemeControls(state.theme);
+    }
+
+    function updateThemeIcon(toggle, theme) {
+      toggle.setAttribute('aria-label', `Mudar para o modo ${theme === 'dark' ? 'claro' : 'escuro'}`);
+      toggle.innerHTML = theme === 'dark'
+        ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="5"></circle><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>'
+        : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
+    }
+
+    function init() {
+      updateResponsiveLayout();
+      window.addEventListener('resize', updateResponsiveLayout, { passive: true });
+      window.addEventListener('orientationchange', updateResponsiveLayout, { passive: true });
+      const prefs = loadState();
+      state.selectedClassId = prefs.selectedClassId || '';
+      state.webhookUrl = prefs.webhookUrl || DEFAULT_BACKEND_URL;
+      state.photoApiUrl = prefs.photoApiUrl || DEFAULT_PHOTO_API_URL;
+      state.selectedDate = prefs.selectedDate || todayKey();
+      state.theme = prefs.theme === 'dark' ? 'dark' : 'light';
+      state.classPickerMode = prefs.classPickerMode === 'buttons' ? 'buttons' : 'dropdown';
+      document.documentElement.classList.toggle('theme-dark', state.theme === 'dark');
+      document.documentElement.classList.toggle('theme-light', state.theme !== 'dark');
+      updateThemeControls(state.theme);
+      els.webhookInput.value = state.webhookUrl;
+      if (els.photoApiInput) els.photoApiInput.value = state.photoApiUrl;
+      if (els.scriptPanel) els.scriptPanel.hidden = true;
+      renderClassOptions();
+      setClassPickerMode(state.classPickerMode);
+      renderTopSummary();
+      bindEvents();
+      hideAddClassPanel();
+      hideAddMemberPanel();
+      switchScreen('class');
+      if (els.loadingClassesText) els.loadingClassesText.hidden = false;
+      loadSharedState().catch(() => {});
+    }
+    init();
+  </script>
+</body>
+</html>
