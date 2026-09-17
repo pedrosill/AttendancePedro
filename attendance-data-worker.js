@@ -2,6 +2,7 @@ const STATE_KEY = 'state';
 const STATE_SYNC_KEY = 'state:last-sync';
 const CACHE_MAX_AGE_MS = 60 * 1000;
 const MAX_OUTBOX_ATTEMPTS = 5;
+let activeFlush = null;
 
 function corsHeaders(request, env) {
   const origin = request.headers.get('Origin') || '';
@@ -213,25 +214,46 @@ async function importAttendance(env, action, query) {
   return result;
 }
 
+async function claimOutboxRow(env) {
+  const lockToken = id();
+  const lockedUntil = now() + 60 * 1000;
+  const row = await env.DB.prepare('SELECT id, payload, attempts FROM outbox WHERE attempts < ? AND (locked_until IS NULL OR locked_until < ?) ORDER BY created_at, id LIMIT 1')
+    .bind(MAX_OUTBOX_ATTEMPTS, now()).first();
+  if (!row) return null;
+  const claimed = await env.DB.prepare('UPDATE outbox SET locked_until = ?, lock_token = ? WHERE id = ? AND attempts < ? AND (locked_until IS NULL OR locked_until < ?)')
+    .bind(lockedUntil, lockToken, row.id, MAX_OUTBOX_ATTEMPTS, now()).run();
+  if (Number(claimed?.meta?.changes || 0) !== 1) return null;
+  return { ...row, lockToken };
+}
+
 async function flushOutbox(env) {
-  const rows = await env.DB.prepare('SELECT id, payload, attempts FROM outbox WHERE attempts < ? ORDER BY created_at, id LIMIT 10')
-    .bind(MAX_OUTBOX_ATTEMPTS).all();
-  for (const row of rows.results || []) {
+  for (let index = 0; index < 10; index += 1) {
+    const row = await claimOutboxRow(env);
+    if (!row) break;
     try {
       await sheetsRequest(env, '', {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: row.payload
       });
-      await env.DB.prepare('DELETE FROM outbox WHERE id = ?').bind(row.id).run();
+      await env.DB.prepare('DELETE FROM outbox WHERE id = ? AND lock_token = ?').bind(row.id, row.lockToken).run();
     } catch (error) {
-      await env.DB.prepare('UPDATE outbox SET attempts = attempts + 1, last_error = ? WHERE id = ?').bind(String(error), row.id).run();
+      await env.DB.prepare('UPDATE outbox SET attempts = attempts + 1, last_error = ?, locked_until = NULL, lock_token = NULL WHERE id = ? AND lock_token = ?')
+        .bind(String(error), row.id, row.lockToken).run();
       console.error('Background Sheets write failed:', error);
       break;
     }
   }
   const remaining = await env.DB.prepare('SELECT COUNT(*) AS count FROM outbox').first();
   if (Number(remaining?.count || 0) === 0) await refreshStateInBackground(env);
+}
+
+function scheduleFlush(env) {
+  if (activeFlush) return activeFlush;
+  activeFlush = flushOutbox(env)
+    .catch(error => console.error('Background outbox flush failed:', error))
+    .finally(() => { activeFlush = null; });
+  return activeFlush;
 }
 
 async function queueSheetsWrite(env, payload) {
@@ -269,7 +291,7 @@ async function handleGet(request, env, ctx) {
   if (action === 'state') {
     const state = await getOrBootstrapState(env);
     ctx.waitUntil(refreshStateInBackground(env));
-    ctx.waitUntil(flushOutbox(env));
+    ctx.waitUntil(scheduleFlush(env));
     return jsonResponse(state, 200, request, env);
   }
 
@@ -301,18 +323,19 @@ async function handlePost(request, env, ctx) {
   if (action === 'saveAttendance') {
     const classId = String(payload.classId || '');
     const date = String(payload.date || '');
-    await invalidateClassCaches(env, classId);
-    await writeValue(env, 'attendance:' + classId + ':' + date, {
+    const attendance = {
       ok: true,
       classId,
       className: payload.className || '',
       date,
       members: Array.isArray(payload.members) ? payload.members : [],
       filled: true
-    });
+    };
+    await invalidateClassCaches(env, classId);
+    await writeValue(env, 'attendance:' + classId + ':' + date, attendance);
     await queueSheetsWrite(env, payload);
-    ctx.waitUntil(flushOutbox(env));
-    return jsonResponse({ ok: true }, 200, request, env);
+    ctx.waitUntil(scheduleFlush(env));
+    return jsonResponse({ ok: true, attendance }, 200, request, env);
   }
 
   const mutation = applyClassMutation(current, payload);
@@ -321,7 +344,7 @@ async function handlePost(request, env, ctx) {
   else await invalidateClassCaches(env, String(payload.classId || payload.class?.id || ''));
   await writeState(env, mutation.state);
   await queueSheetsWrite(env, payload);
-  ctx.waitUntil(flushOutbox(env));
+  ctx.waitUntil(scheduleFlush(env));
   return jsonResponse(mutation.result, 200, request, env);
 }
 
