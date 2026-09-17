@@ -260,14 +260,22 @@ async function queueSheetsWrite(env, payload) {
   await env.DB.prepare('INSERT INTO outbox (payload, created_at) VALUES (?, ?)').bind(JSON.stringify(payload), now()).run();
 }
 
+async function deleteCacheKeys(env, matches) {
+  const rows = await env.DB.prepare('SELECT key FROM kv').all();
+  const keys = (rows.results || [])
+    .map(row => String(row.key || ''))
+    .filter(key => matches.some(prefix => key.startsWith(prefix)));
+  if (!keys.length) return;
+  await env.DB.batch(keys.map(key => env.DB.prepare('DELETE FROM kv WHERE key = ?').bind(key)));
+}
+
 async function invalidateClassCaches(env, classId) {
   if (!classId) return;
-  await env.DB.prepare("DELETE FROM kv WHERE key LIKE 'attendance:' || ? || ':%' OR key LIKE 'recent:' || ? || ':%'")
-    .bind(classId, classId).run();
+  await deleteCacheKeys(env, [`attendance:${classId}:`, `recent:${classId}:`, `sync:attendance:${classId}:`, `sync:recent:${classId}:`]);
 }
 
 async function invalidateAllAttendanceCaches(env) {
-  await env.DB.prepare("DELETE FROM kv WHERE key LIKE 'attendance:%' OR key LIKE 'recent:%' OR key LIKE 'sync:attendance:%' OR key LIKE 'sync:recent:%'").run();
+  await deleteCacheKeys(env, ['attendance:', 'recent:', 'sync:attendance:', 'sync:recent:']);
 }
 
 async function refreshReadCacheInBackground(env, action, query, cacheKey) {
