@@ -36,6 +36,8 @@
       --radius-xl: 1.25rem;
       --radius-full: 9999px;
       --transition-interactive: 180ms cubic-bezier(0.16, 1, 0.3, 1);
+      --transition-screen: 320ms cubic-bezier(0.16, 1, 0.3, 1);
+      --transition-enter: 360ms cubic-bezier(0.16, 1, 0.3, 1);
       --font-body: 'Satoshi', 'Inter', sans-serif;
       --color-bg: #f7f6f2;
       --color-surface: #f9f8f5;
@@ -84,6 +86,43 @@
       --color-error-highlight: #40292c;
       --shadow-sm: 0 1px 2px rgba(0,0,0,.24);
       --shadow-md: 0 14px 34px rgba(0,0,0,.34);
+    }
+    @keyframes screen-enter {
+      from { opacity: 0; transform: translateY(12px) scale(0.992); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes content-enter {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes item-enter {
+      from { opacity: 0; transform: translateY(8px) scale(0.985); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes panel-enter {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes detail-enter {
+      from { opacity: 0; transform: translateY(-5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes tap-feedback {
+      0% { box-shadow: 0 0 0 0 transparent; }
+      45% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--interaction-accent, var(--class-accent, var(--color-primary))) 18%, transparent); }
+      100% { box-shadow: 0 0 0 0 transparent; }
+    }
+    @keyframes loading-pulse {
+      0%, 100% { opacity: 0.72; }
+      50% { opacity: 1; }
+    }
+    @keyframes removing-pulse {
+      0%, 100% { border-color: color-mix(in srgb, var(--color-error) 25%, var(--color-border)); }
+      50% { border-color: color-mix(in srgb, var(--color-error) 70%, var(--color-border)); background: var(--color-error-highlight); }
+    }
+    @keyframes photo-swap {
+      from { opacity: 0.35; transform: scale(0.94); }
+      to { opacity: 1; transform: scale(1); }
     }
     *, *::before, *::after { box-sizing: border-box; }
     html { -webkit-text-size-adjust: none; text-size-adjust: none; }
@@ -157,7 +196,12 @@
       min-height: calc(100dvh - var(--screen-vertical-gap) - var(--screen-vertical-gap));
       margin: var(--screen-vertical-gap) auto;
       padding-top: calc(var(--space-5) + 3.5rem);
+      animation: screen-enter var(--transition-screen) both;
     }
+    .screen.active > * { animation: content-enter var(--transition-enter) both; }
+    .screen.active > *:nth-child(2) { animation-delay: 35ms; }
+    .screen.active > *:nth-child(3) { animation-delay: 70ms; }
+    .screen.active > *:nth-child(4) { animation-delay: 105ms; }
     .screen.active > .footer-actions { margin-top: auto; }
     .screen.selected-class {
       border-color: color-mix(in srgb, var(--class-accent) 28%, rgba(40,37,29,.08));
@@ -210,6 +254,7 @@
       width: 100%;
     }
     .class-choice {
+      --interaction-accent: var(--item-accent, var(--color-primary));
       min-width: 0;
       min-height: 52px;
       padding: 0.7rem 0.8rem;
@@ -223,10 +268,12 @@
       transition: transform var(--transition-interactive), background var(--transition-interactive), border-color var(--transition-interactive), color var(--transition-interactive);
     }
     .class-choice:active { transform: scale(0.98); }
+    .class-button-list > .class-choice { animation: item-enter var(--transition-enter) both; animation-delay: var(--item-delay, 0ms); }
     .class-choice.active {
-      background: var(--class-accent-soft, var(--color-primary-highlight));
-      border-color: color-mix(in srgb, var(--class-accent, var(--color-primary)) 45%, transparent);
-      color: var(--class-accent, var(--color-primary));
+      background: color-mix(in srgb, var(--item-accent, var(--color-primary)) 13%, var(--color-surface-2));
+      border-color: color-mix(in srgb, var(--item-accent, var(--color-primary)) 45%, transparent);
+      color: var(--item-accent, var(--color-primary));
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--item-accent, var(--color-primary)) 14%, transparent);
     }
     .settings-choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
     .settings-choice { width: 100%; }
@@ -367,6 +414,7 @@
       background: color-mix(in srgb, var(--color-primary-highlight) 65%, var(--color-surface-2));
       color: var(--color-text);
     }
+    .loading-banner:not([hidden]) { animation: loading-pulse 1.8s ease-in-out infinite; }
     .loading-banner strong {
       display: block;
       font-size: var(--text-base);
@@ -390,6 +438,7 @@
       font-weight: 700;
       box-shadow: var(--shadow-sm);
     }
+    .app-notice:not([hidden]) { animation: content-enter 260ms var(--transition-interactive) both; }
     .app-notice.error {
       border-color: color-mix(in srgb, var(--color-error) 40%, var(--color-border));
       background: var(--color-error-highlight);
@@ -472,6 +521,7 @@
       background: var(--color-surface-offset);
       box-shadow: var(--shadow-sm);
     }
+    .member-avatar.photo-swap { animation: photo-swap 260ms var(--transition-interactive) both; }
     .member-avatar-trigger {
       display: inline-flex;
       flex: 0 0 auto;
@@ -550,6 +600,7 @@
     .status-tag.absent { background: var(--color-error-highlight); color: var(--color-error); }
     .status-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); }
     .status-btn {
+      --interaction-accent: var(--class-accent, var(--color-primary));
       min-height: 48px;
       padding: 0.75rem 0.5rem;
       font-size: var(--text-xs);
@@ -571,6 +622,7 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: var(--space-2);
     }
+    .status-detail-row:not(.is-placeholder) { animation: detail-enter 220ms var(--transition-interactive) both; }
     .status-detail-row.is-placeholder {
       visibility: hidden;
       pointer-events: none;
@@ -696,6 +748,7 @@
       display: grid;
       gap: var(--space-2);
     }
+    .recent-training-list > .recent-training-item { animation: item-enter var(--transition-enter) both; animation-delay: var(--item-delay, 0ms); }
     .recent-training-item {
       display: flex;
       align-items: center;
@@ -753,21 +806,27 @@
     #screen-class .class-button-list { grid-template-columns: 1fr; }
     #screen-class .summary-grid { margin-top: var(--space-3); }
     .member-card .small-action { white-space: nowrap; flex: 0 0 auto; }
+    .tap-feedback { animation: tap-feedback 280ms ease-out; }
+    .panel-enter { animation: panel-enter 260ms var(--transition-interactive) both; }
+    .member-list > .member-card { animation: item-enter var(--transition-enter) both; animation-delay: var(--item-delay, 0ms); }
+    .member-list > .member-card.is-removing { animation: removing-pulse 1.15s ease-in-out infinite; }
     .class-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: nowrap; width: auto; }
     .class-actions .small-action { min-width: 0; padding: 0 0.7rem; min-height: 40px; white-space: nowrap; }
     .class-editor-card {
+      --interaction-accent: var(--item-accent, var(--class-accent, var(--color-primary)));
       cursor: pointer;
       transition: transform var(--transition-interactive), border-color var(--transition-interactive), background var(--transition-interactive), box-shadow var(--transition-interactive);
     }
     .class-editor-card:hover {
-      border-color: color-mix(in srgb, var(--class-accent, var(--color-primary)) 34%, var(--color-border));
-      background: var(--class-accent-soft, var(--color-primary-highlight));
+      border-color: color-mix(in srgb, var(--item-accent, var(--class-accent, var(--color-primary))) 34%, var(--color-border));
+      background: color-mix(in srgb, var(--item-accent, var(--class-accent, var(--color-primary))) 10%, var(--color-surface-2));
     }
     .class-editor-card:active { transform: scale(0.99); }
     .class-editor-card-main { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
     .class-editor-card-main > div { min-width: 0; }
     .class-editor-card-hint { margin: var(--space-1) 0 0; color: var(--color-text-muted); font-size: var(--text-sm); }
-    .class-editor-card-arrow { flex: 0 0 auto; color: var(--class-accent, var(--color-primary)); font-size: 2rem; line-height: 1; }
+    .class-editor-card-arrow { flex: 0 0 auto; color: var(--item-accent, var(--class-accent, var(--color-primary))); font-size: 2rem; line-height: 1; transition: transform var(--transition-interactive), color var(--transition-interactive); }
+    .class-editor-card:hover .class-editor-card-arrow { transform: translateX(4px); }
     .muted { color: var(--color-text-muted); }
     .tiny { font-size: var(--text-xs); }
     .row-between { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
@@ -969,7 +1028,9 @@
       #screen-edit .screen-header { margin-top: 0; }
       #screen-edit .member-card .small-action { padding-inline: 0.55rem; font-size: var(--text-xs); }
     }
-    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition: none !important; animation: none !important; }
+    }
   </style>
 </head>
 <body>
@@ -1391,6 +1452,14 @@
       noticeTimer = null;
       if (els.appNotice) els.appNotice.hidden = true;
     }
+    function pulseInteraction(node) {
+      if (!node || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+      clearTimeout(node.__tapFeedbackTimer);
+      node.classList.remove('tap-feedback');
+      void node.offsetWidth;
+      node.classList.add('tap-feedback');
+      node.__tapFeedbackTimer = setTimeout(() => node.classList.remove('tap-feedback'), 320);
+    }
     function todayKey() {
       const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Lisbon', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
       const values = Object.fromEntries(parts.filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
@@ -1420,11 +1489,11 @@
           : '<p class="recent-training-empty tiny">Não existem treinos definidos para este período.</p>';
         return;
       }
-      els.recentTrainingList.innerHTML = items.map(item => {
+      els.recentTrainingList.innerHTML = items.map((item, index) => {
         const statusClass = loading || item.loading ? 'is-loading' : item.filled ? 'is-filled' : item.error ? 'is-loading' : 'is-missing';
         const statusText = loading || item.loading ? 'A verificar...' : item.error ? 'Sem ligação' : item.filled ? 'Preenchido' : 'Por preencher';
         const isSelected = item.dateKey === selectedDateKey();
-        return `<button class="recent-training-item ${statusClass}${isSelected ? ' is-selected' : ''}" type="button" data-recent-training-date="${escapeAttr(item.dateKey)}" aria-pressed="${isSelected}" ${loading || item.loading ? 'disabled' : ''}>
+        return `<button class="recent-training-item ${statusClass}${isSelected ? ' is-selected' : ''}" style="--item-delay: ${Math.min(index, 8) * 35}ms" type="button" data-recent-training-date="${escapeAttr(item.dateKey)}" aria-pressed="${isSelected}" ${loading || item.loading ? 'disabled' : ''}>
           <span class="recent-training-date">${displayTrainingDate(item.dateKey)} - ${displayWeekday(item.dateKey)}</span>
           <span class="recent-training-status">${statusText}</span>
         </button>`;
@@ -1786,11 +1855,13 @@
     function renderClassButtons() {
       if (!els.classButtonList) return;
       els.classButtonList.innerHTML = '';
-      state.classes.forEach(item => {
+      state.classes.forEach((item, index) => {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = `class-choice ${item.id === state.selectedClassId ? 'active' : ''}`;
         button.dataset.classId = item.id;
+        button.style.setProperty('--item-accent', colorFromString(item.name));
+        button.style.setProperty('--item-delay', `${Math.min(index, 8) * 35}ms`);
         button.textContent = item.name;
         els.classButtonList.appendChild(button);
       });
@@ -1941,7 +2012,13 @@
       const name = currentSingleMemberName();
       const isLast = index === cls.members.length - 1;
       if (els.singleMemberAvatar) {
-        els.singleMemberAvatar.src = memberPhotoUrl(cls, name);
+        const nextPhotoUrl = memberPhotoUrl(cls, name);
+        if (els.singleMemberAvatar.getAttribute('src') !== nextPhotoUrl) {
+          els.singleMemberAvatar.classList.remove('photo-swap');
+          void els.singleMemberAvatar.offsetWidth;
+          els.singleMemberAvatar.classList.add('photo-swap');
+          els.singleMemberAvatar.src = nextPhotoUrl;
+        }
         els.singleMemberAvatar.alt = `Retrato de ${name}`;
       }
       if (els.singleAttendanceDateInfo) els.singleAttendanceDateInfo.textContent = `Data: ${displayAttendanceDate(selectedDateKey())}`;
@@ -1980,10 +2057,12 @@
         els.editMemberList.innerHTML = '<div class="inline-note"><p style="margin:0;" class="muted">Ainda não há membros. Adicione o primeiro membro acima.</p></div>';
         return;
       }
-      cls.members.forEach((name) => {
+      cls.members.forEach((name, index) => {
         const profile = memberProfile(cls, name);
         const row = document.createElement('article');
         row.className = 'member-card';
+        row.style.setProperty('--item-delay', `${Math.min(index, 8) * 25}ms`);
+        if (state.removingMemberNames[name]) row.classList.add('is-removing');
         row.innerHTML = `
           <div class="member-top">
             <div class="member-identity">
@@ -2001,9 +2080,11 @@
 
     function renderClassEditor() {
       els.classListEditor.innerHTML = '';
-      state.classes.forEach((item) => {
+      state.classes.forEach((item, index) => {
         const row = document.createElement('article');
         row.className = 'member-card class-editor-card';
+        row.style.setProperty('--item-accent', colorFromString(item.name));
+        row.style.setProperty('--item-delay', `${Math.min(index, 8) * 35}ms`);
         row.tabIndex = 0;
         row.setAttribute('role', 'button');
         row.setAttribute('data-edit-members-class', item.id);
@@ -2038,9 +2119,11 @@
         toggle.textContent = classRemovalMode ? 'Concluir remoção' : 'Remover classes';
       }
       if (!classRemovalMode) return;
-      state.classes.forEach(item => {
+      state.classes.forEach((item, index) => {
         const row = document.createElement('div');
         row.className = 'row-between member-card';
+        row.style.setProperty('--item-accent', colorFromString(item.name));
+        row.style.setProperty('--item-delay', `${Math.min(index, 8) * 25}ms`);
         row.innerHTML = `<strong class="member-name">${escapeHtml(item.name)}</strong>
           <button class="small-action remove-class-btn" type="button" data-remove-class="${escapeAttr(item.id)}" aria-label="Remover ${escapeAttr(item.name)}" title="Remover ${escapeAttr(item.name)}" ${state.classes.length === 1 ? 'disabled' : ''}>×</button>`;
         list.appendChild(row);
@@ -2236,6 +2319,8 @@
     function showAddMemberPanel() {
       if (!els.addMemberPanel) return;
       els.addMemberPanel.hidden = false;
+      els.addMemberPanel.classList.remove('panel-enter');
+      requestAnimationFrame(() => els.addMemberPanel?.classList.add('panel-enter'));
       els.memberNameInput.focus();
     }
 
@@ -2445,6 +2530,8 @@
 
     function showAddClassPanel() {
       els.addClassPanel.hidden = false;
+      els.addClassPanel.classList.remove('panel-enter');
+      requestAnimationFrame(() => els.addClassPanel?.classList.add('panel-enter'));
       els.classNameInput.focus();
     }
 
@@ -2799,6 +2886,10 @@
     function escapeAttr(value) { return escapeHtml(value); }
 
     function bindEvents() {
+      document.addEventListener('pointerdown', event => {
+        const target = event.target.closest('button, [role="button"]');
+        if (target && !target.disabled) pulseInteraction(target);
+      }, { capture: true });
       document.getElementById('openSheetsSettingsBtn').addEventListener('click', () => {
         window.open('https://docs.google.com/spreadsheets/d/1k7tv6lmwYWUhn4D5rMy5oMvIBhYzaOIdsc5V4ivnJ6U/edit?usp=sharing', '_blank', 'noopener,noreferrer');
       });
