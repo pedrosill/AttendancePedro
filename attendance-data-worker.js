@@ -74,6 +74,27 @@ function normaliseState(value) {
   };
 }
 
+function normaliseAttendanceStatus(value) {
+  const status = String(value || '').trim().toLowerCase();
+  if (status === '*' || status === 'attended' || status === 'presente') return 'attended';
+  if (status === 'a' || status === 'late' || status === 'atrasado') return 'late';
+  if (status === 'late_told' || status === 'late_not_told') return status;
+  if (status === 'absent_justified' || status === 'absent_not_justified') return status;
+  if (status === 'f' || status === 'absent' || status === 'not attended' || status === 'falta') return 'absent';
+  return 'pending';
+}
+
+function normaliseAttendanceResult(result) {
+  if (!result || !Array.isArray(result.members)) return result;
+  return {
+    ...result,
+    members: result.members.map(member => ({
+      ...member,
+      status: normaliseAttendanceStatus(member.status)
+    }))
+  };
+}
+
 async function readValue(env, key) {
   const row = await env.DB.prepare('SELECT value FROM kv WHERE key = ?').bind(key).first();
   return row ? JSON.parse(row.value) : null;
@@ -211,7 +232,7 @@ async function importAttendance(env, action, query) {
   if (!response.ok) throw new Error('Sheets HTTP ' + response.status);
   const result = await response.json();
   if (!result || result.ok !== true) throw new Error(result?.error || 'Sheets returned an error');
-  return result;
+  return action === 'attendance' ? normaliseAttendanceResult(result) : result;
 }
 
 async function claimOutboxRow(env) {
@@ -312,7 +333,7 @@ async function handleGet(request, env, ctx) {
   const query = Object.fromEntries(url.searchParams.entries());
   if (cached) {
     ctx.waitUntil(refreshReadCacheInBackground(env, action, query, cacheKey));
-    return jsonResponse(cached, 200, request, env);
+    return jsonResponse(action === 'attendance' ? normaliseAttendanceResult(cached) : cached, 200, request, env);
   }
   const result = await importAttendance(env, action, query);
   await writeValue(env, cacheKey, result);
@@ -336,7 +357,10 @@ async function handlePost(request, env, ctx) {
       classId,
       className: payload.className || '',
       date,
-      members: Array.isArray(payload.members) ? payload.members : [],
+      members: Array.isArray(payload.members) ? payload.members.map(member => ({
+        ...member,
+        status: normaliseAttendanceStatus(member.status)
+      })) : [],
       filled: true
     };
     await invalidateClassCaches(env, classId);

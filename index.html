@@ -2000,11 +2000,11 @@
     function statusClass(status) { return baseStatus(status) || 'pending'; }
     function normalizeAttendanceStatus(status) {
       const value = String(status || '').toLowerCase();
-      if (value === 'attended' || value === 'presente') return 'attended';
+      if (value === '*' || value === 'attended' || value === 'presente') return 'attended';
       if ((value.includes('late') || value.includes('atrasado')) && (value.includes('told') || value.includes('disse') || value.includes('justificou'))) return value.includes('not') || value.includes('did not') || value.includes('não') ? 'late_not_told' : 'late_told';
-      if (value === 'late' || value === 'atrasado') return 'late';
+      if (value === 'a' || value === 'late' || value === 'atrasado') return 'late';
       if ((value.includes('not attended') || value.includes('falta')) && value.includes('justified') || value.includes('justificada')) return value.includes('not justified') || value.includes('não justificada') ? 'absent_not_justified' : 'absent_justified';
-      if (value === 'not attended' || value === 'absent' || value === 'falta') return 'absent';
+      if (value === 'f' || value === 'not attended' || value === 'absent' || value === 'falta') return 'absent';
       return 'pending';
     }
     function detailButtons(name, status, single = false) {
