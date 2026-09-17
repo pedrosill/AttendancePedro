@@ -1243,7 +1243,8 @@
 
   <script>
     const STORAGE_KEY = 'gym-attendance-prefs-v4';
-    const DEFAULT_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbzWfzY9w2-Q3SiDZlTZP2H4ZZyKPmc70eCy-o_RhTs_kZ7_LrAUnVAtJBMrxX4OQ7r4Hw/exec';
+    const DEFAULT_BACKEND_URL = 'https://attendance-pedro-data.pedrosill1944.workers.dev';
+    const LEGACY_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbzWfzY9w2-Q3SiDZlTZP2H4ZZyKPmc70eCy-o_RhTs_kZ7_LrAUnVAtJBMrxX4OQ7r4Hw/exec';
     const DEFAULT_PHOTO_API_URL = '';
     const APP_SHARE_URL = 'https://attendance-pedro.pedrosill1944.workers.dev/';
     const APP_SHARE_TITLE = 'Presenças de Ginástica';
@@ -1350,7 +1351,8 @@
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, photoApiUrl: DEFAULT_PHOTO_API_URL, selectedDate: new Date().toISOString().slice(0, 10), theme: 'light' };
         const parsed = JSON.parse(raw);
-        return { selectedClassId: parsed.selectedClassId || '', webhookUrl: parsed.webhookUrl || DEFAULT_BACKEND_URL, photoApiUrl: parsed.photoApiUrl || DEFAULT_PHOTO_API_URL, selectedDate: parsed.selectedDate || new Date().toISOString().slice(0, 10), theme: parsed.theme === 'dark' ? 'dark' : 'light', classPickerMode: parsed.classPickerMode === 'buttons' ? 'buttons' : 'dropdown' };
+        const savedWebhookUrl = parsed.webhookUrl === LEGACY_BACKEND_URL ? DEFAULT_BACKEND_URL : parsed.webhookUrl;
+        return { selectedClassId: parsed.selectedClassId || '', webhookUrl: savedWebhookUrl || DEFAULT_BACKEND_URL, photoApiUrl: parsed.photoApiUrl || DEFAULT_PHOTO_API_URL, selectedDate: parsed.selectedDate || new Date().toISOString().slice(0, 10), theme: parsed.theme === 'dark' ? 'dark' : 'light', classPickerMode: parsed.classPickerMode === 'buttons' ? 'buttons' : 'dropdown' };
       } catch {
         return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, photoApiUrl: DEFAULT_PHOTO_API_URL, selectedDate: new Date().toISOString().slice(0, 10), theme: 'light' };
       }
