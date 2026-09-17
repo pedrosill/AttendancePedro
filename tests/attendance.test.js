@@ -46,6 +46,11 @@ class MockRange {
 
   setBackground() { return this; }
 
+  sort(spec) {
+    this.sheet.sort(spec);
+    return this;
+  }
+
   setValue(value) {
     this.sheet.setValueAt(this.row, this.column, value);
     return this;
@@ -154,6 +159,10 @@ function createContext() {
   const spreadsheet = new MockSpreadsheet();
   let lockWaits = 0;
   let lockReleases = 0;
+  const cache = new Map();
+  let cacheGets = 0;
+  let cachePuts = 0;
+  let cacheRemoves = 0;
   const ruleBuilder = () => ({
     whenTextEqualTo() { return this; },
     whenTextContains() { return this; },
@@ -173,6 +182,13 @@ function createContext() {
         releaseLock() { lockReleases += 1; }
       })
     },
+    CacheService: {
+      getScriptCache: () => ({
+        get(key) { cacheGets += 1; return cache.get(key) || null; },
+        put(key, value) { cachePuts += 1; cache.set(key, value); },
+        remove(key) { cacheRemoves += 1; cache.delete(key); }
+      })
+    },
     Session: { getScriptTimeZone: () => 'UTC' },
     Utilities: {
       getUuid: () => 'generated-id',
@@ -189,7 +205,12 @@ function createContext() {
   };
   vm.createContext(context);
   vm.runInContext(fs.readFileSync('ScriptForSheets', 'utf8'), context);
-  return { context, spreadsheet, getLockCounts: () => ({ waits: lockWaits, releases: lockReleases }) };
+  return {
+    context,
+    spreadsheet,
+    getLockCounts: () => ({ waits: lockWaits, releases: lockReleases }),
+    getCacheCounts: () => ({ gets: cacheGets, puts: cachePuts, removes: cacheRemoves })
+  };
 }
 
 test('normaliza datas portuguesas para uma chave única', () => {
@@ -211,6 +232,25 @@ test('migra os metadados antigos para guardar o calendário da turma', () => {
   assert.equal(output.classes[0].seasonStart, '2026-09-08');
   assert.deepEqual(Array.from(JSON.parse(meta.valueAt(2, 4))), [2, 4]);
   assert.equal(meta.valueAt(1, 4), 'trainingDaysJson');
+});
+
+test('a cache de turmas é invalidada depois de uma alteração', () => {
+  const { context, spreadsheet, getCacheCounts } = createContext();
+  const meta = spreadsheet.insertSheet('__classes__');
+  meta.data = [
+    ['id', 'name', 'membersJson', 'trainingDaysJson', 'seasonStart'],
+    ['gami-id', 'Gami', '["Ana"]', '[2,4]', '2026-09-08']
+  ];
+
+  assert.deepEqual(Array.from(context.getSharedState().classes[0].members), ['Ana']);
+  assert.deepEqual(Array.from(context.getSharedState().classes[0].members), ['Ana']);
+
+  const result = JSON.parse(context.doPost({ postData: { contents: JSON.stringify({
+    action: 'addMember', classId: 'gami-id', memberName: 'Bia'
+  }) } }).value);
+  assert.equal(result.ok, true);
+  assert.deepEqual(Array.from(context.getSharedState().classes[0].members), ['Ana', 'Bia']);
+  assert.deepEqual(getCacheCounts(), { gets: 3, puts: 2, removes: 1 });
 });
 
 test('migra a tabela antiga, mantém células vazias e reaplica as cores', () => {
@@ -314,6 +354,56 @@ test('operações de membros preservam o estado mais recente da turma', () => {
   assert.deepEqual(JSON.parse(JSON.stringify(removed.class.members)), ['Bia']);
   assert.deepEqual(JSON.parse(meta.valueAt(2, 3)), ['Bia']);
   assert.equal(spreadsheet.getSheetByName('Gami').valueAt(2, 1), 'Bia');
+});
+
+test('adicionar membro ordena a linha completa sem trocar presenças', () => {
+  const { context, spreadsheet } = createContext();
+  const meta = spreadsheet.insertSheet('__classes__');
+  meta.data = [
+    ['id', 'name', 'membersJson', 'trainingDaysJson', 'seasonStart'],
+    ['gami-id', 'Gami', '["Bia","Zoe"]', '[2,4]', '2026-09-08']
+  ];
+  const sheet = spreadsheet.insertSheet('Gami');
+  sheet.data = [
+    ['Membro', '2026-09-08'],
+    ['Bia', 'A'],
+    ['Zoe', '*']
+  ];
+
+  const result = JSON.parse(context.doPost({ postData: { contents: JSON.stringify({
+    action: 'addMember', classId: 'gami-id', memberName: 'Ana'
+  }) } }).value);
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(sheet.data.slice(1).map((row, index) => [row[0], sheet.valueAt(index + 2, 2)]), [
+    ['Ana', ''],
+    ['Bia', 'A'],
+    ['Zoe', '*']
+  ]);
+});
+
+test('remover membro elimina a linha completa sem deslocar presenças', () => {
+  const { context, spreadsheet } = createContext();
+  const meta = spreadsheet.insertSheet('__classes__');
+  meta.data = [
+    ['id', 'name', 'membersJson', 'trainingDaysJson', 'seasonStart'],
+    ['gami-id', 'Gami', '["Bia","Zoe"]', '[2,4]', '2026-09-08']
+  ];
+  const sheet = spreadsheet.insertSheet('Gami');
+  sheet.data = [
+    ['Membro', '2026-09-08'],
+    ['Bia', 'A'],
+    ['Zoe', '*']
+  ];
+
+  const result = JSON.parse(context.doPost({ postData: { contents: JSON.stringify({
+    action: 'removeMember', classId: 'gami-id', memberName: 'Bia'
+  }) } }).value);
+
+  assert.equal(result.ok, true);
+  assert.equal(sheet.getLastRow(), 2);
+  assert.equal(sheet.valueAt(2, 1), 'Zoe');
+  assert.equal(sheet.valueAt(2, 2), '*');
 });
 
 test('renomear uma turma não substitui membros existentes', () => {

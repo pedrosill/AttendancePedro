@@ -58,6 +58,9 @@
       --color-error-highlight: #f2d9dd;
       --shadow-sm: 0 1px 2px rgba(40, 37, 29, 0.06);
       --shadow-md: 0 8px 24px rgba(40, 37, 29, 0.08);
+      --screen-vertical-gap: max(4.5rem, 10dvh);
+      --screen-inline-edge: max(var(--space-4), calc((100% - 90vw) / 2));
+      --top-control-size: 56px;
     }
     .theme-dark {
       --color-bg: #171614;
@@ -119,15 +122,15 @@
       margin: 0 auto;
       gap: 0;
     }
-    .topbar { position: absolute; top: calc(env(safe-area-inset-top) + var(--space-4)); left: 5vw; right: 5vw; z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: nowrap; }
+    .topbar { position: absolute; top: calc(env(safe-area-inset-top) + var(--space-3)); left: var(--screen-inline-edge); right: var(--screen-inline-edge); z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: nowrap; }
     .topbar-actions { display: flex; align-items: center; gap: var(--space-3); margin-left: auto; }
     .topbar-actions.single { justify-content: flex-end; }
     .topbar .round-btn[hidden] { display: none !important; }
     .round-btn {
-      min-width: 44px;
-      min-height: 44px;
-      width: 44px;
-      height: 44px;
+      min-width: var(--top-control-size);
+      min-height: var(--top-control-size);
+      width: var(--top-control-size);
+      height: var(--top-control-size);
       border-radius: var(--radius-full);
       border: 1px solid rgba(40,37,29,.1);
       background: var(--color-surface);
@@ -136,6 +139,7 @@
       place-items: center;
       box-shadow: var(--shadow-sm);
     }
+    .topbar .round-btn svg { width: 24px; height: 24px; }
     .screen {
       background: var(--color-surface);
       border: 1px solid rgba(40,37,29,.08);
@@ -146,7 +150,14 @@
       flex-direction: column;
       gap: var(--space-5);
     }
-    .screen.active { display: flex; width: 90vw; max-width: 100%; min-height: 80dvh; margin: calc(44px + var(--space-4)) auto auto; padding-top: calc(var(--space-5) + 3.5rem); }
+    .screen.active {
+      display: flex;
+      width: 90vw;
+      max-width: 100%;
+      min-height: calc(100dvh - var(--screen-vertical-gap) - var(--screen-vertical-gap));
+      margin: var(--screen-vertical-gap) auto;
+      padding-top: calc(var(--space-5) + 3.5rem);
+    }
     .screen.active > .footer-actions { margin-top: auto; }
     .screen.selected-class {
       border-color: color-mix(in srgb, var(--class-accent) 28%, rgba(40,37,29,.08));
@@ -220,12 +231,31 @@
     .settings-choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
     .settings-choice { width: 100%; }
     .settings-choice.active { background: var(--class-accent-soft, var(--color-primary-highlight)); border-color: var(--class-accent, var(--color-primary)); color: var(--class-accent, var(--color-primary)); }
-    .share-link-row { display: flex; align-items: stretch; gap: var(--space-2); min-width: 0; }
-    .share-link-row .text-input { flex: 1; min-width: 0; }
-    .share-link-row .secondary-btn { flex: 0 0 auto; min-height: 52px; }
     .share-actions { display: flex; gap: var(--space-3); min-width: 0; }
-    .share-actions .primary-btn { width: 100%; }
+    .share-actions > * { flex: 1 1 0; }
     .share-status { min-height: 1.25rem; color: var(--color-primary); }
+    .sheets-settings-btn {
+      min-height: 64px;
+      font-size: var(--text-base);
+      box-shadow: 0 8px 18px color-mix(in srgb, var(--color-primary) 18%, transparent);
+    }
+    .removal-mode-btn { width: 100%; }
+    .removal-mode-btn.active {
+      background: var(--color-error-highlight);
+      border-color: color-mix(in srgb, var(--color-error) 36%, var(--color-border));
+      color: var(--color-error);
+    }
+    .remove-class-btn {
+      flex: 0 0 auto;
+      min-width: 44px;
+      width: 44px;
+      min-height: 44px;
+      padding: 0;
+      border-radius: var(--radius-full);
+      color: var(--color-error);
+      font-size: 1.7rem;
+      line-height: 1;
+    }
     .confirm-dialog-backdrop {
       position: fixed;
       inset: 0;
@@ -622,12 +652,25 @@
     .toolbar.add-class-toolbar { justify-content: flex-end; }
     .toolbar.add-class-toolbar > * { flex: 0 0 auto; }
     .add-class-toolbar .round-btn { font-size: 1.5rem; line-height: 1; font-weight: 500; }
-    .toolbar.add-member-toolbar { justify-content: flex-end; }
+    .toolbar.add-member-toolbar { justify-content: center; }
     .toolbar.add-member-toolbar > * { flex: 0 0 auto; }
-    .add-member-toolbar .round-btn { font-size: 1.5rem; line-height: 1; font-weight: 500; }
+    .add-member-toolbar .round-btn { min-width: 68px; min-height: 68px; width: 68px; height: 68px; font-size: 2.25rem; line-height: 1; font-weight: 500; }
     .toolbar .small-action { flex: 0 0 auto; }
     .class-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: nowrap; width: auto; }
     .class-actions .small-action { min-width: 0; padding: 0 0.7rem; min-height: 40px; white-space: nowrap; }
+    .class-editor-card {
+      cursor: pointer;
+      transition: transform var(--transition-interactive), border-color var(--transition-interactive), background var(--transition-interactive), box-shadow var(--transition-interactive);
+    }
+    .class-editor-card:hover {
+      border-color: color-mix(in srgb, var(--class-accent, var(--color-primary)) 34%, var(--color-border));
+      background: var(--class-accent-soft, var(--color-primary-highlight));
+    }
+    .class-editor-card:active { transform: scale(0.99); }
+    .class-editor-card-main { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+    .class-editor-card-main > div { min-width: 0; }
+    .class-editor-card-hint { margin: var(--space-1) 0 0; color: var(--color-text-muted); font-size: var(--text-sm); }
+    .class-editor-card-arrow { flex: 0 0 auto; color: var(--class-accent, var(--color-primary)); font-size: 2rem; line-height: 1; }
     .muted { color: var(--color-text-muted); }
     .tiny { font-size: var(--text-xs); }
     .row-between { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
@@ -643,8 +686,8 @@
         padding: calc(env(safe-area-inset-top) + var(--space-4)) var(--space-6) calc(env(safe-area-inset-bottom) + var(--space-4));
       }
       .topbar {
-        left: 5vw;
-        right: 5vw;
+        left: var(--screen-inline-edge);
+        right: var(--screen-inline-edge);
       }
       .screen {
         padding: var(--space-6);
@@ -697,23 +740,23 @@
       }
     }
     @media (min-width: 1280px) and (min-height: 720px) {
+      :root { --screen-inline-edge: max(var(--space-4), calc((100% - min(90vw, 60rem)) / 2)); }
       .app-shell {
-        max-width: 800px;
+        max-width: 1000px;
         padding-inline: var(--space-5);
       }
       .topbar {
-        left: max(5vw, calc(50% - 380px));
-        right: max(5vw, calc(50% - 380px));
+        left: var(--screen-inline-edge);
+        right: var(--screen-inline-edge);
       }
       .screen {
-        width: min(100%, 760px);
+        width: min(90vw, 960px);
         padding: var(--space-5);
         gap: var(--space-5);
         border-radius: var(--radius-lg);
       }
       .screen.active {
-        width: min(100%, 760px);
-        min-height: 74dvh;
+        width: min(90vw, 960px);
       }
       .screen-header h1,
       .screen-header h2 {
@@ -721,12 +764,6 @@
       }
       .screen-header p {
         font-size: var(--text-sm);
-      }
-      .round-btn {
-        min-width: 40px;
-        min-height: 40px;
-        width: 40px;
-        height: 40px;
       }
       .primary-btn,
       .secondary-btn,
@@ -747,7 +784,7 @@
         max-width: 520px;
       }
       #screen-settings {
-        width: min(100%, 680px);
+        width: min(90vw, 800px);
       }
       #screen-settings .settings-choice-grid {
         grid-template-columns: repeat(2, minmax(0, 220px));
@@ -767,14 +804,8 @@
         flex: 0 0 auto;
         width: 180px;
       }
-      #screen-settings .share-link-row {
-        max-width: 620px;
-      }
-      #screen-settings .share-link-row .secondary-btn {
-        width: 150px;
-      }
       #screen-settings .share-actions {
-        width: 240px;
+        width: min(100%, 420px);
       }
       .footer-actions {
         max-width: 520px;
@@ -789,9 +820,6 @@
       }
       .toolbar > * {
         flex: 0 1 auto;
-      }
-      .share-actions .primary-btn {
-        width: min(100%, 240px);
       }
       .action-grid {
         max-width: 560px;
@@ -829,8 +857,6 @@
       .toolbar, .footer-actions { width: 100%; min-width: 0; }
       .toolbar > *, .footer-actions > * { width: 100%; }
       .toolbar.add-class-toolbar > *, .toolbar.add-member-toolbar > * { width: auto; }
-      .share-link-row { flex-direction: column; }
-      .share-link-row .secondary-btn { width: 100%; }
       .share-actions { flex-direction: column; }
       .confirm-dialog-actions { flex-direction: column-reverse; }
       .confirm-dialog-actions > * { width: 100%; }
@@ -902,6 +928,8 @@
         <h2 id="settings-title">Definições</h2>
       </div>
 
+      <button class="primary-btn sheets-settings-btn" type="button" id="openSheetsSettingsBtn">Abrir Google Sheets</button>
+
       <div class="stack">
         <label>Forma de escolher a turma</label>
         <div class="settings-choice-grid">
@@ -918,18 +946,10 @@
         </div>
       </div>
 
-      <button class="secondary-btn" type="button" id="openSheetsSettingsBtn">Abrir Google Sheets</button>
-
       <div class="stack">
-        <div>
-          <label for="shareUrlInput">Partilhar aplicação</label>
-          <p class="tiny muted">Envie este link para abrir a aplicação noutro telemóvel ou computador.</p>
-        </div>
-        <div class="share-link-row">
-          <input id="shareUrlInput" class="text-input" type="url" value="https://attendance-pedro.pedrosill1944.workers.dev/" readonly aria-label="Link da aplicação" />
-          <button class="secondary-btn" type="button" id="copyShareLinkBtn">Copiar link</button>
-        </div>
+        <label>Partilhar aplicação</label>
         <div class="share-actions">
+          <button class="secondary-btn" type="button" id="copyShareLinkBtn">Copiar link</button>
           <button class="primary-btn" type="button" id="nativeShareBtn">Partilhar</button>
         </div>
         <p class="tiny share-status" id="shareStatus" aria-live="polite"></p>
@@ -948,8 +968,9 @@
       </div>
 
       <div class="stack">
-        <label>Remover turma</label>
-        <div id="settingsClassList" class="member-list" aria-live="polite"></div>
+        <label>Gerir turmas</label>
+        <button class="secondary-btn removal-mode-btn" type="button" id="toggleClassRemovalBtn" aria-expanded="false">Remover turmas</button>
+        <div id="settingsClassList" class="member-list" aria-live="polite" hidden></div>
       </div>
     </section>
 
@@ -1145,6 +1166,14 @@
     };
     let classMutationQueue = Promise.resolve();
     let recentTrainingRequestId = 0;
+    let recentTrainingRevision = 0;
+    let attendanceRevision = 0;
+    const attendanceCacheKeys = new Set();
+    const attendanceDirtyMembers = new Set();
+    const attendanceRequests = new Map();
+    const recentTrainingCache = new Map();
+    const recentTrainingRequests = new Map();
+    let classRemovalMode = false;
     let pendingClassRemovalId = '';
     let pendingClassRemovalTrigger = null;
     const els = {
@@ -1258,25 +1287,90 @@
         </div>`;
       }).join('');
     }
-    async function loadRecentTrainingStatus() {
+    function attendanceRequestKey(classId, dateKey) {
+      return `${state.webhookUrl}::${classId}::${dateKey}`;
+    }
+
+    function recentTrainingRequestKey(classId, dateKey) {
+      return `${state.webhookUrl}::${classId}::${dateKey}`;
+    }
+
+    function isCurrentClassDate(classId, dateKey) {
+      return state.selectedClassId === classId && selectedDateKey() === dateKey;
+    }
+
+    function attendanceDirtyMemberKey(classId, dateKey, memberName) {
+      return `${attendanceRequestKey(classId, dateKey)}::${String(memberName || '').toLowerCase()}`;
+    }
+
+    function markAttendanceDirty(memberName) {
       const cls = currentClass();
-      const requestId = ++recentTrainingRequestId;
+      if (cls) attendanceDirtyMembers.add(attendanceDirtyMemberKey(cls.id, selectedDateKey(), memberName));
+    }
+
+    function clearAttendanceDirty(classId, dateKey) {
+      const prefix = `${attendanceRequestKey(classId, dateKey)}::`;
+      [...attendanceDirtyMembers].forEach(key => {
+        if (key.startsWith(prefix)) attendanceDirtyMembers.delete(key);
+      });
+    }
+
+    function clearAttendanceDirtyForMember(classId, memberName) {
+      const prefix = `${state.webhookUrl}::${classId}::`;
+      const suffix = `::${String(memberName || '').toLowerCase()}`;
+      [...attendanceDirtyMembers].forEach(key => {
+        if (key.startsWith(prefix) && key.endsWith(suffix)) attendanceDirtyMembers.delete(key);
+      });
+    }
+
+    async function loadRecentTrainingStatus(options = {}) {
+      const cls = currentClass();
       if (!cls || !state.webhookUrl) {
         renderRecentTrainingList([]);
-        return;
+        return [];
       }
+
+      const dateKey = selectedDateKey();
+      const key = recentTrainingRequestKey(cls.id, dateKey);
+      const force = options.force === true;
+      if (!force && recentTrainingCache.has(key)) {
+        const items = recentTrainingCache.get(key);
+        renderRecentTrainingList(items);
+        return items;
+      }
+      if (recentTrainingRequests.has(key)) {
+        const items = await recentTrainingRequests.get(key);
+        if (isCurrentClassDate(cls.id, dateKey)) renderRecentTrainingList(items);
+        return items;
+      }
+
+      const requestId = ++recentTrainingRequestId;
+      const requestRevision = recentTrainingRevision;
       renderRecentTrainingList([], true);
-      try {
-        const result = await apiGet('recentAttendance', { classId: cls.id, date: selectedDateKey(), count: 2 });
-        if (!result.ok) throw new Error(result.error || 'Não foi possível carregar os treinos');
-        if (!Array.isArray(result.dates)) throw new Error('O Apps Script ainda não suporta o resumo de treinos');
-        const items = Array.isArray(result.dates) ? result.dates.map(item => ({ dateKey: item.date, filled: !!item.filled })) : [];
-        if (requestId === recentTrainingRequestId) renderRecentTrainingList(items);
-      } catch {
-        if (requestId === recentTrainingRequestId) {
-          renderRecentTrainingList([]);
-          showNotice('Não foi possível verificar os últimos treinos.', 'error');
+      const request = (async () => {
+        try {
+          const result = await apiGet('recentAttendance', { classId: cls.id, date: dateKey, count: 2 });
+          requireApiSuccess(result, 'Não foi possível carregar os treinos');
+          if (!Array.isArray(result.dates)) throw new Error('O Apps Script ainda não suporta o resumo de treinos');
+          const items = result.dates.map(item => ({ dateKey: item.date, filled: !!item.filled }));
+          if (requestRevision === recentTrainingRevision) recentTrainingCache.set(key, items);
+          if (requestRevision === recentTrainingRevision && requestId === recentTrainingRequestId && isCurrentClassDate(cls.id, dateKey)) {
+            renderRecentTrainingList(items);
+          }
+          return items;
+        } catch (error) {
+          if (requestRevision === recentTrainingRevision && requestId === recentTrainingRequestId && isCurrentClassDate(cls.id, dateKey)) {
+            renderRecentTrainingList([]);
+            showNotice('Não foi possível verificar os últimos treinos.', 'error');
+          }
+          return [];
         }
+      })();
+      recentTrainingRequests.set(key, request);
+      try {
+        return await request;
+      } finally {
+        if (recentTrainingRequests.get(key) === request) recentTrainingRequests.delete(key);
       }
     }
     function updateResponsiveLayout() {
@@ -1327,6 +1421,7 @@
     function setSingleMemberStatus(status) {
       const name = currentSingleMemberName();
       if (!name) return;
+      markAttendanceDirty(name);
       currentSingleAttendanceMap()[name] = status;
       const cls = currentClass();
       state.singleLastCompleted = !!cls && currentSingleMemberIndex() === cls.members.length - 1 && status !== 'late' && status !== 'absent';
@@ -1434,10 +1529,10 @@
       persistState();
       renderClassOptions();
       renderTopSummary();
-      refreshAttendance(state.selectedClassId, selectedDateKey()).catch(() => {
+      refreshAttendance(state.selectedClassId, selectedDateKey(), { force: true }).catch(() => {
         showNotice('Não foi possível carregar as presenças desta turma.');
       });
-      if (els.screens.date?.classList.contains('active')) loadRecentTrainingStatus();
+      if (els.screens.date?.classList.contains('active')) loadRecentTrainingStatus({ force: true });
     }
 
     function renderTopSummary() {
@@ -1575,16 +1670,19 @@
       els.classListEditor.innerHTML = '';
       state.classes.forEach((item) => {
         const row = document.createElement('article');
-        row.className = 'member-card';
+        row.className = 'member-card class-editor-card';
+        row.tabIndex = 0;
+        row.setAttribute('role', 'button');
+        row.setAttribute('data-edit-members-class', item.id);
+        row.setAttribute('aria-label', `Abrir membros da turma ${item.name}`);
         row.innerHTML = `
           <div class="stack">
-            <div class="row-between">
+            <div class="class-editor-card-main">
               <div>
                 <h3 class="member-name" data-rename-trigger="${item.id}" title="Duplo clique para alterar o nome">${escapeHtml(item.name)}</h3>
+                <p class="class-editor-card-hint">Gerir membros</p>
               </div>
-              <div class="class-actions">
-                <button class="small-action" type="button" data-edit-members-class="${item.id}">Membros</button>
-              </div>
+              <span class="class-editor-card-arrow" aria-hidden="true">›</span>
             </div>
             <div class="field" data-rename-wrapper="${item.id}" hidden>
               <label for="rename-${item.id}">Alterar nome</label>
@@ -1597,18 +1695,27 @@
 
     function renderSettingsClassList() {
       const list = document.getElementById('settingsClassList');
+      const toggle = document.getElementById('toggleClassRemovalBtn');
       if (!list) return;
       list.innerHTML = '';
+      list.hidden = !classRemovalMode;
+      if (toggle) {
+        toggle.classList.toggle('active', classRemovalMode);
+        toggle.setAttribute('aria-expanded', String(classRemovalMode));
+        toggle.textContent = classRemovalMode ? 'Concluir remoção' : 'Remover turmas';
+      }
+      if (!classRemovalMode) return;
       state.classes.forEach(item => {
         const row = document.createElement('div');
         row.className = 'row-between member-card';
         row.innerHTML = `<strong class="member-name">${escapeHtml(item.name)}</strong>
-          <button class="small-action" type="button" data-remove-class="${escapeAttr(item.id)}" ${state.classes.length === 1 ? 'disabled' : ''}>Remover</button>`;
+          <button class="small-action remove-class-btn" type="button" data-remove-class="${escapeAttr(item.id)}" aria-label="Remover ${escapeAttr(item.name)}" title="Remover ${escapeAttr(item.name)}" ${state.classes.length === 1 ? 'disabled' : ''}>×</button>`;
         list.appendChild(row);
       });
     }
 
     function switchScreen(key) {
+      if (key !== 'settings') classRemovalMode = false;
       Object.entries(els.screens).forEach(([name, node]) => node.classList.toggle('active', name === key));
       const backBtn = document.getElementById('backToClassesTopBtn');
       if (backBtn) backBtn.hidden = key === 'class';
@@ -1666,6 +1773,7 @@
       return '';
     }
     function setMemberStatus(name, status) {
+      markAttendanceDirty(name);
       currentAttendanceMap()[name] = status;
       renderAttendance();
     }
@@ -1721,7 +1829,10 @@
       renderEditList();
       queueClassMutation({ action: 'removeMember', classId: cls.id, memberName: name })
         .then(requireApiSuccess)
-        .then(result => applySavedClass(result.class, cls.id))
+        .then(result => {
+          clearAttendanceDirtyForMember(cls.id, name);
+          applySavedClass(result.class, cls.id);
+        })
         .catch(() => {})
         .finally(() => {
           delete state.removingMemberNames[name];
@@ -1898,10 +2009,11 @@
         return;
       }
       ensureRosterStatuses();
+      const savedDateKey = selectedDateKey();
       const payload = {
         action: 'saveAttendance',
         savedAt: new Date().toISOString(),
-        date: selectedDateKey(),
+        date: savedDateKey,
         classId: cls.id,
         className: cls.name,
         members: cls.members.map(name => ({ name, status: currentAttendanceMap()[name] || 'pending' }))
@@ -1909,7 +2021,14 @@
       try {
         const res = await apiPost(payload);
         if (!res.ok) throw new Error(res.error || 'Save failed');
-        await refreshAttendance(cls.id, selectedDateKey());
+        attendanceRevision += 1;
+        recentTrainingRevision += 1;
+        attendanceRequests.clear();
+        recentTrainingRequests.clear();
+        recentTrainingRequestId += 1;
+        recentTrainingCache.clear();
+        await refreshAttendance(cls.id, savedDateKey, { force: true });
+        clearAttendanceDirty(cls.id, savedDateKey);
         switchScreen('class');
         showNotice('Presenças guardadas.', 'success', 1800);
       } catch (error) {
@@ -1975,6 +2094,15 @@
 
       state.webhookUrl = nextUrl;
       state.classes = [];
+      state.attendanceByDate = {};
+      attendanceRevision += 1;
+      attendanceDirtyMembers.clear();
+      attendanceCacheKeys.clear();
+      attendanceRequests.clear();
+      recentTrainingCache.clear();
+      recentTrainingRequests.clear();
+      recentTrainingRequestId += 1;
+      recentTrainingRevision += 1;
       persistState();
       renderClassOptions();
       loadSharedState().then(loaded => {
@@ -1995,13 +2123,9 @@
         setShareStatus('Link copiado.');
         return true;
       } catch {
-        const input = document.getElementById('shareUrlInput');
-        if (!input) return false;
-        input.focus();
-        input.select();
-        const copied = typeof document.execCommand === 'function' && document.execCommand('copy');
-        setShareStatus(copied ? 'Link copiado.' : 'Selecione e copie o link manualmente.');
-        return copied;
+        window.prompt('Copie o link da aplicação:', APP_SHARE_URL);
+        setShareStatus('Copie o link apresentado.');
+        return false;
       }
     }
 
@@ -2040,7 +2164,7 @@
     }
 
     async function loadSharedState() {
-      if (!state.webhookUrl) return;
+      if (!state.webhookUrl) return false;
       try {
         if (els.loadingClassesText) els.loadingClassesText.hidden = false;
         const res = await apiGet('state');
@@ -2049,8 +2173,12 @@
         if (!state.selectedClassId || !state.classes.some(item => item.id === state.selectedClassId)) {
           state.selectedClassId = state.classes[0]?.id || '';
         }
+        renderClassOptions();
+        renderTopSummary();
         if (state.selectedClassId) {
-          await refreshAttendance(state.selectedClassId, selectedDateKey());
+          refreshAttendance(state.selectedClassId, selectedDateKey(), { force: true }).catch(() => {
+            showNotice('Não foi possível carregar as presenças desta turma.');
+          });
         }
       } catch {
         const title = els.loadingClassesText?.querySelector('strong');
@@ -2065,19 +2193,53 @@
       return true;
     }
 
-    async function refreshAttendance(classId, dateKey) {
+    async function refreshAttendance(classId, dateKey, options = {}) {
       if (!state.webhookUrl || !classId) return;
-      const res = await apiGet('attendance', { classId, date: dateKey });
-      requireApiSuccess(res, 'O Apps Script devolveu um erro ao carregar as presenças');
-      if (!state.attendanceByDate[dateKey]) state.attendanceByDate[dateKey] = {};
-      state.attendanceByDate[dateKey][classId] = {};
-      if (res && Array.isArray(res.members)) {
-        res.members.forEach(member => {
-          state.attendanceByDate[dateKey][classId][member.name] = normalizeAttendanceStatus(member.status);
-        });
+      const key = attendanceRequestKey(classId, dateKey);
+      const force = options.force === true;
+      if (!force && attendanceCacheKeys.has(key)) {
+        if (isCurrentClassDate(classId, dateKey)) {
+          renderTopSummary();
+          if (els.screens.attendance?.classList.contains('active')) renderAttendance();
+          if (els.screens.attendanceSingle?.classList.contains('active')) renderSingleAttendance();
+        }
+        return state.attendanceByDate[dateKey]?.[classId] || {};
       }
-      renderTopSummary();
-      renderAttendance();
+      if (attendanceRequests.has(key)) return attendanceRequests.get(key);
+
+      const request = (async () => {
+        const requestRevision = attendanceRevision;
+        const res = await apiGet('attendance', { classId, date: dateKey });
+        requireApiSuccess(res, 'O Apps Script devolveu um erro ao carregar as presenças');
+        if (requestRevision !== attendanceRevision) return state.attendanceByDate[dateKey]?.[classId] || {};
+        const previousMap = state.attendanceByDate[dateKey]?.[classId] || {};
+        if (!state.attendanceByDate[dateKey]) state.attendanceByDate[dateKey] = {};
+        const attendanceMap = {};
+        if (res && Array.isArray(res.members)) {
+          res.members.forEach(member => {
+            attendanceMap[member.name] = normalizeAttendanceStatus(member.status);
+          });
+        }
+        Object.keys(previousMap).forEach(memberName => {
+          if (attendanceDirtyMembers.has(attendanceDirtyMemberKey(classId, dateKey, memberName))) {
+            attendanceMap[memberName] = previousMap[memberName];
+          }
+        });
+        state.attendanceByDate[dateKey][classId] = attendanceMap;
+        attendanceCacheKeys.add(key);
+        if (isCurrentClassDate(classId, dateKey)) {
+          renderTopSummary();
+          if (els.screens.attendance?.classList.contains('active')) renderAttendance();
+          if (els.screens.attendanceSingle?.classList.contains('active')) renderSingleAttendance();
+        }
+        return attendanceMap;
+      })();
+      attendanceRequests.set(key, request);
+      try {
+        return await request;
+      } finally {
+        if (attendanceRequests.get(key) === request) attendanceRequests.delete(key);
+      }
     }
 
     function normalizeClass(item) {
@@ -2125,6 +2287,10 @@
       document.getElementById('pickerButtonsBtn').addEventListener('click', () => setClassPickerMode('buttons'));
       document.getElementById('themeLightBtn').addEventListener('click', () => setTheme('light'));
       document.getElementById('themeDarkBtn').addEventListener('click', () => setTheme('dark'));
+      document.getElementById('toggleClassRemovalBtn').addEventListener('click', () => {
+        classRemovalMode = !classRemovalMode;
+        renderSettingsClassList();
+      });
       document.getElementById('toggleAddClassBtn').addEventListener('click', showAddClassPanel);
       document.getElementById('cancelAddClassBtn').addEventListener('click', hideAddClassPanel);
       document.getElementById('addClassBtn').addEventListener('click', addClass);
@@ -2174,10 +2340,10 @@
         state.selectedDate = event.target.value || todayKey();
         persistState();
         renderTopSummary();
-        if (state.selectedClassId) refreshAttendance(state.selectedClassId, selectedDateKey()).catch(() => {
+        if (state.selectedClassId) refreshAttendance(state.selectedClassId, selectedDateKey(), { force: true }).catch(() => {
           showNotice('Não foi possível carregar as presenças desta data.');
         });
-        if (els.screens.date?.classList.contains('active')) loadRecentTrainingStatus();
+        if (els.screens.date?.classList.contains('active')) loadRecentTrainingStatus({ force: true });
       };
       if (els.actionAttendanceDateInput) {
         els.actionAttendanceDateInput.addEventListener('change', syncAttendanceDate);
@@ -2202,6 +2368,9 @@
       });
 
       els.classListEditor.addEventListener('click', event => {
+        const renameTrigger = event.target.closest('[data-rename-trigger]');
+        if (renameTrigger) return;
+        if (event.target.closest('[data-rename-wrapper]')) return;
         const editBtn = event.target.closest('[data-edit-members-class]');
         if (editBtn) {
           editClassMembers(editBtn.dataset.editMembersClass);
@@ -2234,6 +2403,12 @@
           event.preventDefault();
           flushClassRenameSave(input);
           input.blur();
+          return;
+        }
+        const card = event.target.closest('[data-edit-members-class]');
+        if (card && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault();
+          editClassMembers(card.dataset.editMembersClass);
         }
       });
       document.getElementById('cancelClassRemovalBtn').addEventListener('click', () => closeClassRemovalDialog());
@@ -2284,10 +2459,7 @@
       hideAddMemberPanel();
       switchScreen('class');
       if (els.loadingClassesText) els.loadingClassesText.hidden = false;
-      loadSharedState().then(() => {
-        renderClassOptions();
-        renderTopSummary();
-      });
+      loadSharedState().catch(() => {});
     }
     init();
   </script>

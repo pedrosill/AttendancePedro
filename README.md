@@ -27,6 +27,12 @@ O endpoint é o URL `/exec` da implementação do Apps Script.
 
 As gravações são protegidas por `LockService` para evitar que duas gravações simultâneas criem a mesma data duas vezes.
 
+## Optimização e preservação de dados
+
+Ao abrir a aplicação, as turmas e os membros são apresentados assim que o estado partilhado chega. As presenças são carregadas em segundo plano. Durante a sessão, pedidos repetidos para a mesma turma/data são reutilizados em memória; este cache não é guardado no navegador e é invalidado ao mudar de turma, mudar de data, alterar o URL ou guardar presenças. O Apps Script mantém ainda uma cache partilhada de turmas e membros durante cinco minutos, eliminada imediatamente após qualquer alteração gravada pela aplicação; assim, abrir a app noutro dispositivo não precisa de percorrer todas as folhas de presenças.
+
+As operações de membros não reconstroem a folha inteira: adicionar um membro acrescenta a linha em falta e ordena linhas completas, mantendo as presenças associadas ao nome; remover um membro elimina apenas a sua linha. Renomear uma turma move a folha existente. O Apps Script lê `__classes__` uma vez por operação e escreve o estado actualizado sob lock.
+
 ## Estrutura do Sheets
 
 A folha `__classes__` contém:

@@ -2,6 +2,8 @@ var META_SHEET_NAME = '__classes__';
 var META_HEADERS = ['id', 'name', 'membersJson', 'trainingDaysJson', 'seasonStart'];
 var ATTENDANCE_HEADERS = ['Membro'];
 var DEFAULT_SEASON_START = '2026-09-08';
+var SHARED_STATE_CACHE_KEY = 'gym-attendance-shared-state-v1';
+var SHARED_STATE_CACHE_SECONDS = 300;
 var STATUS_MAP = {
   attended: '*',
   late: 'A',
@@ -46,6 +48,7 @@ function doPost(e) {
       if (action === 'saveAttendance') return saveAttendance(data);
       return { ok: false, error: 'Unknown action' };
     });
+    if (result && result.ok) invalidateSharedStateCache();
     return jsonResponse(result);
   } catch (error) {
     return jsonResponse({ ok: false, error: String(error) });
@@ -53,19 +56,22 @@ function doPost(e) {
 }
 
 function getSharedState() {
+  var cached = readSharedStateCache();
+  if (cached) return cached;
+
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var classes = readClasses(ss);
   var meta = ss.getSheetByName(META_SHEET_NAME);
   var metadataNeedsMigration = !meta || meta.getLastColumn() < META_HEADERS.length;
-  withWriteLock(function() {
-    normalizeAllAttendanceDates(ss, classes);
-    if (metadataNeedsMigration) {
+  if (metadataNeedsMigration) {
+    withWriteLock(function() {
       meta = meta || ss.insertSheet(META_SHEET_NAME);
       writeMeta(meta, classes);
-    }
-  });
-  classes = readClasses(ss);
-  return { ok: true, classes: classes };
+    });
+  }
+  var result = { ok: true, classes: classes };
+  writeSharedStateCache(result);
+  return result;
 }
 
 function getAttendanceState(params) {
@@ -216,19 +222,60 @@ function saveClass(data) {
   } else {
     getOrCreateClassSheet(ss, record.name);
   }
-  upsertClass(ss, record);
+  writeClasses(ss, replaceClassRecord(existing, record));
   return { ok: true, class: record };
+}
+
+function getScriptCache() {
+  try {
+    return typeof CacheService !== 'undefined' ? CacheService.getScriptCache() : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function readSharedStateCache() {
+  var cache = getScriptCache();
+  if (!cache) return null;
+  try {
+    var raw = cache.get(SHARED_STATE_CACHE_KEY);
+    var parsed = raw ? JSON.parse(raw) : null;
+    return parsed && parsed.ok && Array.isArray(parsed.classes) ? parsed : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function writeSharedStateCache(result) {
+  var cache = getScriptCache();
+  if (!cache) return;
+  try {
+    cache.put(SHARED_STATE_CACHE_KEY, JSON.stringify(result), SHARED_STATE_CACHE_SECONDS);
+  } catch (error) {
+    // Caching is optional. A full Sheets read remains a safe fallback.
+  }
+}
+
+function invalidateSharedStateCache() {
+  var cache = getScriptCache();
+  if (!cache) return;
+  try {
+    cache.remove(SHARED_STATE_CACHE_KEY);
+  } catch (error) {
+    // A failed cache invalidation affects speed only, never the Sheets data.
+  }
 }
 
 function addMember(data) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var classId = String(data.classId || '').trim();
   var memberName = String(data.memberName || data.name || '').trim();
-  var cls = findClass(readClasses(ss), classId);
+  var classes = readClasses(ss);
+  var cls = findClass(classes, classId);
   if (!cls) return { ok: false, error: 'Class not found' };
   if (!memberName) return { ok: false, error: 'Missing memberName' };
   cls.members = uniqueNames(cls.members.concat(memberName));
-  upsertClass(ss, cls);
+  writeClasses(ss, replaceClassRecord(classes, cls));
   ensureMemberRows(getOrCreateClassSheet(ss, cls.name), cls.members);
   return { ok: true, class: cls };
 }
@@ -237,10 +284,11 @@ function removeMember(data) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var classId = String(data.classId || '').trim();
   var memberName = String(data.memberName || data.name || '').trim();
-  var cls = findClass(readClasses(ss), classId);
+  var classes = readClasses(ss);
+  var cls = findClass(classes, classId);
   if (!cls) return { ok: false, error: 'Class not found' };
   cls.members = cls.members.filter(function(name) { return name.toLowerCase() !== memberName.toLowerCase(); });
-  upsertClass(ss, cls);
+  writeClasses(ss, replaceClassRecord(classes, cls));
   var sheet = ss.getSheetByName(sanitizeSheetName(cls.name));
   if (sheet) removeMemberRows(sheet, memberName);
   return { ok: true, class: cls };
@@ -252,7 +300,7 @@ function removeClass(data) {
   var classes = readClasses(ss);
   var removed = findClass(classes, classId);
   if (!removed) return { ok: false, error: 'Class not found' };
-  writeMeta(ss.getSheetByName(META_SHEET_NAME) || ss.insertSheet(META_SHEET_NAME), classes.filter(function(item) { return item.id !== classId; }));
+  writeClasses(ss, classes.filter(function(item) { return item.id !== classId; }));
   deleteClassSheet(ss, removed.name);
   return { ok: true, classId: classId };
 }
@@ -277,7 +325,7 @@ function saveAttendance(data) {
   if (!dateKey) return { ok: false, error: 'Missing date' };
 
   cls.members = uniqueNames(members.map(function(member) { return String(member.name || '').trim(); }).filter(Boolean).concat(cls.members));
-  upsertClass(ss, cls);
+  writeClasses(ss, replaceClassRecord(classes, cls));
 
   var sheet = getOrCreateClassSheet(ss, cls.name);
   ensureAttendanceHeader(sheet);
@@ -348,10 +396,23 @@ function readClasses(ss) {
   }).filter(function(item) { return item.id && item.name; });
 }
 
-function upsertClass(ss, classRecord) {
-  var classes = readClasses(ss).filter(function(item) { return item.id !== classRecord.id; });
-  classes.push(classRecord);
+function writeClasses(ss, classes) {
   writeMeta(ss.getSheetByName(META_SHEET_NAME) || ss.insertSheet(META_SHEET_NAME), classes);
+}
+
+function replaceClassRecord(classes, classRecord) {
+  var replaced = false;
+  var next = classes.map(function(item) {
+    if (item.id !== classRecord.id) return item;
+    replaced = true;
+    return classRecord;
+  });
+  if (!replaced) next.push(classRecord);
+  return next;
+}
+
+function upsertClass(ss, classRecord) {
+  writeClasses(ss, replaceClassRecord(readClasses(ss), classRecord));
 }
 
 function findClass(classes, classId) {
@@ -560,16 +621,21 @@ function ensureMemberRows(sheet, members) {
   var seen = {};
   names.forEach(function(name) { seen[name.toLowerCase()] = true; });
 
-  uniqueNames(members).forEach(function(name) {
+  var missingNames = uniqueNames(members).filter(function(name) {
     if (seen[name.toLowerCase()]) return;
-    names.push(name);
     seen[name.toLowerCase()] = true;
+    return true;
   });
 
-  names = uniqueNames(names);
-  if (names.length) sheet.getRange(2, 1, names.length, 1).setValues(names.map(function(name) { return [name]; }));
+  if (missingNames.length) {
+    sheet.getRange(lastRow + 1, 1, missingNames.length, 1).setValues(missingNames.map(function(name) { return [name]; }));
+    sortMemberRowsByName(sheet);
+  }
   sheet.setFrozenColumns(1);
-  return names;
+  var finalRowCount = sheet.getLastRow() - 1;
+  return finalRowCount > 0
+    ? sheet.getRange(2, 1, finalRowCount, 1).getValues().map(function(row) { return String(row[0] || '').trim(); }).filter(Boolean)
+    : [];
 }
 
 function removeMemberRows(sheet, memberName) {
