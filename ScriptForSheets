@@ -1,5 +1,5 @@
 var META_SHEET_NAME = '__classes__';
-var META_HEADERS = ['id', 'name', 'membersJson', 'trainingDaysJson', 'seasonStart'];
+var META_HEADERS = ['id', 'name', 'membersJson', 'trainingDaysJson', 'seasonStart', 'memberProfilesJson'];
 var ATTENDANCE_HEADERS = ['Membro'];
 var DEFAULT_SEASON_START = '2026-09-08';
 var SHARED_STATE_CACHE_KEY = 'gym-attendance-shared-state-v1';
@@ -62,7 +62,7 @@ function getSharedState() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var classes = readClasses(ss);
   var meta = ss.getSheetByName(META_SHEET_NAME);
-  var metadataNeedsMigration = !meta || meta.getLastColumn() < META_HEADERS.length;
+  var metadataNeedsMigration = !meta || meta.getLastColumn() < META_HEADERS.length || classes.some(function(item) { return item.memberProfilesNeedMigration; });
   if (metadataNeedsMigration) {
     withWriteLock(function() {
       meta = meta || ss.insertSheet(META_SHEET_NAME);
@@ -176,10 +176,12 @@ function saveClasses(data) {
     var id = String(item.id || '').trim() || Utilities.getUuid();
     var name = String(item.name || '').trim();
     var prior = existingById[id];
+    var memberNames = uniqueNames(item.members);
     return {
       id: id,
       name: name,
-      members: uniqueNames(item.members),
+      members: memberNames,
+      memberProfiles: normalizeMemberProfiles(item.memberProfiles, memberNames, prior && prior.memberProfiles),
       trainingDays: normalizeTrainingDays(item.trainingDays, prior ? prior.trainingDays : defaultTrainingDays(name)),
       seasonStart: normalizeSeasonStart(item.seasonStart || (prior && prior.seasonStart))
     };
@@ -220,6 +222,7 @@ function saveClass(data) {
     id: classId,
     name: name,
     members: Array.isArray(input.members) ? uniqueNames(input.members) : (prior ? prior.members : []),
+    memberProfiles: normalizeMemberProfiles(input.memberProfiles, Array.isArray(input.members) ? uniqueNames(input.members) : (prior ? prior.members : []), prior && prior.memberProfiles),
     trainingDays: normalizeTrainingDays(input.trainingDays, prior ? prior.trainingDays : defaultTrainingDays(name)),
     seasonStart: normalizeSeasonStart(input.seasonStart || (prior && prior.seasonStart))
   };
@@ -275,12 +278,15 @@ function invalidateSharedStateCache() {
 function addMember(data) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var classId = String(data.classId || '').trim();
-  var memberName = String(data.memberName || data.name || '').trim();
+  var inputMember = data.member && typeof data.member === 'object' ? data.member : data;
+  var memberName = String(inputMember.name || data.memberName || data.name || '').trim();
   var classes = readClasses(ss);
   var cls = findClass(classes, classId);
   if (!cls) return { ok: false, error: 'Class not found' };
   if (!memberName) return { ok: false, error: 'Missing memberName' };
+  var memberProfile = normalizeMemberProfiles([inputMember], [memberName], cls.memberProfiles)[0];
   cls.members = uniqueNames(cls.members.concat(memberName));
+  cls.memberProfiles = normalizeMemberProfiles((cls.memberProfiles || []).concat(memberProfile), cls.members, cls.memberProfiles);
   writeClasses(ss, replaceClassRecord(classes, cls));
   ensureMemberRows(getOrCreateClassSheet(ss, cls.name), cls.members);
   return { ok: true, class: cls };
@@ -289,15 +295,21 @@ function addMember(data) {
 function removeMember(data) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var classId = String(data.classId || '').trim();
+  var memberId = String(data.memberId || '').trim();
   var memberName = String(data.memberName || data.name || '').trim();
   var classes = readClasses(ss);
   var cls = findClass(classes, classId);
   if (!cls) return { ok: false, error: 'Class not found' };
+  var removedMember = findMemberProfile(cls.memberProfiles, memberId, memberName);
+  memberName = removedMember ? removedMember.name : memberName;
   cls.members = cls.members.filter(function(name) { return name.toLowerCase() !== memberName.toLowerCase(); });
+  cls.memberProfiles = normalizeMemberProfiles((cls.memberProfiles || []).filter(function(member) {
+    return member.id !== memberId && member.name.toLowerCase() !== memberName.toLowerCase();
+  }), cls.members, cls.memberProfiles);
   writeClasses(ss, replaceClassRecord(classes, cls));
   var sheet = ss.getSheetByName(sanitizeSheetName(cls.name));
   if (sheet) removeMemberRows(sheet, memberName);
-  return { ok: true, class: cls };
+  return { ok: true, class: cls, removedMember: removedMember || null };
 }
 
 function removeClass(data) {
@@ -322,6 +334,7 @@ function saveAttendance(data) {
     id: classId || Utilities.getUuid(),
     name: className,
     members: [],
+    memberProfiles: [],
     trainingDays: defaultTrainingDays(className),
     seasonStart: DEFAULT_SEASON_START
   };
@@ -331,6 +344,7 @@ function saveAttendance(data) {
   if (!dateKey) return { ok: false, error: 'Missing date' };
 
   cls.members = uniqueNames(members.map(function(member) { return String(member.name || '').trim(); }).filter(Boolean).concat(cls.members));
+  cls.memberProfiles = normalizeMemberProfiles(cls.memberProfiles, cls.members, cls.memberProfiles);
   writeClasses(ss, replaceClassRecord(classes, cls));
 
   var sheet = getOrCreateClassSheet(ss, cls.name);
@@ -379,7 +393,9 @@ function writeMeta(sheet, classes) {
   sheet.getRange(1, 1, 1, META_HEADERS.length).setValues([META_HEADERS]);
   if (classes.length) {
     var rows = classes.map(function(item) {
-      return [item.id, item.name, JSON.stringify(uniqueNames(item.members)), JSON.stringify(normalizeTrainingDays(item.trainingDays, defaultTrainingDays(item.name))), normalizeSeasonStart(item.seasonStart)];
+      var memberNames = uniqueNames(item.members);
+      var memberProfiles = normalizeMemberProfiles(item.memberProfiles, memberNames, item.memberProfiles);
+      return [item.id, item.name, JSON.stringify(memberNames), JSON.stringify(normalizeTrainingDays(item.trainingDays, defaultTrainingDays(item.name))), normalizeSeasonStart(item.seasonStart), JSON.stringify(memberProfiles)];
     });
     sheet.getRange(2, 1, rows.length, META_HEADERS.length).setValues(rows);
   }
@@ -392,10 +408,14 @@ function readClasses(ss) {
   var values = sheet.getRange(2, 1, sheet.getLastRow() - 1, META_HEADERS.length).getValues();
   return values.map(function(row) {
     var name = String(row[1] || '').trim();
+    var memberNames = parseMembers(row[2]);
+    var profileResult = parseMemberProfiles(row[5], memberNames);
     return {
       id: String(row[0] || '').trim(),
       name: name,
-      members: parseMembers(row[2]),
+      members: memberNames,
+      memberProfiles: profileResult.members,
+      memberProfilesNeedMigration: profileResult.needsMigration,
       trainingDays: parseTrainingDays(row[3], defaultTrainingDays(name)),
       seasonStart: normalizeSeasonStart(row[4])
     };
@@ -642,6 +662,54 @@ function ensureMemberRows(sheet, members) {
   return finalRowCount > 0
     ? sheet.getRange(2, 1, finalRowCount, 1).getValues().map(function(row) { return String(row[0] || '').trim(); }).filter(Boolean)
     : [];
+}
+
+function parseMemberProfiles(value, memberNames) {
+  var parsed = [];
+  try { parsed = JSON.parse(String(value || '[]')); } catch (err) { parsed = []; }
+  var members = normalizeMemberProfiles(parsed, memberNames, []);
+  var profileByName = {};
+  (Array.isArray(parsed) ? parsed : []).forEach(function(member) {
+    var name = String(member && member.name || '').trim().toLowerCase();
+    if (name) profileByName[name] = member;
+  });
+  var needsMigration = !Array.isArray(parsed) || parsed.length !== members.length || members.some(function(member) {
+    var source = profileByName[member.name.toLowerCase()];
+    return !source || !String(source.id || '').trim();
+  });
+  return { members: members, needsMigration: needsMigration };
+}
+
+function normalizeMemberProfiles(value, memberNames, fallbackProfiles) {
+  var source = Array.isArray(value) ? value : [];
+  var fallback = Array.isArray(fallbackProfiles) ? fallbackProfiles : [];
+  var byName = {};
+  fallback.concat(source).forEach(function(member) {
+    if (!member || typeof member !== 'object') return;
+    var name = String(member.name || '').trim();
+    if (!name) return;
+    byName[name.toLowerCase()] = member;
+  });
+  return uniqueNames(memberNames).map(function(name) {
+    var sourceMember = byName[name.toLowerCase()] || {};
+    return {
+      id: String(sourceMember.id || Utilities.getUuid()).trim(),
+      name: name,
+      photoKey: String(sourceMember.photoKey || '').trim(),
+      photoVersion: Number(sourceMember.photoVersion || 0) || 0
+    };
+  });
+}
+
+function findMemberProfile(profiles, memberId, memberName) {
+  var id = String(memberId || '').trim();
+  var name = String(memberName || '').trim().toLowerCase();
+  var list = Array.isArray(profiles) ? profiles : [];
+  for (var i = 0; i < list.length; i++) {
+    if (id && list[i].id === id) return list[i];
+    if (!id && name && String(list[i].name || '').trim().toLowerCase() === name) return list[i];
+  }
+  return null;
 }
 
 function removeMemberRows(sheet, memberName) {

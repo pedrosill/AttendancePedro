@@ -9,7 +9,38 @@ Aplicação web estática, mobile-first, para registar presenças de turmas de g
 3. Passo 3: escolher o modo de registo, normal ou rápido.
 4. Registar `Presente`, `Atrasado` ou `Falta`, incluindo a justificação quando aplicável.
 
-As preferências locais limitam-se ao tema, ao modo de seleção de turmas, à última turma/data e ao URL configurado do Apps Script. Turmas, membros e presenças são dados partilhados no Sheets.
+As preferências locais limitam-se ao tema, ao modo de seleção de turmas, à última turma/data e aos URLs configurados dos serviços. O backend D1 é a fonte rápida de leitura e escrita; o Apps Script/Sheets mantém uma cópia sincronizada em segundo plano. As fotografias reais são guardadas fora do Sheets, num bucket privado.
+
+## Backend rápido
+
+O ficheiro [attendance-data-worker.js](attendance-data-worker.js) expõe a mesma API que a app já usa. A app consulta primeiro o D1, e o Worker coloca as alterações numa fila `outbox` para as enviar ao Apps Script através de `ctx.waitUntil`. O Sheets deixa de bloquear o carregamento normal.
+
+Quando o D1 ainda não tem dados, o primeiro pedido importa o estado atual do Sheets. Depois disso, o Worker responde do D1 e tenta atualizar o estado em segundo plano a cada minuto. Se o Sheets estiver temporariamente indisponível, os dados já guardados no D1 continuam disponíveis e as gravações pendentes permanecem na fila.
+
+### Configurar D1
+
+1. Criar a base de dados e guardar o ID devolvido:
+
+```powershell
+npx wrangler d1 create attendance-pedro-data
+```
+
+2. Substituir `REPLACE_WITH_D1_DATABASE_ID` e `REPLACE_WITH_DEPLOYED_SCRIPT_ID` em [data-wrangler.jsonc](data-wrangler.jsonc). Confirmar também o domínio em `ALLOWED_ORIGIN`.
+3. Aplicar a migração:
+
+```powershell
+npx wrangler d1 migrations apply attendance-pedro-data --remote --config data-wrangler.jsonc
+```
+
+4. Publicar o Worker:
+
+```powershell
+npx wrangler deploy --config data-wrangler.jsonc
+```
+
+5. Testar o URL do Worker com `?action=state`. Só depois colocar esse URL em `Definições` → `Editar script` → `URL do backend`.
+
+O Worker só deve ser publicado depois de o novo [ScriptForSheets](ScriptForSheets) estar implementado como Web App. O D1 é a fonte principal nesta arquitetura; o Sheets continua como cópia de segurança e relatório.
 
 ## API do Apps Script
 
@@ -19,7 +50,7 @@ O endpoint é o URL `/exec` da implementação do Apps Script.
 - `GET ?action=attendance&classId=...&date=yyyy-MM-dd`: devolve presenças de uma turma/data.
 - `GET ?action=recentAttendance&classId=...&date=yyyy-MM-dd&count=2`: devolve os últimos treinos agendados e indica se estão preenchidos.
 - `POST { action: "saveClass", class: {...} }`: cria ou renomeia uma turma sem substituir as restantes.
-- `POST { action: "addMember", classId, memberName }`: adiciona um membro à turma.
+- `POST { action: "addMember", classId, member }`: adiciona um membro à turma, incluindo o perfil e a referência da fotografia.
 - `POST { action: "removeMember", classId, memberName }`: remove um membro e a respetiva linha da folha.
 - `POST { action: "removeClass", classId }`: remove a turma e a respetiva folha.
 - `POST { action: "saveClasses", classes: [...] }`: mantém-se para compatibilidade e sincronização completa.
@@ -37,7 +68,9 @@ As operações de membros não reconstroem a folha inteira: adicionar um membro 
 
 A folha `__classes__` contém:
 
-`id | name | membersJson | trainingDaysJson | seasonStart`
+`id | name | membersJson | trainingDaysJson | seasonStart | memberProfilesJson`
+
+`membersJson` preserva a lista de nomes usada nas folhas de presenças. `memberProfilesJson` contém objetos com `id`, `name`, `photoKey` e `photoVersion`. As turmas antigas são migradas automaticamente, recebendo IDs estáveis sem alterar as respetivas folhas ou presenças.
 
 Cada turma tem uma folha com o mesmo nome. O formato de presenças é:
 
@@ -72,11 +105,59 @@ Depois de guardada, a configuração fica em `trainingDaysJson` e `seasonStart` 
 
 O endpoint é público na configuração atual. Não devem ser guardados dados sensíveis sem adicionar autenticação ou uma camada de proteção.
 
+## Fotografias de membros
+
+A app inclui quatro retratos genéricos em `assets/avatars/`. Estes são usados automaticamente até existir uma fotografia própria. Não são fotografias de membros reais.
+
+Fotografias próprias são convertidas no browser para WebP quadrado com, no máximo, `256 x 256` px e 1 MB. O ficheiro [photo-worker.js](photo-worker.js) guarda-as num bucket R2 privado; o Sheets recebe apenas a referência, nunca o ficheiro.
+
+### Configurar R2 e o Worker
+
+1. No Cloudflare, criar o bucket R2 privado `attendance-pedro-member-photos`.
+2. Criar uma aplicação Cloudflare Access para o domínio do Worker e permitir apenas os emails dos treinadores.
+3. Atualizar `ALLOWED_ORIGIN` e `ACCESS_EMAILS` em [wrangler.jsonc](wrangler.jsonc). Usar o domínio final sem `/` no fim.
+4. Configurar uma rota personalizada protegida por Access. `workers_dev` está desativado para impedir acesso não protegido pelo domínio `workers.dev`.
+5. Executar `npx wrangler deploy`.
+6. Na app, abrir `Definições` → `Editar script`, inserir o URL do Worker em `URL do servidor de fotografias` e guardar.
+
+O Worker rejeita pedidos sem email autorizado, tipos que não sejam WebP e imagens acima de 1 MB. As fotos são entregues com cache privada. Como o controlo de acesso depende do Cloudflare Access, não publique nem ative um endpoint público do bucket.
+
+Antes de usar fotos reais, confirmar consentimento dos encarregados de educação e uma política de remoção. Ao remover um membro na app, a respetiva fotografia própria é também eliminada do Worker.
+
 ## Testes locais
 
 Validar sintaxe e executar os testes:
 
 ```powershell
 node --check ScriptForSheets
+node --check photo-worker.js
 node --test tests/attendance.test.js
 ```
+
+## Iniciar localmente
+
+Para abrir a versão atual da app no computador:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\Start-AttendanceApp.ps1
+```
+
+O lançador compara os ficheiros atuais com a última execução local, confirma que o Apps Script responde, termina apenas instâncias anteriores iniciadas por [local_server.py](local_server.py) na mesma porta e abre `http://127.0.0.1:8765/index.html`.
+
+Opções úteis:
+
+```powershell
+# Apenas verificar alterações e o backend
+.\Start-AttendanceApp.ps1 -CheckOnly
+
+# Iniciar sem abrir o browser
+.\Start-AttendanceApp.ps1 -NoBrowser
+
+# Usar outra porta
+.\Start-AttendanceApp.ps1 -Port 8766
+
+# Confirmar um Apps Script diferente do URL predefinido
+.\Start-AttendanceApp.ps1 -CheckOnly -BackendUrl "https://script.google.com/macros/s/.../exec"
+```
+
+Se o `ScriptForSheets` ou o Worker tiverem sido alterados, o lançador avisa. A publicação continua a ser manual: Apps Script requer uma nova implementação e o Worker requer `npx wrangler deploy`.

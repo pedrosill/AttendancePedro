@@ -456,6 +456,79 @@
     }
     .member-card { display: flex; flex-direction: column; gap: var(--space-3); }
     .member-top { display: flex; align-items: start; justify-content: space-between; gap: var(--space-3); }
+    .member-identity { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+    .member-identity > div { min-width: 0; }
+    .member-avatar {
+      width: 52px;
+      height: 52px;
+      flex: 0 0 auto;
+      border: 2px solid color-mix(in srgb, var(--class-accent, var(--color-primary)) 28%, var(--color-surface));
+      border-radius: var(--radius-full);
+      object-fit: cover;
+      background: var(--color-surface-offset);
+      box-shadow: var(--shadow-sm);
+    }
+    .member-avatar-trigger {
+      display: inline-flex;
+      flex: 0 0 auto;
+      padding: 0;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      cursor: zoom-in;
+      transition: transform 160ms ease;
+    }
+    .member-avatar-trigger:hover { transform: scale(1.05); }
+    .member-avatar-trigger:active { transform: scale(0.96); }
+    .member-avatar-trigger:focus-visible { outline: 3px solid var(--class-accent, var(--color-primary)); outline-offset: 3px; }
+    .member-avatar-large {
+      width: clamp(104px, 24vw, 148px);
+      height: clamp(104px, 24vw, 148px);
+      margin-inline: auto;
+      border-width: 3px;
+    }
+    .member-photo-preview { display: flex; align-items: center; gap: var(--space-3); }
+    .member-photo-preview .member-avatar { width: 72px; height: 72px; }
+    .member-photo-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+    .photo-file-input { width: 100%; min-height: 44px; }
+    .photo-dialog-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: grid;
+      place-items: center;
+      padding: var(--space-5);
+      opacity: 0;
+      background: rgba(20, 19, 17, 0.6);
+      backdrop-filter: blur(8px);
+      transition: opacity 180ms ease;
+    }
+    .photo-dialog-backdrop.is-open { opacity: 1; }
+    .photo-dialog {
+      position: relative;
+      width: min(100%, 430px);
+      padding: var(--space-5);
+      border: 1px solid rgba(40, 37, 29, 0.12);
+      border-radius: var(--radius-xl);
+      background: var(--color-surface);
+      color: var(--color-text);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
+      text-align: center;
+      transform: scale(0.86);
+      transition: transform 180ms cubic-bezier(.2, .9, .25, 1.15);
+    }
+    .photo-dialog-backdrop.is-open .photo-dialog { transform: scale(1); }
+    .photo-dialog-image {
+      display: block;
+      width: min(72vw, 300px);
+      aspect-ratio: 1;
+      margin: var(--space-2) auto var(--space-4);
+      border-radius: var(--radius-xl);
+      object-fit: cover;
+      border: 3px solid color-mix(in srgb, var(--class-accent, var(--color-primary)) 32%, var(--color-surface));
+    }
+    .photo-dialog-name { margin: 0 0 var(--space-4); font-size: var(--text-lg); font-weight: 800; }
+    .photo-dialog-actions { display: grid; gap: var(--space-2); }
     .member-name { margin: 0; font-size: var(--text-base); font-weight: 700; letter-spacing: -0.01em; }
     .member-meta { margin: 0.2rem 0 0; color: var(--color-text-muted); font-size: var(--text-sm); }
     .status-tag {
@@ -966,8 +1039,16 @@
         </div>
         <div id="scriptPanel" class="stack" hidden>
           <div class="field">
-            <label for="webhookInput">URL do Google Apps Script</label>
+            <label for="webhookInput">URL do backend</label>
             <input id="webhookInput" class="text-input" type="url" placeholder="https://script.google.com/macros/s/.../exec" />
+          </div>
+          <div class="field">
+            <label for="photoApiInput">URL do servidor de fotografias</label>
+            <input id="photoApiInput" class="text-input" type="url" placeholder="https://media.exemplo.pt" />
+            <p class="tiny muted">Necessário apenas para fotografias próprias. Os avatars de exemplo funcionam sem configuração.</p>
+          </div>
+          <div class="toolbar">
+            <button class="primary-btn" type="button" id="saveBackendSettingsBtn">Guardar ligações</button>
           </div>
         </div>
       </div>
@@ -1056,6 +1137,9 @@
       </div>
 
       <div class="single-attendance-card">
+        <button class="member-avatar-trigger" type="button" id="singleMemberAvatarTrigger" aria-label="Ampliar fotografia do membro">
+          <img class="member-avatar member-avatar-large" id="singleMemberAvatar" src="assets/avatars/example-1.png" alt="" />
+        </button>
         <h3 class="member-name-large" id="singleMemberName">-</h3>
         <p class="member-progress" id="singleMemberProgress">1 de 1</p>
         <div class="status-row">
@@ -1086,6 +1170,14 @@
           <div class="field">
             <label for="memberNameInput">Nome do membro</label>
             <input id="memberNameInput" class="text-input" type="text" />
+          </div>
+          <div class="field">
+            <label for="memberPhotoInput">Fotografia</label>
+            <input id="memberPhotoInput" class="photo-file-input" type="file" accept="image/jpeg,image/png,image/webp" capture="user" />
+          </div>
+          <div id="memberPhotoPreview" class="member-photo-preview" hidden>
+            <img class="member-avatar" id="memberPhotoPreviewImage" src="assets/avatars/example-1.png" alt="Pré-visualização da fotografia" />
+            <button class="ghost-btn" type="button" id="clearMemberPhotoBtn">Remover fotografia</button>
           </div>
           <div class="toolbar">
             <button class="primary-btn" type="button" id="addMemberBtn">Guardar membro</button>
@@ -1137,9 +1229,22 @@
     </div>
   </div>
 
+  <div class="photo-dialog-backdrop" id="memberPhotoDialog" hidden aria-hidden="true">
+    <div class="photo-dialog" id="memberPhotoDialogPanel" role="dialog" aria-modal="true" aria-labelledby="memberPhotoDialogName" tabindex="-1">
+      <img class="photo-dialog-image" id="memberPhotoDialogImage" src="assets/avatars/example-1.png" alt="" />
+      <p class="photo-dialog-name" id="memberPhotoDialogName"></p>
+      <div class="photo-dialog-actions" id="memberPhotoDialogActions" hidden>
+        <button class="primary-btn" type="button" id="chooseDialogMemberPhotoBtn">Adicionar fotografia</button>
+        <button class="ghost-btn" type="button" id="clearDialogMemberPhotoBtn" hidden>Remover fotografia</button>
+        <input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp" id="dialogMemberPhotoInput" />
+      </div>
+    </div>
+  </div>
+
   <script>
     const STORAGE_KEY = 'gym-attendance-prefs-v4';
     const DEFAULT_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbzWfzY9w2-Q3SiDZlTZP2H4ZZyKPmc70eCy-o_RhTs_kZ7_LrAUnVAtJBMrxX4OQ7r4Hw/exec';
+    const DEFAULT_PHOTO_API_URL = '';
     const APP_SHARE_URL = 'https://attendance-pedro.pedrosill1944.workers.dev/';
     const APP_SHARE_TITLE = 'Presenças de Ginástica';
     const APP_SHARE_TEXT = 'Abra a aplicação de presenças de ginástica.';
@@ -1158,6 +1263,7 @@
     let state = {
       selectedClassId: '',
       webhookUrl: '',
+      photoApiUrl: '',
       selectedDate: new Date().toISOString().slice(0, 10),
       theme: 'light',
       classPickerMode: 'dropdown',
@@ -1181,6 +1287,7 @@
     let classRemovalMode = false;
     let pendingClassRemovalId = '';
     let pendingClassRemovalTrigger = null;
+    let activePhotoDialog = null;
     const els = {
       classSelect: document.getElementById('classSelect'),
       classButtonList: document.getElementById('classButtonList'),
@@ -1208,6 +1315,20 @@
       addClassPanel: document.getElementById('addClassPanel'),
       scriptPanel: document.getElementById('scriptPanel'),
       webhookInput: document.getElementById('webhookInput'),
+      photoApiInput: document.getElementById('photoApiInput'),
+      memberPhotoInput: document.getElementById('memberPhotoInput'),
+      memberPhotoPreview: document.getElementById('memberPhotoPreview'),
+      memberPhotoPreviewImage: document.getElementById('memberPhotoPreviewImage'),
+      singleMemberAvatar: document.getElementById('singleMemberAvatar'),
+      singleMemberAvatarTrigger: document.getElementById('singleMemberAvatarTrigger'),
+      memberPhotoDialog: document.getElementById('memberPhotoDialog'),
+      memberPhotoDialogPanel: document.getElementById('memberPhotoDialogPanel'),
+      memberPhotoDialogImage: document.getElementById('memberPhotoDialogImage'),
+      memberPhotoDialogName: document.getElementById('memberPhotoDialogName'),
+      memberPhotoDialogActions: document.getElementById('memberPhotoDialogActions'),
+      chooseDialogMemberPhotoBtn: document.getElementById('chooseDialogMemberPhotoBtn'),
+      clearDialogMemberPhotoBtn: document.getElementById('clearDialogMemberPhotoBtn'),
+      dialogMemberPhotoInput: document.getElementById('dialogMemberPhotoInput'),
       actionAttendanceDateInput: document.getElementById('actionAttendanceDateInput'),
       attendanceDateInput: document.getElementById('attendanceDateInput'),
       recentTrainingList: document.getElementById('recentTrainingList'),
@@ -1227,11 +1348,11 @@
     function loadState() {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, selectedDate: new Date().toISOString().slice(0, 10), theme: 'light' };
+        if (!raw) return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, photoApiUrl: DEFAULT_PHOTO_API_URL, selectedDate: new Date().toISOString().slice(0, 10), theme: 'light' };
         const parsed = JSON.parse(raw);
-        return { selectedClassId: parsed.selectedClassId || '', webhookUrl: parsed.webhookUrl || DEFAULT_BACKEND_URL, selectedDate: parsed.selectedDate || new Date().toISOString().slice(0, 10), theme: parsed.theme === 'dark' ? 'dark' : 'light', classPickerMode: parsed.classPickerMode === 'buttons' ? 'buttons' : 'dropdown' };
+        return { selectedClassId: parsed.selectedClassId || '', webhookUrl: parsed.webhookUrl || DEFAULT_BACKEND_URL, photoApiUrl: parsed.photoApiUrl || DEFAULT_PHOTO_API_URL, selectedDate: parsed.selectedDate || new Date().toISOString().slice(0, 10), theme: parsed.theme === 'dark' ? 'dark' : 'light', classPickerMode: parsed.classPickerMode === 'buttons' ? 'buttons' : 'dropdown' };
       } catch {
-        return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, selectedDate: new Date().toISOString().slice(0, 10), theme: 'light' };
+        return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, photoApiUrl: DEFAULT_PHOTO_API_URL, selectedDate: new Date().toISOString().slice(0, 10), theme: 'light' };
       }
     }
 
@@ -1239,6 +1360,7 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         selectedClassId: state.selectedClassId,
         webhookUrl: state.webhookUrl,
+        photoApiUrl: state.photoApiUrl,
         selectedDate: state.selectedDate,
         theme: state.theme,
         classPickerMode: state.classPickerMode
@@ -1398,6 +1520,85 @@
     }
     function sortMembers(members) {
       return [...members].sort((a, b) => a.localeCompare(b, 'pt-PT', { sensitivity: 'base' }));
+    }
+    function defaultAvatarPath(value) {
+      let hash = 0;
+      for (const char of String(value || 'membro')) hash = ((hash << 5) - hash) + char.charCodeAt(0);
+      return `assets/avatars/example-${(Math.abs(hash) % 4) + 1}.png`;
+    }
+    function createMemberId() {
+      return `member-${crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
+    }
+    function normalizeMemberProfile(value, name, fallbackId = '') {
+      const source = value && typeof value === 'object' ? value : {};
+      return {
+        id: String(source.id || fallbackId || createMemberId()),
+        name: String(name || source.name || '').trim(),
+        photoKey: String(source.photoKey || '').trim(),
+        photoVersion: Number(source.photoVersion || 0) || 0
+      };
+    }
+    function memberProfile(cls, name) {
+      const profile = cls?.memberProfiles?.find(item => String(item.name || '').toLocaleLowerCase('pt-PT') === String(name).toLocaleLowerCase('pt-PT'));
+      return profile || normalizeMemberProfile(null, name, `legacy-${String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`);
+    }
+    function memberPhotoUrl(cls, name) {
+      const profile = memberProfile(cls, name);
+      if (profile.photoKey.startsWith('assets/')) return profile.photoKey;
+      if (profile.photoKey && state.photoApiUrl && profile.id) {
+        return `${state.photoApiUrl.replace(/\/$/, '')}/photos/${encodeURIComponent(cls.id)}/${encodeURIComponent(profile.id)}?v=${profile.photoVersion}`;
+      }
+      return defaultAvatarPath(profile.id || name);
+    }
+    function memberAvatarMarkup(cls, name, options = {}) {
+      const extraClass = options.large ? ' member-avatar-large' : '';
+      const loading = options.eager ? 'eager' : 'lazy';
+      const image = '<img class="member-avatar' + extraClass + '" src="' + escapeAttr(memberPhotoUrl(cls, name)) + '" alt="Retrato de ' + escapeAttr(name) + '" loading="' + loading + '" />';
+      if (!options.expandable) return image;
+      const profile = memberProfile(cls, name);
+      return '<button class="member-avatar-trigger" type="button" data-open-member-photo="' + escapeAttr(profile.id) + '" data-member-photo-name="' + escapeAttr(name) + '" aria-label="Ampliar fotografia de ' + escapeAttr(name) + '">' + image + '</button>';
+    }
+    function refreshMemberPhotoDialog() {
+      if (!activePhotoDialog || !els.memberPhotoDialogImage) return;
+      const cls = currentClass();
+      if (!cls || cls.id !== activePhotoDialog.classId) return closeMemberPhotoDialog(false);
+      const profile = memberProfile(cls, activePhotoDialog.name);
+      const hasCustomPhoto = !!profile.photoKey && !profile.photoKey.startsWith('assets/');
+      els.memberPhotoDialogImage.src = memberPhotoUrl(cls, activePhotoDialog.name);
+      els.memberPhotoDialogImage.alt = 'Retrato de ' + activePhotoDialog.name;
+      els.memberPhotoDialogName.textContent = activePhotoDialog.name;
+      els.chooseDialogMemberPhotoBtn.textContent = hasCustomPhoto ? 'Alterar fotografia' : 'Adicionar fotografia';
+      els.clearDialogMemberPhotoBtn.hidden = !hasCustomPhoto;
+    }
+    function openMemberPhotoDialog(memberId, name, trigger) {
+      const cls = currentClass();
+      if (!cls || !name || !els.memberPhotoDialog) return;
+      const profile = cls.memberProfiles?.find(item => item.id === memberId) || memberProfile(cls, name);
+      activePhotoDialog = {
+        classId: cls.id,
+        memberId: profile.id,
+        name,
+        trigger: trigger || document.activeElement
+      };
+      const editable = els.screens.edit.classList.contains('active');
+      els.memberPhotoDialogActions.hidden = !editable;
+      refreshMemberPhotoDialog();
+      els.memberPhotoDialog.hidden = false;
+      els.memberPhotoDialog.setAttribute('aria-hidden', 'false');
+      requestAnimationFrame(() => els.memberPhotoDialog?.classList.add('is-open'));
+      els.memberPhotoDialogPanel?.focus();
+    }
+    function closeMemberPhotoDialog(restoreFocus = true) {
+      const dialog = els.memberPhotoDialog;
+      if (!dialog || dialog.hidden) return;
+      const trigger = activePhotoDialog?.trigger;
+      dialog.classList.remove('is-open');
+      dialog.setAttribute('aria-hidden', 'true');
+      window.setTimeout(() => {
+        if (!dialog.classList.contains('is-open')) dialog.hidden = true;
+      }, 180);
+      activePhotoDialog = null;
+      if (restoreFocus && trigger?.focus) trigger.focus();
     }
     function currentClass() {
       const cls = state.classes.find(item => item.id === state.selectedClassId) || state.classes[0] || null;
@@ -1560,6 +1761,7 @@
         els.attendanceClassLabel.textContent = 'Turma: —';
         els.editClassLabel.textContent = 'Turma: —';
         els.webhookInput.value = state.webhookUrl || '';
+        if (els.photoApiInput) els.photoApiInput.value = state.photoApiUrl || '';
         return;
       }
       ensureRosterStatuses();
@@ -1574,6 +1776,7 @@
       els.attendanceClassLabel.textContent = `Turma: ${cls.name}`;
       els.editClassLabel.textContent = `Turma: ${cls.name}`;
       els.webhookInput.value = state.webhookUrl || '';
+      if (els.photoApiInput) els.photoApiInput.value = state.photoApiUrl || '';
     }
 
     function renderAttendance() {
@@ -1593,9 +1796,12 @@
         card.className = 'member-card';
         card.innerHTML = `
           <div class="member-top">
-            <div>
-              <h3 class="member-name">${escapeHtml(name)}</h3>
-              <p class="member-meta">Membro ${index + 1}</p>
+            <div class="member-identity">
+              ${memberAvatarMarkup(cls, name, { expandable: true })}
+              <div>
+                <h3 class="member-name">${escapeHtml(name)}</h3>
+                <p class="member-meta">Membro ${index + 1}</p>
+              </div>
             </div>
             <span class="status-tag ${statusClass(status)}">${statusLabel(status)}</span>
           </div>
@@ -1620,6 +1826,7 @@
         if (els.singleAttendanceDateInfo) els.singleAttendanceDateInfo.textContent = `Data: ${displayAttendanceDate(selectedDateKey())}`;
         if (els.singleMemberProgress) els.singleMemberProgress.textContent = '0 de 0';
         if (els.singleMemberName) els.singleMemberName.textContent = 'Sem membros';
+        if (els.singleMemberAvatar) els.singleMemberAvatar.src = defaultAvatarPath('sem-membros');
         return;
       }
       ensureRosterStatuses();
@@ -1628,6 +1835,10 @@
       state.singleAttendanceIndex = index;
       const name = currentSingleMemberName();
       const isLast = index === cls.members.length - 1;
+      if (els.singleMemberAvatar) {
+        els.singleMemberAvatar.src = memberPhotoUrl(cls, name);
+        els.singleMemberAvatar.alt = `Retrato de ${name}`;
+      }
       if (els.singleAttendanceDateInfo) els.singleAttendanceDateInfo.textContent = `Data: ${displayAttendanceDate(selectedDateKey())}`;
       if (els.singleMemberProgress) els.singleMemberProgress.textContent = `${index + 1} de ${cls.members.length}`;
       if (els.singleMemberName) els.singleMemberName.textContent = (isLast && state.singleLastCompleted) ? 'Concluído' : name;
@@ -1665,15 +1876,20 @@
         return;
       }
       cls.members.forEach((name, index) => {
+        const profile = memberProfile(cls, name);
         const row = document.createElement('article');
         row.className = 'member-card';
         row.innerHTML = `
           <div class="member-top">
-            <div>
-              <h3 class="member-name">${escapeHtml(name)}</h3>
-              <p class="member-meta">Membro ${index + 1}</p>
+            <div class="member-identity">
+              ${memberAvatarMarkup(cls, name, { expandable: true })}
+              <div>
+                <h3 class="member-name">${escapeHtml(name)}</h3>
+                <p class="member-meta">Membro ${index + 1}</p>
+              </div>
             </div>
             <button class="small-action ${state.removingMemberNames[name] ? 'removing' : ''}" type="button" data-remove-member="${escapeAttr(name)}">${state.removingMemberNames[name] ? 'A remover...' : 'Remover'}</button>
+          </div>
           </div>`;
         els.editMemberList.appendChild(row);
       });
@@ -1809,17 +2025,105 @@
       if (active) active.classList.toggle('selected-class', active.id !== 'screen-class');
     }
 
-    function addMember() {
+    async function fileToWebp(file) {
+      if (!file || !file.type.startsWith('image/')) throw new Error('Escolha uma imagem válida.');
+      if (file.size > 10 * 1024 * 1024) throw new Error('A fotografia é demasiado grande.');
+      let source;
+      let release = () => {};
+      if (typeof createImageBitmap === 'function') {
+        source = await createImageBitmap(file);
+        release = () => source.close?.();
+      } else {
+        const objectUrl = URL.createObjectURL(file);
+        const image = new Image();
+        try {
+          await new Promise((resolve, reject) => {
+            image.onload = resolve;
+            image.onerror = () => reject(new Error('Não foi possível ler a fotografia.'));
+            image.src = objectUrl;
+          });
+          source = image;
+        } finally {
+          release = () => URL.revokeObjectURL(objectUrl);
+        }
+      }
+      try {
+        const sourceWidth = source.width || source.naturalWidth;
+        const sourceHeight = source.height || source.naturalHeight;
+        const size = Math.min(256, sourceWidth, sourceHeight);
+        const sourceSize = Math.min(sourceWidth, sourceHeight);
+        const sourceX = Math.max(0, (sourceWidth - sourceSize) / 2);
+        const sourceY = Math.max(0, (sourceHeight - sourceSize) / 2);
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const context = canvas.getContext('2d');
+        context.drawImage(source, sourceX, sourceY, sourceSize, sourceSize, 0, 0, size, size);
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.82));
+        if (!blob || blob.size > 1024 * 1024) throw new Error('Não foi possível otimizar a fotografia.');
+        return blob;
+      } finally {
+        release();
+      }
+    }
+
+    async function uploadMemberPhoto(classId, profile, file) {
+      if (!state.photoApiUrl) throw new Error('Configure o URL do servidor de fotografias nas definições.');
+      const image = await fileToWebp(file);
+      const response = await fetch(`${state.photoApiUrl.replace(/\/$/, '')}/photos/${encodeURIComponent(classId)}/${encodeURIComponent(profile.id)}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'image/webp' },
+        body: image
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Não foi possível enviar a fotografia.');
+      return { ...profile, photoKey: result.photoKey, photoVersion: Date.now() };
+    }
+
+    async function deleteMemberPhoto(classId, profile) {
+      if (!profile?.photoKey || profile.photoKey.startsWith('assets/') || !state.photoApiUrl) return;
+      const response = await fetch(`${state.photoApiUrl.replace(/\/$/, '')}/photos/${encodeURIComponent(classId)}/${encodeURIComponent(profile.id)}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Não foi possível remover a fotografia.');
+    }
+
+    async function saveMemberProfiles(cls, profiles) {
+      return saveClassRecord({ id: cls.id, name: cls.name, members: cls.members, memberProfiles: profiles }, cls.id, { stayOnPage: true });
+    }
+
+    async function addMember() {
       const value = els.memberNameInput.value.trim();
       if (!value) return showNotice('Indica o nome do membro.');
       const cls = currentClass();
       if (!cls) return showNotice('Carregue primeiro uma turma.');
       if (cls.members.some(name => name.toLowerCase() === value.toLowerCase())) return showNotice('Este membro já existe nesta turma.');
-      queueClassMutation({ action: 'addMember', classId: cls.id, memberName: value })
-        .then(requireApiSuccess)
-        .then(result => applySavedClass(result.class, cls.id))
-        .then(() => hideAddMemberPanel())
-        .catch(() => {});
+      const button = document.getElementById('addMemberBtn');
+      const originalText = button?.textContent;
+      const initialProfile = { id: createMemberId(), name: value, photoKey: defaultAvatarPath(value), photoVersion: 0 };
+      let profile = initialProfile;
+      let uploadedPhoto = false;
+      if (button) { button.disabled = true; button.textContent = 'A guardar...'; }
+      try {
+        const file = els.memberPhotoInput?.files?.[0];
+        if (file) {
+          profile = await uploadMemberPhoto(cls.id, initialProfile, file);
+          uploadedPhoto = true;
+        }
+        const result = await queueClassMutation({ action: 'addMember', classId: cls.id, member: profile });
+        requireApiSuccess(result, 'Não foi possível adicionar o membro.');
+        applySavedClass(result.class, cls.id);
+        hideAddMemberPanel();
+        showNotice('Membro adicionado.', 'success', 1800);
+      } catch (error) {
+        if (uploadedPhoto) deleteMemberPhoto(cls.id, profile).catch(() => {});
+        showNotice(error.message || 'Não foi possível adicionar o membro.');
+        throw error;
+      } finally {
+        if (button) { button.disabled = false; button.textContent = originalText || 'Guardar membro'; }
+      }
     }
 
     function showAddMemberPanel() {
@@ -1832,6 +2136,8 @@
       if (!els.addMemberPanel) return;
       els.addMemberPanel.hidden = true;
       els.memberNameInput.value = '';
+      if (els.memberPhotoInput) els.memberPhotoInput.value = '';
+      if (els.memberPhotoPreview) els.memberPhotoPreview.hidden = true;
     }
 
     function removeMember(name) {
@@ -1845,12 +2151,48 @@
         .then(result => {
           clearAttendanceDirtyForMember(cls.id, name);
           applySavedClass(result.class, cls.id);
+          deleteMemberPhoto(cls.id, result.removedMember).catch(() => {
+            showNotice('Membro removido, mas a fotografia não pôde ser apagada.');
+          });
         })
         .catch(() => {})
         .finally(() => {
           delete state.removingMemberNames[name];
           renderEditList();
         });
+    }
+
+    async function changeMemberPhoto(memberId, file) {
+      const cls = currentClass();
+      const profile = cls?.memberProfiles?.find(item => item.id === memberId);
+      if (!cls || !profile || !file) return false;
+      try {
+        const updated = await uploadMemberPhoto(cls.id, profile, file);
+        await saveMemberProfiles(cls, cls.memberProfiles.map(item => item.id === memberId ? updated : item));
+        showNotice('Fotografia atualizada.', 'success', 1800);
+        refreshMemberPhotoDialog();
+        return true;
+      } catch (error) {
+        showNotice(error.message || 'Não foi possível atualizar a fotografia.');
+        return false;
+      }
+    }
+
+    async function clearMemberPhoto(memberId) {
+      const cls = currentClass();
+      const profile = cls?.memberProfiles?.find(item => item.id === memberId);
+      if (!cls || !profile) return false;
+      try {
+        await deleteMemberPhoto(cls.id, profile);
+        const updated = { ...profile, photoKey: defaultAvatarPath(profile.id), photoVersion: Date.now() };
+        await saveMemberProfiles(cls, cls.memberProfiles.map(item => item.id === memberId ? updated : item));
+        showNotice('Fotografia removida.', 'success', 1800);
+        refreshMemberPhotoDialog();
+        return true;
+      } catch (error) {
+        showNotice(error.message || 'Não foi possível remover a fotografia.');
+        return false;
+      }
     }
 
     function addClass() {
@@ -1968,6 +2310,9 @@
       };
       if (Array.isArray(classRecord.members)) {
         payload.members = sortMembers(classRecord.members.map(name => String(name).trim()).filter(Boolean));
+      }
+      if (Array.isArray(classRecord.memberProfiles)) {
+        payload.memberProfiles = classRecord.memberProfiles.map(profile => normalizeMemberProfile(profile, profile.name));
       }
       if (Array.isArray(classRecord.trainingDays) && classRecord.trainingDays.length) {
         payload.trainingDays = classRecord.trainingDays.map(Number).filter(day => Number.isInteger(day) && day >= 0 && day <= 6);
@@ -2087,9 +2432,10 @@
       }
     }
 
-    function saveSettings() {
+    async function saveSettings() {
       const input = els.webhookInput;
       const nextUrl = input ? input.value.trim() : '';
+      const nextPhotoApiUrl = els.photoApiInput ? els.photoApiInput.value.trim().replace(/\/$/, '') : '';
       if (!nextUrl) {
         showNotice('Indica o URL do Google Apps Script.');
         input?.focus();
@@ -2104,8 +2450,19 @@
         input?.focus();
         return;
       }
+      if (nextPhotoApiUrl) {
+        try {
+          const parsedPhotoUrl = new URL(nextPhotoApiUrl);
+          if (!['http:', 'https:'].includes(parsedPhotoUrl.protocol)) throw new Error('Invalid protocol');
+        } catch {
+          showNotice('O URL do servidor de fotografias não é válido.');
+          els.photoApiInput?.focus();
+          return;
+        }
+      }
 
       state.webhookUrl = nextUrl;
+      state.photoApiUrl = nextPhotoApiUrl;
       state.classes = [];
       state.attendanceByDate = {};
       attendanceRevision += 1;
@@ -2118,11 +2475,45 @@
       recentTrainingRevision += 1;
       persistState();
       renderClassOptions();
-      loadSharedState().then(loaded => {
+      const button = document.getElementById('saveBackendSettingsBtn');
+      const originalText = button?.textContent;
+      if (button) {
+        button.disabled = true;
+        button.textContent = 'A ligar...';
+      }
+      try {
+        const loaded = await loadSharedState();
         renderClassOptions();
         renderTopSummary();
-        if (loaded) switchScreen('class');
-      });
+        if (!loaded) throw new Error('Não foi possível carregar as turmas com este URL.');
+        showNotice('Ligações guardadas.', 'success', 1800);
+        switchScreen('class');
+      } catch (error) {
+        showNotice(error.message || 'Não foi possível ligar ao Apps Script.');
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.textContent = originalText || 'Guardar ligações';
+        }
+      }
+    }
+
+    async function finishMemberEditing() {
+      const button = document.getElementById('saveSettingsBtn');
+      const originalText = button?.textContent;
+      if (button) {
+        button.disabled = true;
+        button.textContent = 'A guardar...';
+      }
+      try {
+        await classMutationQueue;
+        switchScreen('class');
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.textContent = originalText || 'Concluir';
+        }
+      }
     }
 
     function setShareStatus(message) {
@@ -2256,10 +2647,13 @@
     }
 
     function normalizeClass(item) {
+      const members = sortMembers(Array.isArray(item.members) ? item.members.map(name => String(name).trim()).filter(Boolean) : []);
+      const profileByName = new Map((Array.isArray(item.memberProfiles) ? item.memberProfiles : []).map(profile => [String(profile.name || '').toLocaleLowerCase('pt-PT'), profile]));
       return {
         id: String(item.id || `class-${Date.now()}`),
         name: String(item.name || 'Class'),
-        members: sortMembers(Array.isArray(item.members) ? item.members.map(name => String(name).trim()).filter(Boolean) : []),
+        members,
+        memberProfiles: members.map(name => normalizeMemberProfile(profileByName.get(name.toLocaleLowerCase('pt-PT')), name)),
         trainingDays: Array.isArray(item.trainingDays) ? item.trainingDays.map(Number).filter(day => Number.isInteger(day) && day >= 0 && day <= 6) : [],
         seasonStart: String(item.seasonStart || '')
       };
@@ -2277,8 +2671,8 @@
       return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     }
 
-    function escapeHtml(value) { return value.replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char]); }
-    function escapeAttr(value) { return value.replace(/"/g, '&quot;'); }
+    function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]); }
+    function escapeAttr(value) { return escapeHtml(value); }
 
     function bindEvents() {
       document.getElementById('openSheetsSettingsBtn').addEventListener('click', () => {
@@ -2316,8 +2710,25 @@
       });
       document.getElementById('toggleAddMemberBtn').addEventListener('click', showAddMemberPanel);
       document.getElementById('cancelAddMemberBtn').addEventListener('click', hideAddMemberPanel);
-      document.getElementById('addMemberBtn').addEventListener('click', addMember);
-      document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
+      document.getElementById('addMemberBtn').addEventListener('click', () => addMember().catch(() => {}));
+      document.getElementById('clearMemberPhotoBtn').addEventListener('click', () => {
+        if (els.memberPhotoInput) els.memberPhotoInput.value = '';
+        if (els.memberPhotoPreview) els.memberPhotoPreview.hidden = true;
+      });
+      els.memberPhotoInput.addEventListener('change', () => {
+        const file = els.memberPhotoInput.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+          showNotice('Escolha uma imagem válida.');
+          els.memberPhotoInput.value = '';
+          return;
+        }
+        const previewUrl = URL.createObjectURL(file);
+        if (els.memberPhotoPreviewImage) els.memberPhotoPreviewImage.src = previewUrl;
+        if (els.memberPhotoPreview) els.memberPhotoPreview.hidden = false;
+      });
+      document.getElementById('saveBackendSettingsBtn').addEventListener('click', () => saveSettings().catch(() => {}));
+      document.getElementById('saveSettingsBtn').addEventListener('click', () => finishMemberEditing().catch(() => {}));
       document.getElementById('saveAttendanceBtn').addEventListener('click', () => saveAttendanceSession().catch(() => {}));
       document.getElementById('saveSingleAttendanceBtn').addEventListener('click', () => saveSingleAttendanceSession().catch(() => {}));
       document.getElementById('singlePrevBtn').addEventListener('click', goToSinglePrevious);
@@ -2394,6 +2805,30 @@
         setMemberStatus(btn.dataset.name, btn.dataset.status);
       });
 
+      document.addEventListener('click', event => {
+        const photoTrigger = event.target.closest('[data-open-member-photo]');
+        if (!photoTrigger) return;
+        openMemberPhotoDialog(photoTrigger.dataset.openMemberPhoto, photoTrigger.dataset.memberPhotoName, photoTrigger);
+      });
+      els.singleMemberAvatarTrigger?.addEventListener('click', event => {
+        const cls = currentClass();
+        const name = currentSingleMemberName();
+        if (!cls || !name) return;
+        openMemberPhotoDialog(memberProfile(cls, name).id, name, event.currentTarget);
+      });
+      els.memberPhotoDialog?.addEventListener('click', event => {
+        if (event.target === els.memberPhotoDialog) closeMemberPhotoDialog();
+      });
+      els.chooseDialogMemberPhotoBtn?.addEventListener('click', () => els.dialogMemberPhotoInput?.click());
+      els.clearDialogMemberPhotoBtn?.addEventListener('click', () => {
+        if (activePhotoDialog) clearMemberPhoto(activePhotoDialog.memberId);
+      });
+      els.dialogMemberPhotoInput?.addEventListener('change', async () => {
+        const file = els.dialogMemberPhotoInput.files?.[0];
+        if (file && activePhotoDialog) await changeMemberPhoto(activePhotoDialog.memberId, file);
+        els.dialogMemberPhotoInput.value = '';
+      });
+
       els.editMemberList.addEventListener('click', event => {
         const btn = event.target.closest('[data-remove-member]');
         if (!btn) return;
@@ -2451,11 +2886,19 @@
       });
       document.addEventListener('keydown', event => {
         const dialog = document.getElementById('confirmClassRemovalDialog');
+        if (event.key === 'Escape' && els.memberPhotoDialog && !els.memberPhotoDialog.hidden) {
+          closeMemberPhotoDialog();
+          return;
+        }
         if (event.key === 'Escape' && dialog && !dialog.hidden) closeClassRemovalDialog();
       });
 
       els.webhookInput.addEventListener('change', () => {
         state.webhookUrl = els.webhookInput.value.trim();
+        persistState();
+      });
+      els.photoApiInput.addEventListener('change', () => {
+        state.photoApiUrl = els.photoApiInput.value.trim().replace(/\/$/, '');
         persistState();
       });
 
@@ -2476,6 +2919,7 @@
       const prefs = loadState();
       state.selectedClassId = prefs.selectedClassId || '';
       state.webhookUrl = prefs.webhookUrl || DEFAULT_BACKEND_URL;
+      state.photoApiUrl = prefs.photoApiUrl || DEFAULT_PHOTO_API_URL;
       state.selectedDate = prefs.selectedDate || todayKey();
       state.theme = prefs.theme === 'dark' ? 'dark' : 'light';
       state.classPickerMode = prefs.classPickerMode === 'buttons' ? 'buttons' : 'dropdown';
@@ -2483,6 +2927,7 @@
       document.documentElement.classList.toggle('theme-light', state.theme !== 'dark');
       updateThemeControls(state.theme);
       els.webhookInput.value = state.webhookUrl;
+      if (els.photoApiInput) els.photoApiInput.value = state.photoApiUrl;
       if (els.scriptPanel) els.scriptPanel.hidden = true;
       renderClassOptions();
       setClassPickerMode(state.classPickerMode);

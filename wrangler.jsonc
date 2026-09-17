@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "attendance-pedro-media",
+  "main": "photo-worker.js",
+  "compatibility_date": "2026-09-17",
+  "workers_dev": false,
+  "r2_buckets": [
+    {
+      "binding": "MEMBER_PHOTOS",
+      "bucket_name": "attendance-pedro-member-photos"
+    }
+  ],
+  "vars": {
+    "ALLOWED_ORIGIN": "https://attendance-pedro.pedrosill1944.workers.dev",
+    "ACCESS_EMAILS": "coach@example.com"
+  }
+}

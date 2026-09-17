@@ -234,6 +234,52 @@ test('migra os metadados antigos para guardar o calendário da turma', () => {
   assert.equal(meta.valueAt(1, 4), 'trainingDaysJson');
 });
 
+test('migra membros antigos para perfis com ID sem alterar a folha de presenças', () => {
+  const { context, spreadsheet } = createContext();
+  const meta = spreadsheet.insertSheet('__classes__');
+  meta.data = [
+    ['id', 'name', 'membersJson', 'trainingDaysJson', 'seasonStart'],
+    ['gami-id', 'Gami', '["Ana","Bia"]', '[2,4]', '2026-09-08']
+  ];
+  const attendance = spreadsheet.insertSheet('Gami');
+  attendance.data = [
+    ['Membro', '2026-09-08'],
+    ['Ana', '*'],
+    ['Bia', 'A']
+  ];
+
+  const output = context.getSharedState();
+  assert.deepEqual(JSON.parse(JSON.stringify(output.classes[0].members)), ['Ana', 'Bia']);
+  assert.deepEqual(JSON.parse(JSON.stringify(output.classes[0].memberProfiles)).map(member => member.name), ['Ana', 'Bia']);
+  assert.ok(output.classes[0].memberProfiles.every(member => member.id === 'generated-id'));
+  assert.equal(JSON.parse(meta.valueAt(2, 6)).length, 2);
+  assert.equal(attendance.valueAt(2, 1), 'Ana');
+  assert.equal(attendance.valueAt(2, 2), '*');
+  assert.equal(attendance.valueAt(3, 1), 'Bia');
+  assert.equal(attendance.valueAt(3, 2), 'A');
+});
+
+test('adicionar membro preserva os metadados da fotografia', () => {
+  const { context, spreadsheet } = createContext();
+  const meta = spreadsheet.insertSheet('__classes__');
+  meta.data = [
+    ['id', 'name', 'membersJson', 'trainingDaysJson', 'seasonStart', 'memberProfilesJson'],
+    ['gami-id', 'Gami', '["Ana"]', '[2,4]', '2026-09-08', '[{"id":"ana-id","name":"Ana","photoKey":"assets/avatars/example-1.png","photoVersion":0}]']
+  ];
+
+  const result = JSON.parse(context.doPost({ postData: { contents: JSON.stringify({
+    action: 'addMember',
+    classId: 'gami-id',
+    member: { id: 'bia-id', name: 'Bia', photoKey: 'photos/gami-id/bia-id.webp', photoVersion: 4 }
+  }) } }).value);
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(result.class.members)), ['Ana', 'Bia']);
+  assert.deepEqual(JSON.parse(JSON.stringify(result.class.memberProfiles.find(member => member.id === 'bia-id'))), {
+    id: 'bia-id', name: 'Bia', photoKey: 'photos/gami-id/bia-id.webp', photoVersion: 4
+  });
+});
+
 test('a cache de turmas é invalidada depois de uma alteração', () => {
   const { context, spreadsheet, getCacheCounts } = createContext();
   const meta = spreadsheet.insertSheet('__classes__');

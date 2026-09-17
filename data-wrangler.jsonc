@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "attendance-pedro-data",
+  "main": "attendance-data-worker.js",
+  "compatibility_date": "2026-09-17",
+  "workers_dev": true,
+  "vars": {
+    "ALLOWED_ORIGIN": "https://attendance-pedro.pedrosill1944.workers.dev",
+    "SHEETS_API_URL": "https://script.google.com/macros/s/AKfycbzWfzY9w2-Q3SiDZlTZP2H4ZZyKPmc70eCy-o_RhTs_kZ7_LrAUnVAtJBMrxX4OQ7r4Hw/exec"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "attendance-pedro-data",
+      "database_id": "23fe9581-aa69-42db-a532-f9306a734491",
+      "migrations_dir": "migrations"
+    }
+  ]
+}
