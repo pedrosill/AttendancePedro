@@ -1352,7 +1352,7 @@
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, photoApiUrl: DEFAULT_PHOTO_API_URL, selectedDate: new Date().toISOString().slice(0, 10), theme: 'light' };
         const parsed = JSON.parse(raw);
-        const savedWebhookUrl = parsed.webhookUrl === LEGACY_BACKEND_URL ? DEFAULT_BACKEND_URL : parsed.webhookUrl;
+        const savedWebhookUrl = isLegacyBackendUrl(parsed.webhookUrl) ? DEFAULT_BACKEND_URL : parsed.webhookUrl;
         return { selectedClassId: parsed.selectedClassId || '', webhookUrl: savedWebhookUrl || DEFAULT_BACKEND_URL, photoApiUrl: parsed.photoApiUrl || DEFAULT_PHOTO_API_URL, selectedDate: parsed.selectedDate || new Date().toISOString().slice(0, 10), theme: parsed.theme === 'dark' ? 'dark' : 'light', classPickerMode: parsed.classPickerMode === 'buttons' ? 'buttons' : 'dropdown' };
       } catch {
         return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, photoApiUrl: DEFAULT_PHOTO_API_URL, selectedDate: new Date().toISOString().slice(0, 10), theme: 'light' };
@@ -1700,6 +1700,17 @@
       }
     }
 
+    function isLegacyBackendUrl(value) {
+      if (!value) return false;
+      if (value === LEGACY_BACKEND_URL) return true;
+      try {
+        const url = new URL(value);
+        return url.hostname === 'script.google.com' && url.pathname.includes('/macros/s/');
+      } catch {
+        return false;
+      }
+    }
+
     async function apiPost(payload) {
       const url = state.webhookUrl || els.webhookInput.value.trim();
       if (!url) throw new Error('Backend URL is missing');
@@ -1708,8 +1719,9 @@
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
+      const result = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(result?.error || `HTTP ${res.status}`);
+      return result;
     }
 
     function requireApiSuccess(result, fallbackMessage) {
@@ -2413,7 +2425,7 @@
         switchScreen('class');
         showNotice('Presenças guardadas.', 'success', 1800);
       } catch (error) {
-        showNotice('Não foi possível guardar as presenças. Tenta novamente.');
+        showNotice(`Não foi possível guardar as presenças: ${error.message || 'Tenta novamente.'}`);
         throw error;
       } finally {
         if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Guardar'; }
