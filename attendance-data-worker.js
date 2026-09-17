@@ -1,7 +1,11 @@
 const STATE_KEY = 'state';
 const STATE_SYNC_KEY = 'state:last-sync';
 const CACHE_MAX_AGE_MS = 60 * 1000;
-const MAX_OUTBOX_ATTEMPTS = 5;
+const MAX_OUTBOX_BATCH = 10;
+const OUTBOX_LOCK_MS = 60 * 1000;
+const MAX_OUTBOX_BACKOFF_MS = 15 * 60 * 1000;
+const MUTATION_LOCK_MS = 30 * 1000;
+const SHEETS_TIMEOUT_MS = 15 * 1000;
 let activeFlush = null;
 
 function corsHeaders(request, env) {
@@ -24,6 +28,16 @@ function jsonResponse(body, status, request, env) {
 
 function now() { return Date.now(); }
 function id() { return crypto.randomUUID(); }
+
+async function fetchWithTimeout(url, init = {}, timeout = SHEETS_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 function normaliseProfile(profile, name) {
   const source = profile && typeof profile === 'object' ? profile : {};
@@ -59,6 +73,7 @@ function normaliseClass(value) {
   return {
     id: String(source.id || id()),
     name: String(source.name || '').trim(),
+    version: Number(source.version || 1) || 1,
     members,
     memberProfiles: members.map(name => normaliseProfile(profilesByName.get(name.toLocaleLowerCase('pt-PT')), name)),
     trainingDays: Array.isArray(source.trainingDays) ? source.trainingDays.map(Number).filter(day => Number.isInteger(day) && day >= 0 && day <= 6) : [],
@@ -72,6 +87,101 @@ function normaliseState(value) {
     ok: true,
     classes: (Array.isArray(source.classes) ? source.classes : []).map(normaliseClass).filter(item => item.name)
   };
+}
+
+function classNameKey(value) {
+  return String(value || '').trim().toLocaleLowerCase('pt-PT');
+}
+
+async function hasCoreState(env) {
+  const row = await env.DB.prepare('SELECT COUNT(*) AS count FROM classes_core').first();
+  return Number(row?.count || 0) > 0;
+}
+
+async function readCoreState(env) {
+  const [classRows, memberRows] = await Promise.all([
+    env.DB.prepare('SELECT id, name, training_days_json, season_start, version FROM classes_core ORDER BY name_key').all(),
+    env.DB.prepare('SELECT id, class_id, name, photo_key, photo_version FROM members_core ORDER BY class_id, name_key').all()
+  ]);
+  const membersByClass = new Map();
+  for (const row of memberRows.results || []) {
+    if (!membersByClass.has(row.class_id)) membersByClass.set(row.class_id, []);
+    membersByClass.get(row.class_id).push({
+      id: row.id,
+      name: row.name,
+      photoKey: row.photo_key,
+      photoVersion: Number(row.photo_version || 0)
+    });
+  }
+  const profilesByClass = new Map();
+  for (const [classId, profiles] of membersByClass.entries()) profilesByClass.set(classId, profiles);
+  return normaliseState({
+    classes: (classRows.results || []).map(row => ({
+      id: row.id,
+      name: row.name,
+      trainingDays: JSON.parse(row.training_days_json || '[]'),
+      seasonStart: row.season_start,
+      version: Number(row.version || 1),
+      members: (profilesByClass.get(row.id) || []).map(profile => profile.name),
+      memberProfiles: profilesByClass.get(row.id) || []
+    }))
+  });
+}
+
+async function writeCoreState(env, value) {
+  const state = normaliseState(value);
+  const classIds = state.classes.map(item => item.id);
+  const statements = [];
+  if (classIds.length) {
+    statements.push(env.DB.prepare(`DELETE FROM classes_core WHERE id NOT IN (${classIds.map(() => '?').join(',')})`).bind(...classIds));
+  } else {
+    statements.push(env.DB.prepare('DELETE FROM classes_core'));
+  }
+  statements.push(env.DB.prepare('DELETE FROM members_core'));
+  for (const cls of state.classes) {
+    statements.push(env.DB.prepare(`INSERT INTO classes_core (id, name, name_key, training_days_json, season_start, version, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET name = excluded.name, name_key = excluded.name_key,
+      training_days_json = excluded.training_days_json, season_start = excluded.season_start,
+      version = classes_core.version + 1, updated_at = excluded.updated_at`)
+      .bind(cls.id, cls.name, classNameKey(cls.name), JSON.stringify(cls.trainingDays || []), cls.seasonStart || '', Number(cls.version || 1), now()));
+    for (const profile of cls.memberProfiles || []) {
+      statements.push(env.DB.prepare(`INSERT INTO members_core (id, class_id, name, name_key, photo_key, photo_version, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET class_id = excluded.class_id, name = excluded.name,
+        name_key = excluded.name_key, photo_key = excluded.photo_key,
+        photo_version = excluded.photo_version, updated_at = excluded.updated_at`)
+        .bind(profile.id, cls.id, profile.name, classNameKey(profile.name), profile.photoKey || '', Number(profile.photoVersion || 0), now()));
+    }
+  }
+  await env.DB.batch(statements);
+}
+
+async function writeClassCore(env, value) {
+  const cls = normaliseClass(value);
+  const statements = [env.DB.prepare(`INSERT INTO classes_core (id, name, name_key, training_days_json, season_start, version, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET name = excluded.name, name_key = excluded.name_key,
+    training_days_json = excluded.training_days_json, season_start = excluded.season_start,
+    version = classes_core.version + 1, updated_at = excluded.updated_at`)
+    .bind(cls.id, cls.name, classNameKey(cls.name), JSON.stringify(cls.trainingDays || []), cls.seasonStart || '', Number(cls.version || 1), now()),
+  env.DB.prepare('DELETE FROM members_core WHERE class_id = ?').bind(cls.id)];
+  for (const profile of cls.memberProfiles || []) {
+    statements.push(env.DB.prepare(`INSERT INTO members_core (id, class_id, name, name_key, photo_key, photo_version, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET class_id = excluded.class_id, name = excluded.name,
+      name_key = excluded.name_key, photo_key = excluded.photo_key,
+      photo_version = excluded.photo_version, updated_at = excluded.updated_at`)
+      .bind(profile.id, cls.id, profile.name, classNameKey(profile.name), profile.photoKey || '', Number(profile.photoVersion || 0), now()));
+  }
+  await env.DB.batch(statements);
+}
+
+async function deleteClassCore(env, classId) {
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM members_core WHERE class_id = ?').bind(classId),
+    env.DB.prepare('DELETE FROM classes_core WHERE id = ?').bind(classId)
+  ]);
 }
 
 function normaliseAttendanceStatus(value) {
@@ -95,6 +205,33 @@ function normaliseAttendanceResult(result) {
   };
 }
 
+async function readAttendanceCore(env, classId, date) {
+  const row = await env.DB.prepare('SELECT class_id, date_key, class_name, members_json, operation_id, updated_at FROM attendance_core WHERE class_id = ? AND date_key = ?')
+    .bind(classId, date).first();
+  if (!row) return null;
+  return normaliseAttendanceResult({
+    ok: true,
+    classId: row.class_id,
+    className: row.class_name,
+    date: row.date_key,
+    members: JSON.parse(row.members_json || '[]'),
+    filled: true,
+    operationId: row.operation_id,
+    updatedAt: row.updated_at
+  });
+}
+
+async function writeAttendanceCore(env, value) {
+  const attendance = normaliseAttendanceResult(value);
+  await env.DB.prepare(`INSERT INTO attendance_core (class_id, date_key, class_name, members_json, operation_id, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(class_id, date_key) DO UPDATE SET class_name = excluded.class_name,
+    members_json = excluded.members_json, operation_id = excluded.operation_id, updated_at = excluded.updated_at`)
+    .bind(attendance.classId, attendance.date, attendance.className || '', JSON.stringify(attendance.members || []), attendance.operationId || id(), now())
+    .run();
+  return attendance;
+}
+
 async function readValue(env, key) {
   const row = await env.DB.prepare('SELECT value FROM kv WHERE key = ?').bind(key).first();
   return row ? JSON.parse(row.value) : null;
@@ -105,13 +242,29 @@ async function writeValue(env, key, value) {
     .bind(key, JSON.stringify(value), now()).run();
 }
 
-async function readState(env) { return readValue(env, STATE_KEY); }
-async function writeState(env, state) { return writeValue(env, STATE_KEY, normaliseState(state)); }
+async function ensureCoreState(env) {
+  if (await hasCoreState(env)) return true;
+  const cached = await readValue(env, STATE_KEY);
+  if (!cached || !Array.isArray(cached.classes) || !cached.classes.length) return false;
+  await writeCoreState(env, cached);
+  return true;
+}
+
+async function readState(env) {
+  if (await ensureCoreState(env)) return readCoreState(env);
+  return readValue(env, STATE_KEY);
+}
+
+async function writeState(env, state) {
+  const normalised = normaliseState(state);
+  await writeCoreState(env, normalised);
+  return writeValue(env, STATE_KEY, normalised);
+}
 
 async function sheetsRequest(env, action, init = {}) {
   const separator = env.SHEETS_API_URL.includes('?') ? '&' : '?';
   const url = action ? env.SHEETS_API_URL + separator + 'action=' + encodeURIComponent(action) : env.SHEETS_API_URL;
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     ...init,
     headers: { Accept: 'application/json', ...(init.headers || {}) }
   });
@@ -141,8 +294,15 @@ async function getOrBootstrapState(env) {
 }
 
 async function refreshStateInBackground(env) {
-  try { await importStateFromSheets(env); }
-  catch (error) { console.error('Background state sync failed:', error); }
+  let lock;
+  try {
+    lock = await acquireMutationLock(env, 'state');
+    await importStateFromSheets(env);
+  } catch (error) {
+    console.error('Background state sync failed:', error);
+  } finally {
+    await releaseMutationLock(env, lock);
+  }
 }
 
 function findClass(state, classId) {
@@ -228,7 +388,7 @@ async function importAttendance(env, action, query) {
   const separator = env.SHEETS_API_URL.includes('?') ? '&' : '?';
   const params = new URLSearchParams({ action });
   Object.entries(query).forEach(([key, value]) => params.set(key, value));
-  const response = await fetch(env.SHEETS_API_URL + separator + params.toString(), { headers: { Accept: 'application/json' } });
+  const response = await fetchWithTimeout(env.SHEETS_API_URL + separator + params.toString(), { headers: { Accept: 'application/json' } });
   if (!response.ok) throw new Error('Sheets HTTP ' + response.status);
   const result = await response.json();
   if (!result || result.ok !== true) throw new Error(result?.error || 'Sheets returned an error');
@@ -237,18 +397,18 @@ async function importAttendance(env, action, query) {
 
 async function claimOutboxRow(env) {
   const lockToken = id();
-  const lockedUntil = now() + 60 * 1000;
-  const row = await env.DB.prepare('SELECT id, payload, attempts FROM outbox WHERE attempts < ? AND (locked_until IS NULL OR locked_until < ?) ORDER BY created_at, id LIMIT 1')
-    .bind(MAX_OUTBOX_ATTEMPTS, now()).first();
+  const lockedUntil = now() + OUTBOX_LOCK_MS;
+  const row = await env.DB.prepare('SELECT id, payload, attempts FROM outbox WHERE COALESCE(next_attempt_at, 0) <= ? AND (locked_until IS NULL OR locked_until < ?) ORDER BY created_at, id LIMIT 1')
+    .bind(now(), now()).first();
   if (!row) return null;
-  const claimed = await env.DB.prepare('UPDATE outbox SET locked_until = ?, lock_token = ? WHERE id = ? AND attempts < ? AND (locked_until IS NULL OR locked_until < ?)')
-    .bind(lockedUntil, lockToken, row.id, MAX_OUTBOX_ATTEMPTS, now()).run();
+  const claimed = await env.DB.prepare('UPDATE outbox SET locked_until = ?, lock_token = ? WHERE id = ? AND COALESCE(next_attempt_at, 0) <= ? AND (locked_until IS NULL OR locked_until < ?)')
+    .bind(lockedUntil, lockToken, row.id, now(), now()).run();
   if (Number(claimed?.meta?.changes || 0) !== 1) return null;
   return { ...row, lockToken };
 }
 
 async function flushOutbox(env) {
-  for (let index = 0; index < 10; index += 1) {
+  for (let index = 0; index < MAX_OUTBOX_BATCH; index += 1) {
     const row = await claimOutboxRow(env);
     if (!row) break;
     try {
@@ -258,9 +418,13 @@ async function flushOutbox(env) {
         body: row.payload
       });
       await env.DB.prepare('DELETE FROM outbox WHERE id = ? AND lock_token = ?').bind(row.id, row.lockToken).run();
+      await writeSyncStatus(env, { lastSuccessAt: now(), lastError: '' });
     } catch (error) {
-      await env.DB.prepare('UPDATE outbox SET attempts = attempts + 1, last_error = ?, locked_until = NULL, lock_token = NULL WHERE id = ? AND lock_token = ?')
-        .bind(String(error), row.id, row.lockToken).run();
+      const attempts = Number(row.attempts || 0) + 1;
+      const retryDelay = Math.min(1000 * (2 ** Math.min(attempts, 10)), MAX_OUTBOX_BACKOFF_MS);
+      await env.DB.prepare('UPDATE outbox SET attempts = ?, last_error = ?, next_attempt_at = ?, locked_until = NULL, lock_token = NULL WHERE id = ? AND lock_token = ?')
+        .bind(attempts, String(error), now() + retryDelay, row.id, row.lockToken).run();
+      await writeSyncStatus(env, { lastError: String(error) });
       console.error('Background Sheets write failed:', error);
       break;
     }
@@ -278,16 +442,65 @@ function scheduleFlush(env) {
 }
 
 async function queueSheetsWrite(env, payload) {
-  await env.DB.prepare('INSERT INTO outbox (payload, created_at) VALUES (?, ?)').bind(JSON.stringify(payload), now()).run();
+  const operationId = String(payload.operationId || id());
+  const nextPayload = { ...payload, operationId };
+  await env.DB.prepare('INSERT OR IGNORE INTO outbox (payload, created_at, operation_id, next_attempt_at) VALUES (?, ?, ?, ?)')
+    .bind(JSON.stringify(nextPayload), now(), operationId, now()).run();
+}
+
+async function writeSyncStatus(env, values) {
+  const current = await env.DB.prepare('SELECT last_success_at, last_error FROM sync_status WHERE id = 1').first();
+  await env.DB.prepare(`INSERT INTO sync_status (id, last_success_at, last_error, updated_at)
+    VALUES (1, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET last_success_at = excluded.last_success_at,
+    last_error = excluded.last_error, updated_at = excluded.updated_at`)
+    .bind(values.lastSuccessAt ?? current?.last_success_at ?? null, values.lastError ?? current?.last_error ?? '', now()).run();
+}
+
+async function readSyncStatus(env) {
+  const pending = await env.DB.prepare('SELECT COUNT(*) AS count FROM outbox WHERE locked_until IS NULL OR locked_until < ?').bind(now()).first();
+  const row = await env.DB.prepare('SELECT last_success_at, last_error, updated_at FROM sync_status WHERE id = 1').first();
+  return {
+    ok: true,
+    pending: Number(pending?.count || 0),
+    lastSuccessAt: row?.last_success_at || null,
+    lastError: row?.last_error || '',
+    updatedAt: row?.updated_at || null
+  };
+}
+
+function wait(milliseconds) {
+  return new Promise(resolve => setTimeout(resolve, milliseconds));
+}
+
+async function acquireMutationLock(env, scope) {
+  const deadline = now() + MUTATION_LOCK_MS;
+  while (now() < deadline) {
+    const token = id();
+    const lockedUntil = now() + MUTATION_LOCK_MS;
+    const result = await env.DB.prepare(`INSERT INTO mutation_locks (scope, locked_until, lock_token)
+      VALUES (?, ?, ?)
+      ON CONFLICT(scope) DO UPDATE SET locked_until = excluded.locked_until, lock_token = excluded.lock_token
+      WHERE COALESCE(mutation_locks.locked_until, 0) < ?`)
+      .bind(scope, lockedUntil, token, now()).run();
+    if (Number(result?.meta?.changes || 0) === 1) return { scope, token };
+    await wait(40);
+  }
+  throw new Error('O servidor está ocupado. Tenta novamente.');
+}
+
+async function releaseMutationLock(env, lock) {
+  if (!lock) return;
+  try {
+    await env.DB.prepare('DELETE FROM mutation_locks WHERE scope = ? AND lock_token = ?').bind(lock.scope, lock.token).run();
+  } catch (error) {
+    console.error('Mutation lock release failed:', error);
+  }
 }
 
 async function deleteCacheKeys(env, matches) {
-  const rows = await env.DB.prepare('SELECT key FROM kv').all();
-  const keys = (rows.results || [])
-    .map(row => String(row.key || ''))
-    .filter(key => matches.some(prefix => key.startsWith(prefix)));
-  if (!keys.length) return;
-  await env.DB.batch(keys.map(key => env.DB.prepare('DELETE FROM kv WHERE key = ?').bind(key)));
+  if (!matches.length) return;
+  await env.DB.batch(matches.map(prefix => env.DB.prepare('DELETE FROM kv WHERE key >= ? AND key < ?').bind(prefix, `${prefix}\uffff`)));
 }
 
 async function invalidateClassCaches(env, classId) {
@@ -307,6 +520,7 @@ async function refreshReadCacheInBackground(env, action, query, cacheKey) {
     const lastSync = await readValue(env, syncKey);
     if (lastSync && now() - Number(lastSync) < CACHE_MAX_AGE_MS) return;
     const result = await importAttendance(env, action, query);
+    if (action === 'attendance') await writeAttendanceCore(env, result);
     await writeValue(env, cacheKey, result);
     await writeValue(env, syncKey, now());
   } catch (error) {
@@ -317,6 +531,23 @@ async function refreshReadCacheInBackground(env, action, query, cacheKey) {
 async function handleGet(request, env, ctx) {
   const url = new URL(request.url);
   const action = url.searchParams.get('action') || 'state';
+  if (action === 'syncStatus') return jsonResponse(await readSyncStatus(env), 200, request, env);
+  if (action === 'bootstrap') {
+    const state = await getOrBootstrapState(env);
+    const classId = url.searchParams.get('classId') || '';
+    const date = url.searchParams.get('date') || '';
+    const recentKey = 'recent:' + classId + ':' + date + ':' + (url.searchParams.get('count') || '2');
+    const attendance = classId && date
+      ? await readAttendanceCore(env, classId, date) || await readValue(env, 'attendance:' + classId + ':' + date)
+      : null;
+    const recent = classId ? await readValue(env, recentKey) : null;
+    const query = Object.fromEntries([...url.searchParams.entries()].filter(([key]) => key !== 'action'));
+    if (classId && date && !attendance) ctx.waitUntil(refreshReadCacheInBackground(env, 'attendance', query, 'attendance:' + classId + ':' + date));
+    if (classId && !recent) ctx.waitUntil(refreshReadCacheInBackground(env, 'recentAttendance', query, recentKey));
+    ctx.waitUntil(refreshStateInBackground(env));
+    ctx.waitUntil(scheduleFlush(env));
+    return jsonResponse({ ...state, attendance, recent, sync: await readSyncStatus(env) }, 200, request, env);
+  }
   if (action === 'state') {
     const state = await getOrBootstrapState(env);
     ctx.waitUntil(refreshStateInBackground(env));
@@ -329,7 +560,9 @@ async function handleGet(request, env, ctx) {
   const cacheKey = action === 'attendance'
     ? 'attendance:' + classId + ':' + date
     : 'recent:' + classId + ':' + date + ':' + (url.searchParams.get('count') || '2');
-  const cached = await readValue(env, cacheKey);
+  const cached = action === 'attendance'
+    ? await readAttendanceCore(env, classId, date) || await readValue(env, cacheKey)
+    : await readValue(env, cacheKey);
   const query = Object.fromEntries(url.searchParams.entries());
   if (cached) {
     ctx.waitUntil(refreshReadCacheInBackground(env, action, query, cacheKey));
@@ -348,41 +581,69 @@ async function handlePost(request, env, ctx) {
     return jsonResponse({ ok: false, error: 'Unknown action' }, 400, request, env);
   }
 
-  const current = await getOrBootstrapState(env);
-  if (action === 'saveAttendance') {
-    const classId = String(payload.classId || '');
-    const date = String(payload.date || '');
-    const attendance = {
-      ok: true,
-      classId,
-      className: payload.className || '',
-      date,
-      members: Array.isArray(payload.members) ? payload.members.map(member => ({
-        ...member,
-        status: normaliseAttendanceStatus(member.status)
-      })) : [],
-      filled: true
-    };
-    await invalidateClassCaches(env, classId);
-    await writeValue(env, 'attendance:' + classId + ':' + date, attendance);
+  const classId = String(payload.classId || payload.class?.id || '').trim();
+  const date = String(payload.date || '').trim();
+  if (action === 'saveAttendance' && (!classId || !date || !Array.isArray(payload.members))) {
+    return jsonResponse({ ok: false, error: 'Invalid attendance payload' }, 400, request, env);
+  }
+  if (action !== 'saveClasses' && action !== 'saveAttendance' && !classId) {
+    return jsonResponse({ ok: false, error: 'Missing classId' }, 400, request, env);
+  }
+  const lock = await acquireMutationLock(env, action === 'saveAttendance' ? `attendance:${classId}:${date}` : 'state');
+  try {
+    const current = await getOrBootstrapState(env);
+    if (action === 'saveAttendance') {
+      const operationId = String(payload.operationId || id());
+      const previousAttendance = await readAttendanceCore(env, classId, date);
+      const previousByName = new Map((previousAttendance?.members || []).map(member => [String(member.name || '').toLocaleLowerCase('pt-PT'), member.status]));
+      const attendance = {
+        ok: true,
+        classId,
+        className: payload.className || '',
+        date,
+        members: Array.isArray(payload.members) ? payload.members.map(member => ({
+          ...member,
+          status: normaliseAttendanceStatus(member.status) === 'pending' && previousByName.has(String(member.name || '').toLocaleLowerCase('pt-PT'))
+            ? normaliseAttendanceStatus(previousByName.get(String(member.name || '').toLocaleLowerCase('pt-PT')))
+            : normaliseAttendanceStatus(member.status)
+        })) : [],
+        filled: true,
+        operationId
+      };
+      await invalidateClassCaches(env, classId);
+      await writeAttendanceCore(env, attendance);
+      await writeValue(env, 'attendance:' + classId + ':' + date, attendance);
+      await queueSheetsWrite(env, { ...payload, operationId });
+      ctx.waitUntil(scheduleFlush(env));
+      return jsonResponse({ ok: true, attendance }, 200, request, env);
+    }
+
+    const mutation = applyClassMutation(current, payload);
+    if (!mutation.result.ok) return jsonResponse(mutation.result, 400, request, env);
+    if (action === 'saveClasses') await invalidateAllAttendanceCaches(env);
+    else await invalidateClassCaches(env, classId);
+    if (action === 'saveClasses') await writeState(env, mutation.state);
+    else if (action === 'removeClass') {
+      await deleteClassCore(env, classId);
+      await writeValue(env, STATE_KEY, normaliseState(mutation.state));
+    } else {
+      await writeClassCore(env, mutation.result.class);
+      await writeValue(env, STATE_KEY, normaliseState(mutation.state));
+    }
     await queueSheetsWrite(env, payload);
     ctx.waitUntil(scheduleFlush(env));
-    return jsonResponse({ ok: true, attendance }, 200, request, env);
+    return jsonResponse(mutation.result, 200, request, env);
+  } finally {
+    await releaseMutationLock(env, lock);
   }
-
-  const mutation = applyClassMutation(current, payload);
-  if (!mutation.result.ok) return jsonResponse(mutation.result, 400, request, env);
-  if (action === 'saveClasses') await invalidateAllAttendanceCaches(env);
-  else await invalidateClassCaches(env, String(payload.classId || payload.class?.id || ''));
-  await writeState(env, mutation.state);
-  await queueSheetsWrite(env, payload);
-  ctx.waitUntil(scheduleFlush(env));
-  return jsonResponse(mutation.result, 200, request, env);
 }
 
 export default {
   async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') return jsonResponse({}, 204, request, env);
+    if (request.method === 'POST' && request.headers.get('Origin') !== env.ALLOWED_ORIGIN) {
+      return jsonResponse({ ok: false, error: 'Origin not allowed' }, 403, request, env);
+    }
     try {
       if (request.method === 'GET') return await handleGet(request, env, ctx);
       if (request.method === 'POST') return await handlePost(request, env, ctx);
@@ -391,5 +652,8 @@ export default {
       console.error(error);
       return jsonResponse({ ok: false, error: String(error.message || error) }, 500, request, env);
     }
+  },
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil(scheduleFlush(env));
   }
 };

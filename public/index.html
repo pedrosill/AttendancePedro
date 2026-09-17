@@ -234,6 +234,10 @@
     .share-actions { display: flex; gap: var(--space-3); min-width: 0; }
     .share-actions > * { flex: 1 1 0; }
     .share-status { min-height: 1.25rem; color: var(--color-primary); }
+    .sync-status { margin: 0; color: var(--color-text-muted); }
+    .sync-status.success { color: var(--color-success, #437a22); }
+    .sync-status.pending { color: var(--color-warning, #a66a00); }
+    .sync-status.error { color: var(--color-error); }
     .sheets-settings-btn {
       min-height: 64px;
       font-size: var(--text-base);
@@ -1033,6 +1037,8 @@
         <p class="tiny share-status" id="shareStatus" aria-live="polite"></p>
       </div>
 
+      <p class="tiny sync-status" id="syncStatusText" aria-live="polite">Sincronização pronta.</p>
+
       <div class="stack">
         <div class="toolbar">
           <button class="secondary-btn" type="button" id="toggleScriptBtn">Editar script</button>
@@ -1040,7 +1046,7 @@
         <div id="scriptPanel" class="stack" hidden>
           <div class="field">
             <label for="webhookInput">URL do backend</label>
-            <input id="webhookInput" class="text-input" type="url" placeholder="https://script.google.com/macros/s/.../exec" />
+            <input id="webhookInput" class="text-input" type="url" placeholder="https://attendance-pedro-data...workers.dev" />
           </div>
           <div class="field">
             <label for="photoApiInput">URL do servidor de fotografias</label>
@@ -1250,23 +1256,11 @@
     const APP_SHARE_URL = 'https://attendance-pedro.pedrosill1944.workers.dev/';
     const APP_SHARE_TITLE = 'Presenças de Ginástica';
     const APP_SHARE_TEXT = 'Abra a aplicação de presenças de ginástica.';
-    const defaultState = {
-      selectedClassId: 'class-1',
-      webhookUrl: '',
-      selectedDate: new Date().toISOString().slice(0, 10),
-      classes: [
-        { id: 'class-1', name: 'Beginner Kids', color: 'teal', members: ['Ines Costa', 'Marta Silva', 'Leonor Dias', 'Rita Santos'] },
-        { id: 'class-2', name: 'Intermediate Teens', color: 'gold', members: ['Sofia Almeida', 'Matilde Rocha', 'Carolina Sousa', 'Beatriz Lopes'] },
-        { id: 'class-3', name: 'Advanced Squad', color: 'rose', members: ['Ana Gomes', 'Maria Faria', 'Joana Pires', 'Helena Costa'] }
-      ],
-      attendanceByDate: {}
-    };
-
     let state = {
       selectedClassId: '',
       webhookUrl: '',
       photoApiUrl: '',
-      selectedDate: new Date().toISOString().slice(0, 10),
+      selectedDate: todayKey(),
       theme: 'light',
       classPickerMode: 'dropdown',
       classes: [],
@@ -1317,6 +1311,7 @@
       addClassPanel: document.getElementById('addClassPanel'),
       scriptPanel: document.getElementById('scriptPanel'),
       webhookInput: document.getElementById('webhookInput'),
+      syncStatusText: document.getElementById('syncStatusText'),
       photoApiInput: document.getElementById('photoApiInput'),
       memberPhotoInput: document.getElementById('memberPhotoInput'),
       memberPhotoPreview: document.getElementById('memberPhotoPreview'),
@@ -1350,12 +1345,12 @@
     function loadState() {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, photoApiUrl: DEFAULT_PHOTO_API_URL, selectedDate: new Date().toISOString().slice(0, 10), theme: 'light' };
+        if (!raw) return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, photoApiUrl: DEFAULT_PHOTO_API_URL, selectedDate: todayKey(), theme: 'light' };
         const parsed = JSON.parse(raw);
         const savedWebhookUrl = isLegacyBackendUrl(parsed.webhookUrl) ? DEFAULT_BACKEND_URL : parsed.webhookUrl;
         return { selectedClassId: parsed.selectedClassId || '', webhookUrl: savedWebhookUrl || DEFAULT_BACKEND_URL, photoApiUrl: parsed.photoApiUrl || DEFAULT_PHOTO_API_URL, selectedDate: parsed.selectedDate || new Date().toISOString().slice(0, 10), theme: parsed.theme === 'dark' ? 'dark' : 'light', classPickerMode: parsed.classPickerMode === 'buttons' ? 'buttons' : 'dropdown' };
       } catch {
-        return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, photoApiUrl: DEFAULT_PHOTO_API_URL, selectedDate: new Date().toISOString().slice(0, 10), theme: 'light' };
+        return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, photoApiUrl: DEFAULT_PHOTO_API_URL, selectedDate: todayKey(), theme: 'light' };
       }
     }
 
@@ -1383,7 +1378,11 @@
       noticeTimer = null;
       if (els.appNotice) els.appNotice.hidden = true;
     }
-    function todayKey() { return new Date().toISOString().slice(0, 10); }
+    function todayKey() {
+      const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Lisbon', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+      const values = Object.fromEntries(parts.filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
+      return `${values.year}-${values.month}-${values.day}`;
+    }
     function selectedDateKey() { return state.selectedDate || todayKey(); }
     function displayDate(value) { return new Intl.DateTimeFormat(undefined, { day: '2-digit', month: '2-digit' }).format(new Date(value + 'T12:00:00')); }
     function displayTrainingDate(value) { return new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: '2-digit' }).format(new Date(value + 'T12:00:00')); }
@@ -1489,7 +1488,7 @@
         try {
           const result = await apiGet('recentAttendance', { classId: cls.id, date: dateKey, count: 2 });
           requireApiSuccess(result, 'Não foi possível carregar os treinos');
-          if (!Array.isArray(result.dates)) throw new Error('O Apps Script ainda não suporta o resumo de treinos');
+          if (!Array.isArray(result.dates)) throw new Error('O backend ainda não suporta o resumo de treinos');
           const items = result.dates.map(item => ({ dateKey: item.date, filled: !!item.filled }));
           if (requestRevision === recentTrainingRevision) recentTrainingCache.set(key, items);
           if (requestRevision === recentTrainingRevision && requestId === recentTrainingRequestId && state.selectedClassId === cls.id) {
@@ -1714,10 +1713,11 @@
     async function apiPost(payload) {
       const url = state.webhookUrl || els.webhookInput.value.trim();
       if (!url) throw new Error('Backend URL is missing');
+      const operationId = payload.operationId || (crypto.randomUUID ? crypto.randomUUID() : `op-${Date.now()}-${Math.random().toString(16).slice(2)}`);
       const res = await apiFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ ...payload, operationId })
       });
       const result = await res.json().catch(() => null);
       if (!res.ok) throw new Error(result?.error || `HTTP ${res.status}`);
@@ -1727,6 +1727,26 @@
     function requireApiSuccess(result, fallbackMessage) {
       if (!result || result.ok !== true) throw new Error(result?.error || fallbackMessage);
       return result;
+    }
+
+    async function refreshSyncStatus() {
+      if (!els.syncStatusText || !state.webhookUrl) return;
+      try {
+        const result = requireApiSuccess(await apiGet('syncStatus'), 'Não foi possível verificar a sincronização');
+        if (result.pending > 0) {
+          els.syncStatusText.textContent = `${result.pending} alteração(ões) pendente(s) no Google Sheets.`;
+          els.syncStatusText.className = 'tiny sync-status pending';
+        } else if (result.lastError) {
+          els.syncStatusText.textContent = 'A sincronização com o Google Sheets precisa de atenção.';
+          els.syncStatusText.className = 'tiny sync-status error';
+        } else {
+          els.syncStatusText.textContent = 'Google Sheets sincronizado.';
+          els.syncStatusText.className = 'tiny sync-status success';
+        }
+      } catch {
+        els.syncStatusText.textContent = 'Não foi possível verificar a sincronização.';
+        els.syncStatusText.className = 'tiny sync-status error';
+      }
     }
 
     function queueClassMutation(payload) {
@@ -1984,7 +2004,10 @@
       if (key === 'attendanceSingle') renderSingleAttendance();
       if (key === 'edit') renderEditList();
       if (key === 'classes') renderClassEditor();
-      if (key === 'settings') renderSettingsClassList();
+      if (key === 'settings') {
+        renderSettingsClassList();
+        refreshSyncStatus();
+      }
       if (key === 'date') loadRecentTrainingStatus();
       renderTopSummary();
     }
@@ -2119,7 +2142,7 @@
     }
 
     async function saveMemberProfiles(cls, profiles) {
-      return saveClassRecord({ id: cls.id, name: cls.name, members: cls.members, memberProfiles: profiles }, cls.id, { stayOnPage: true });
+      return saveClassRecord({ id: cls.id, name: cls.name, memberProfiles: profiles }, cls.id, { stayOnPage: true });
     }
 
     async function addMember() {
@@ -2413,17 +2436,11 @@
         recentTrainingRequests.clear();
         recentTrainingRequestId += 1;
         recentTrainingCache.clear();
-        const savedAttendance = res.attendance || { members: payload.members };
-        const savedMap = {};
-        (Array.isArray(savedAttendance.members) ? savedAttendance.members : []).forEach(member => {
-          savedMap[member.name] = normalizeAttendanceStatus(member.status);
-        });
-        if (!state.attendanceByDate[savedDateKey]) state.attendanceByDate[savedDateKey] = {};
-        state.attendanceByDate[savedDateKey][cls.id] = savedMap;
-        attendanceCacheKeys.add(attendanceRequestKey(cls.id, savedDateKey));
+        applyAttendanceResult(cls.id, savedDateKey, res.attendance || { members: payload.members });
         clearAttendanceDirty(cls.id, savedDateKey);
         switchScreen('class');
         showNotice('Presenças guardadas.', 'success', 1800);
+        refreshSyncStatus();
       } catch (error) {
         showNotice(`Não foi possível guardar as presenças: ${error.message || 'Tenta novamente.'}`);
         throw error;
@@ -2472,7 +2489,7 @@
       const nextUrl = input ? input.value.trim() : '';
       const nextPhotoApiUrl = els.photoApiInput ? els.photoApiInput.value.trim().replace(/\/$/, '') : '';
       if (!nextUrl) {
-        showNotice('Indica o URL do Google Apps Script.');
+        showNotice('Indica o URL do backend.');
         input?.focus();
         return;
       }
@@ -2481,7 +2498,7 @@
         const parsedUrl = new URL(nextUrl);
         if (!['http:', 'https:'].includes(parsedUrl.protocol)) throw new Error('Invalid protocol');
       } catch {
-        showNotice('O URL do Google Apps Script não é válido.');
+        showNotice('O URL do backend não é válido.');
         input?.focus();
         return;
       }
@@ -2524,7 +2541,7 @@
         showNotice('Ligações guardadas.', 'success', 1800);
         switchScreen('class');
       } catch (error) {
-        showNotice(error.message || 'Não foi possível ligar ao Apps Script.');
+        showNotice(error.message || 'Não foi possível ligar ao backend.');
       } finally {
         if (button) {
           button.disabled = false;
@@ -2606,15 +2623,25 @@
       if (!state.webhookUrl) return false;
       try {
         if (els.loadingClassesText) els.loadingClassesText.hidden = false;
-        const res = await apiGet('state');
-        requireApiSuccess(res, 'O Apps Script devolveu um erro ao carregar as turmas');
+        const res = await apiGet('bootstrap', {
+          classId: state.selectedClassId,
+          date: selectedDateKey(),
+          count: 2
+        });
+        requireApiSuccess(res, 'O backend devolveu um erro ao carregar as turmas');
         state.classes = Array.isArray(res.classes) ? res.classes.map(normalizeClass) : [];
         if (!state.selectedClassId || !state.classes.some(item => item.id === state.selectedClassId)) {
           state.selectedClassId = state.classes[0]?.id || '';
         }
         renderClassOptions();
         renderTopSummary();
+        if (res.attendance && state.selectedClassId) applyAttendanceResult(state.selectedClassId, selectedDateKey(), res.attendance);
+        if (res.recent && Array.isArray(res.recent.dates) && state.selectedClassId && selectedDateKey() === todayKey()) {
+          recentTrainingCache.set(recentTrainingRequestKey(state.selectedClassId, todayKey()), res.recent.dates.map(item => ({ dateKey: item.date, filled: !!item.filled })));
+        }
         if (state.selectedClassId) {
+          const hasBootstrapAttendance = res.attendance && res.attendance.classId === state.selectedClassId && res.attendance.date === selectedDateKey();
+          if (hasBootstrapAttendance) return true;
           refreshAttendance(state.selectedClassId, selectedDateKey(), { force: true }).catch(() => {
             showNotice('Não foi possível carregar as presenças desta turma.');
           });
@@ -2623,8 +2650,8 @@
         const title = els.loadingClassesText?.querySelector('strong');
         const message = els.loadingClassesText?.querySelector('span');
         if (title) title.textContent = 'Não foi possível carregar as turmas';
-        if (message) message.textContent = 'Verifique o URL do Apps Script nas definições.';
-        showNotice('Não foi possível carregar as turmas. Verifica a ligação e o URL do Apps Script.');
+        if (message) message.textContent = 'Verifique o URL do backend nas definições.';
+        showNotice('Não foi possível carregar as turmas. Verifica a ligação e o URL do backend.');
         return false;
       } finally {
         if (els.loadingClassesText) els.loadingClassesText.hidden = state.classes.length > 0;
@@ -2649,23 +2676,9 @@
       const request = (async () => {
         const requestRevision = attendanceRevision;
         const res = await apiGet('attendance', { classId, date: dateKey });
-        requireApiSuccess(res, 'O Apps Script devolveu um erro ao carregar as presenças');
+        requireApiSuccess(res, 'O backend devolveu um erro ao carregar as presenças');
         if (requestRevision !== attendanceRevision) return state.attendanceByDate[dateKey]?.[classId] || {};
-        const previousMap = state.attendanceByDate[dateKey]?.[classId] || {};
-        if (!state.attendanceByDate[dateKey]) state.attendanceByDate[dateKey] = {};
-        const attendanceMap = {};
-        if (res && Array.isArray(res.members)) {
-          res.members.forEach(member => {
-            attendanceMap[member.name] = normalizeAttendanceStatus(member.status);
-          });
-        }
-        Object.keys(previousMap).forEach(memberName => {
-          if (attendanceDirtyMembers.has(attendanceDirtyMemberKey(classId, dateKey, memberName))) {
-            attendanceMap[memberName] = previousMap[memberName];
-          }
-        });
-        state.attendanceByDate[dateKey][classId] = attendanceMap;
-        attendanceCacheKeys.add(key);
+        const attendanceMap = applyAttendanceResult(classId, dateKey, res);
         if (isCurrentClassDate(classId, dateKey)) {
           renderTopSummary();
           if (els.screens.attendance?.classList.contains('active')) renderAttendance();
@@ -2681,12 +2694,32 @@
       }
     }
 
+    function applyAttendanceResult(classId, dateKey, result) {
+      const previousMap = state.attendanceByDate[dateKey]?.[classId] || {};
+      if (!state.attendanceByDate[dateKey]) state.attendanceByDate[dateKey] = {};
+      const attendanceMap = {};
+      if (result && Array.isArray(result.members)) {
+        result.members.forEach(member => {
+          attendanceMap[member.name] = normalizeAttendanceStatus(member.status);
+        });
+      }
+      Object.keys(previousMap).forEach(memberName => {
+        if (attendanceDirtyMembers.has(attendanceDirtyMemberKey(classId, dateKey, memberName))) {
+          attendanceMap[memberName] = previousMap[memberName];
+        }
+      });
+      state.attendanceByDate[dateKey][classId] = attendanceMap;
+      attendanceCacheKeys.add(attendanceRequestKey(classId, dateKey));
+      return attendanceMap;
+    }
+
     function normalizeClass(item) {
       const members = sortMembers(Array.isArray(item.members) ? item.members.map(name => String(name).trim()).filter(Boolean) : []);
       const profileByName = new Map((Array.isArray(item.memberProfiles) ? item.memberProfiles : []).map(profile => [String(profile.name || '').toLocaleLowerCase('pt-PT'), profile]));
       return {
         id: String(item.id || `class-${Date.now()}`),
         name: String(item.name || 'Class'),
+        version: Number(item.version || 1) || 1,
         members,
         memberProfiles: members.map(name => normalizeMemberProfile(profileByName.get(name.toLocaleLowerCase('pt-PT')), name)),
         trainingDays: Array.isArray(item.trainingDays) ? item.trainingDays.map(Number).filter(day => Number.isInteger(day) && day >= 0 && day <= 6) : [],

@@ -4,6 +4,9 @@
   "main": "attendance-data-worker.js",
   "compatibility_date": "2026-09-17",
   "workers_dev": true,
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
   "vars": {
     "ALLOWED_ORIGIN": "https://attendance-pedro.pedrosill1944.workers.dev",
     "SHEETS_API_URL": "https://script.google.com/macros/s/AKfycbzWfzY9w2-Q3SiDZlTZP2H4ZZyKPmc70eCy-o_RhTs_kZ7_LrAUnVAtJBMrxX4OQ7r4Hw/exec"

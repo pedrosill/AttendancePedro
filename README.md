@@ -1,6 +1,6 @@
 # Presenças de Ginástica
 
-Aplicação web estática, mobile-first, para registar presenças de turmas de ginástica. O HTML/CSS/JavaScript é servido pelo Cloudflare e os dados partilhados são guardados no Google Sheets através de um Google Apps Script Web App.
+Aplicação web estática, mobile-first, para registar presenças de turmas de ginástica. O HTML/CSS/JavaScript é servido pelo Cloudflare, o D1 é a fonte principal de leitura e escrita, e o Google Sheets mantém uma cópia sincronizada em segundo plano através de um Google Apps Script Web App.
 
 ## Fluxo da aplicação
 
@@ -40,15 +40,17 @@ npx wrangler deploy --config data-wrangler.jsonc
 
 5. Testar o URL do Worker com `?action=state`. Só depois colocar esse URL em `Definições` → `Editar script` → `URL do backend`.
 
-O Worker só deve ser publicado depois de o novo [ScriptForSheets](ScriptForSheets) estar implementado como Web App. O D1 é a fonte principal nesta arquitetura; o Sheets continua como cópia de segurança e relatório.
+O Worker só deve ser publicado depois de o novo [ScriptForSheets](ScriptForSheets) estar implementado como Web App. O D1 é a fonte principal nesta arquitetura; o Sheets continua como cópia de segurança e relatório. As gravações de class/members são serializadas no D1 e as presenças usam a chave única `classId + date`.
 
-## API do Apps Script
+## API do backend
 
-O endpoint é o URL `/exec` da implementação do Apps Script.
+O frontend comunica com o Worker D1. O Worker usa o URL `/exec` da implementação do Apps Script apenas para a sincronização de fundo.
 
 - `GET ?action=state`: devolve todas as turmas, membros e configuração dos treinos.
+- `GET ?action=bootstrap&classId=...&date=yyyy-MM-dd`: devolve o estado, a presença local e a cache de treinos recentes num único pedido.
 - `GET ?action=attendance&classId=...&date=yyyy-MM-dd`: devolve presenças de uma turma/data.
 - `GET ?action=recentAttendance&classId=...&date=yyyy-MM-dd&count=2`: devolve os últimos treinos agendados e indica se estão preenchidos.
+- `GET ?action=syncStatus`: devolve o número de operações pendentes e o último erro de sincronização.
 - `POST { action: "saveClass", class: {...} }`: cria ou renomeia uma turma sem substituir as restantes.
 - `POST { action: "addMember", classId, member }`: adiciona um membro à turma, incluindo o perfil e a referência da fotografia.
 - `POST { action: "removeMember", classId, memberName }`: remove um membro e a respetiva linha da folha.
@@ -58,11 +60,15 @@ O endpoint é o URL `/exec` da implementação do Apps Script.
 
 As gravações são protegidas por `LockService` para evitar que duas gravações simultâneas criem a mesma data duas vezes.
 
+O Worker aceita POSTs apenas da origem pública configurada em `ALLOWED_ORIGIN`. Isto reduz pedidos cross-site, mas não substitui autenticação. Antes de disponibilizar a app fora do grupo de treinadores, proteger o endpoint D1 com Cloudflare Access num domínio próprio ou acrescentar uma autenticação equivalente.
+
 ## Optimização e preservação de dados
 
 Ao abrir a aplicação, as turmas e os membros são apresentados assim que o estado partilhado chega. As presenças são carregadas em segundo plano. Durante a sessão, pedidos repetidos para a mesma turma/data são reutilizados em memória; este cache não é guardado no navegador e é invalidado ao mudar de turma, mudar de data, alterar o URL ou guardar presenças. O Apps Script mantém ainda uma cache partilhada de turmas e membros durante cinco minutos, eliminada imediatamente após qualquer alteração gravada pela aplicação; assim, abrir a app noutro dispositivo não precisa de percorrer todas as folhas de presenças.
 
 As operações de membros não reconstroem a folha inteira: adicionar um membro acrescenta a linha em falta e ordena linhas completas, mantendo as presenças associadas ao nome; remover um membro elimina apenas a sua linha. Renomear uma turma move a folha existente. O Apps Script lê `__classes__` uma vez por operação e escreve o estado actualizado sob lock.
+
+A migração `0003_core_tables.sql` cria tabelas D1 separadas para turmas, membros e presenças. O `kv` antigo mantém-se como compatibilidade e recuperação durante a transição; os registos de presença usam a chave única `classId + date`.
 
 ## Estrutura do Sheets
 
@@ -160,7 +166,7 @@ Opções úteis:
 .\Start-AttendanceApp.ps1 -CheckOnly -BackendUrl "https://script.google.com/macros/s/.../exec"
 ```
 
-Se o `ScriptForSheets` ou o Worker tiverem sido alterados, o lançador avisa. A publicação continua a ser manual: Apps Script requer uma nova implementação e os Workers requerem `npx wrangler deploy`.
+Se o `ScriptForSheets` ou o Worker tiverem sido alterados, o lançador avisa. A publicação do Apps Script requer uma nova implementação. Para publicar D1, migrações e a app estática numa sequência validada, usar [Publish-AttendanceApp.ps1](Publish-AttendanceApp.ps1).
 
 ### Publicar a app estática
 
@@ -172,4 +178,10 @@ Depois de alterar `index.html`, logótipos, manifesto ou avatares:
 Copy-Item .\index.html, .\Logo1.png, .\LogoAppSCP.png, .\manifest.webmanifest -Destination .\public\ -Force
 Copy-Item .\assets\avatars\*.png -Destination .\public\assets\avatars\ -Force
 npx wrangler deploy --config static-wrangler.jsonc
+```
+
+Ou executar tudo de uma vez:
+
+```powershell
+.\Publish-AttendanceApp.ps1
 ```
