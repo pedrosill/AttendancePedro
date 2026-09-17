@@ -125,7 +125,8 @@ function getRecentAttendanceState(params) {
   var seasonStart = parseDateKey(cls.seasonStart) || parseDateKey(DEFAULT_SEASON_START);
   var trainingDays = Array.isArray(cls.trainingDays) ? cls.trainingDays : [];
   var count = Math.min(Math.max(Number((params && params.count) || 2), 1), 10);
-  var dates = [];
+  var recentDates = [];
+  var missingDates = [];
   var cursor = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
   var dateColumns = {};
   var sheet = ss.getSheetByName(sanitizeSheetName(cls.name));
@@ -138,16 +139,21 @@ function getRecentAttendanceState(params) {
     });
   }
 
-  while (cursor >= seasonStart && dates.length < count) {
+  while (cursor >= seasonStart) {
     var dayOfWeek = cursor.getDay();
     if (trainingDays.indexOf(dayOfWeek) !== -1) {
       var dateKey = normalizeDateKey(cursor);
-      dates.push({ date: dateKey, filled: !!dateColumns[dateKey] });
+      var item = { date: dateKey, filled: !!dateColumns[dateKey] };
+      if (recentDates.length < count) {
+        recentDates.push(item);
+      } else if (!item.filled) {
+        missingDates.push(item);
+      }
     }
     cursor.setDate(cursor.getDate() - 1);
   }
 
-  return { ok: true, classId: cls.id, className: cls.name, dates: dates };
+  return { ok: true, classId: cls.id, className: cls.name, dates: recentDates.concat(missingDates) };
 }
 
 function withWriteLock(callback) {

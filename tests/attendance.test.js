@@ -457,3 +457,24 @@ test('o resumo devolve apenas dias de treino da turma', () => {
   const output = context.getRecentAttendanceState({ classId: 'minigami-id', date: '2026-09-09', count: '2' });
   assert.deepEqual(Array.from(output.dates, item => item.date), ['2026-09-08']);
 });
+
+test('o resumo mantém os dois treinos mais recentes e inclui faltas anteriores', () => {
+  const { context, spreadsheet } = createContext();
+  const meta = spreadsheet.insertSheet('__classes__');
+  meta.data = [
+    ['id', 'name', 'membersJson', 'trainingDaysJson', 'seasonStart'],
+    ['diaria-id', 'Diária', '["Ana"]', '[0,1,2,3,4,5,6]', '2026-09-01']
+  ];
+  const sheet = spreadsheet.insertSheet('Diária');
+  sheet.data = [
+    ['Membro', '2026-09-01', '2026-09-03', '2026-09-04'],
+    ['Ana', '*', '*', '*']
+  ];
+
+  const output = context.getRecentAttendanceState({ classId: 'diaria-id', date: '2026-09-05', count: '2' });
+  assert.deepEqual(JSON.parse(JSON.stringify(output.dates)), [
+    { date: '2026-09-05', filled: false },
+    { date: '2026-09-04', filled: true },
+    { date: '2026-09-02', filled: false }
+  ]);
+});

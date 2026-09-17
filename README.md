@@ -5,7 +5,7 @@ Aplicação web estática, mobile-first, para registar presenças de turmas de g
 ## Fluxo da aplicação
 
 1. Passo 1: escolher a turma.
-2. Passo 2: escolher a data. Os dois últimos treinos definidos para a turma aparecem com o estado `Preenchido` ou `Por preencher`.
+2. Passo 2: escolher a data. Os dois treinos mais recentes aparecem com o estado `Preenchido` ou `Por preencher`, juntamente com quaisquer treinos anteriores ainda por preencher; carregar num treino seleciona essa data.
 3. Passo 3: escolher o modo de registo, normal ou rápido.
 4. Registar `Presente`, `Atrasado` ou `Falta`, incluindo a justificação quando aplicável.
 
