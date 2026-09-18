@@ -116,6 +116,11 @@
       45% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--interaction-accent, var(--class-accent, var(--color-primary))) 18%, transparent); }
       100% { box-shadow: 0 0 0 0 transparent; }
     }
+    @keyframes selection-feedback {
+      0% { transform: scale(1); }
+      45% { transform: scale(1.018); box-shadow: 0 0 0 3px color-mix(in srgb, var(--interaction-accent, var(--class-accent, var(--color-primary))) 20%, transparent); }
+      100% { transform: scale(1); }
+    }
     @keyframes loading-pulse {
       0%, 100% { opacity: 0.72; }
       50% { opacity: 1; }
@@ -812,6 +817,7 @@
     #screen-class .summary-grid { margin-top: var(--space-3); }
     .member-card .small-action { white-space: nowrap; flex: 0 0 auto; }
     .tap-feedback { animation: tap-feedback 280ms ease-out; }
+    .selection-feedback { animation: selection-feedback 240ms var(--transition-interactive) both; }
     .panel-enter { animation: panel-enter 260ms var(--transition-interactive) both; }
     .member-list > .member-card { animation: item-enter var(--transition-enter) both; animation-delay: var(--item-delay, 0ms); }
     .member-list > .member-card.is-removing { animation: removing-pulse 1.15s ease-in-out infinite; }
@@ -1465,6 +1471,14 @@
       node.classList.add('tap-feedback');
       node.__tapFeedbackTimer = setTimeout(() => node.classList.remove('tap-feedback'), 320);
     }
+    function animateSelection(node) {
+      if (!node || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+      clearTimeout(node.__selectionFeedbackTimer);
+      node.classList.remove('selection-feedback');
+      void node.offsetWidth;
+      node.classList.add('selection-feedback');
+      node.__selectionFeedbackTimer = setTimeout(() => node.classList.remove('selection-feedback'), 280);
+    }
     function todayKey() {
       const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Lisbon', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
       const values = Object.fromEntries(parts.filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
@@ -1893,6 +1907,7 @@
       els.classButtonList?.querySelectorAll('[data-class-id]').forEach(button => {
         button.classList.toggle('active', button.dataset.classId === classId);
       });
+      animateSelection(els.classButtonList?.querySelector(`[data-class-id="${CSS.escape(classId)}"]`) || els.classSelect);
       renderTopSummary();
       refreshAttendance(state.selectedClassId, selectedDateKey(), { force: true }).catch(() => {
         showNotice('Não foi possível carregar as presenças desta classe.');
@@ -2924,7 +2939,7 @@
     function bindEvents() {
       document.addEventListener('pointerdown', event => {
         const target = event.target.closest('button, [role="button"]');
-        if (target && !target.disabled) pulseInteraction(target);
+        if (target && !target.disabled && !target.matches('.class-choice, .recent-training-item')) pulseInteraction(target);
       }, { capture: true });
       document.getElementById('openSheetsSettingsBtn').addEventListener('click', () => {
         window.open('https://docs.google.com/spreadsheets/d/1k7tv6lmwYWUhn4D5rMy5oMvIBhYzaOIdsc5V4ivnJ6U/edit?usp=sharing', '_blank', 'noopener,noreferrer');
@@ -3032,6 +3047,7 @@
         const dateKey = button.dataset.recentTrainingDate;
         if (!dateKey) return;
         const isTodayMissing = dateKey === todayKey() && button.classList.contains('is-missing');
+        animateSelection(button);
         if (dateKey !== selectedDateKey()) {
           state.selectedDate = dateKey;
           if (els.actionAttendanceDateInput) els.actionAttendanceDateInput.value = dateKey;
