@@ -12,6 +12,6 @@
   ],
   "vars": {
     "ALLOWED_ORIGIN": "https://attendance-pedro.pedrosill1944.workers.dev",
-    "ACCESS_EMAILS": "coach@example.com"
+    "ACCESS_EMAILS": "pedrosill1944@gmail.com"
   }
 }
