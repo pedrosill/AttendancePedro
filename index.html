@@ -107,6 +107,10 @@
       from { opacity: 0; transform: translateY(-5px); }
       to { opacity: 1; transform: translateY(0); }
     }
+    @keyframes detail-exit {
+      from { opacity: 1; max-height: 90px; transform: translateY(0); }
+      to { opacity: 0; max-height: 0; transform: translateY(-5px); }
+    }
     @keyframes tap-feedback {
       0% { box-shadow: 0 0 0 0 transparent; }
       45% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--interaction-accent, var(--class-accent, var(--color-primary))) 18%, transparent); }
@@ -623,6 +627,7 @@
       gap: var(--space-2);
     }
     .status-detail-row:not(.is-placeholder) { animation: detail-enter 220ms var(--transition-interactive) both; }
+    .status-detail-row.detail-exit { overflow: hidden; animation: detail-exit 180ms var(--transition-interactive) both; pointer-events: none; }
     .status-detail-row.is-placeholder {
       visibility: hidden;
       pointer-events: none;
@@ -1511,7 +1516,17 @@
       const cls = currentClass();
       if (!cls) return;
       const items = recentTrainingCache.get(recentTrainingRequestKey(cls.id, todayKey()));
-      if (items) renderRecentTrainingList(items);
+      if (!items || !els.recentTrainingList) return;
+      const buttons = [...els.recentTrainingList.querySelectorAll('[data-recent-training-date]')];
+      if (buttons.length !== items.length) {
+        renderRecentTrainingList(items);
+        return;
+      }
+      buttons.forEach(button => {
+        const isSelected = button.dataset.recentTrainingDate === selectedDateKey();
+        button.classList.toggle('is-selected', isSelected);
+        button.setAttribute('aria-pressed', String(isSelected));
+      });
     }
 
     function isCurrentClassDate(classId, dateKey) {
@@ -1871,14 +1886,18 @@
     }
 
     function selectClass(classId) {
+      const previousClassId = state.selectedClassId;
       state.selectedClassId = classId;
       persistState();
-      renderClassOptions();
+      if (els.classSelect) els.classSelect.value = classId;
+      els.classButtonList?.querySelectorAll('[data-class-id]').forEach(button => {
+        button.classList.toggle('active', button.dataset.classId === classId);
+      });
       renderTopSummary();
       refreshAttendance(state.selectedClassId, selectedDateKey(), { force: true }).catch(() => {
         showNotice('Não foi possível carregar as presenças desta classe.');
       });
-      if (els.screens.date?.classList.contains('active')) loadRecentTrainingStatus({ force: true });
+      if (els.screens.date?.classList.contains('active') && previousClassId !== classId) loadRecentTrainingStatus({ force: true });
     }
 
     function renderTopSummary() {
@@ -1967,6 +1986,30 @@
       els.absentCount.textContent = absent;
     }
 
+    function updateAttendanceDetail(card, name, status) {
+      const existingDetail = card.querySelector('[data-detail-row]');
+      const nextDetail = detailButtons(name, status);
+      const nextDetailKind = status.startsWith('late') ? 'late' : status.startsWith('absent') ? 'absent' : '';
+      if (existingDetail && nextDetail && existingDetail.dataset.detailRow === nextDetailKind) {
+        card.__detailUpdateId = (card.__detailUpdateId || 0) + 1;
+        existingDetail.outerHTML = nextDetail;
+        return;
+      }
+      const updateId = (card.__detailUpdateId || 0) + 1;
+      card.__detailUpdateId = updateId;
+      const applyUpdate = () => {
+        if (card.__detailUpdateId !== updateId) return;
+        card.querySelector('[data-detail-row]')?.remove();
+        if (nextDetail) card.insertAdjacentHTML('beforeend', nextDetail);
+      };
+      if (!existingDetail) {
+        if (nextDetail) card.insertAdjacentHTML('beforeend', nextDetail);
+        return;
+      }
+      existingDetail.classList.add('detail-exit');
+      window.setTimeout(applyUpdate, 180);
+    }
+
     function updateAttendanceRow(name) {
       const card = [...els.memberList.querySelectorAll('[data-member-name]')]
         .find(item => item.dataset.memberName === name);
@@ -1984,14 +2027,7 @@
       card.querySelector('.status-row [data-status="late"]')?.classList.toggle('active', status === 'late' || status.startsWith('late_'));
       card.querySelector('.status-row [data-status="absent"]')?.classList.toggle('active', status === 'absent' || status.startsWith('absent_'));
 
-      const existingDetail = card.querySelector('[data-detail-row]');
-      const nextDetail = detailButtons(name, status);
-      if (nextDetail) {
-        if (existingDetail) existingDetail.outerHTML = nextDetail;
-        else card.insertAdjacentHTML('beforeend', nextDetail);
-      } else if (existingDetail) {
-        existingDetail.remove();
-      }
+      updateAttendanceDetail(card, name, status);
       renderAttendanceCounts();
       renderTopSummary();
     }
@@ -2967,6 +3003,7 @@
         if (activeId === 'screen-classes') return switchScreen('class');
       });
       els.classSelect.addEventListener('change', event => {
+        pulseInteraction(event.currentTarget);
         selectClass(event.target.value);
       });
       els.classButtonList.addEventListener('click', event => {
