@@ -1341,7 +1341,7 @@
       photoApiUrl: '',
       selectedDate: todayKey(),
       theme: 'light',
-      classPickerMode: 'dropdown',
+      classPickerMode: 'buttons',
       classes: [],
       attendanceByDate: {},
       singleAttendanceIndex: 0,
@@ -1424,12 +1424,12 @@
     function loadState() {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, photoApiUrl: DEFAULT_PHOTO_API_URL, selectedDate: todayKey(), theme: 'light' };
+        if (!raw) return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, photoApiUrl: DEFAULT_PHOTO_API_URL, selectedDate: todayKey(), theme: 'light', classPickerMode: 'buttons' };
         const parsed = JSON.parse(raw);
         const savedWebhookUrl = isLegacyBackendUrl(parsed.webhookUrl) ? DEFAULT_BACKEND_URL : parsed.webhookUrl;
-        return { selectedClassId: parsed.selectedClassId || '', webhookUrl: savedWebhookUrl || DEFAULT_BACKEND_URL, photoApiUrl: parsed.photoApiUrl || DEFAULT_PHOTO_API_URL, selectedDate: parsed.selectedDate || new Date().toISOString().slice(0, 10), theme: parsed.theme === 'dark' ? 'dark' : 'light', classPickerMode: parsed.classPickerMode === 'buttons' ? 'buttons' : 'dropdown' };
+        return { selectedClassId: parsed.selectedClassId || '', webhookUrl: savedWebhookUrl || DEFAULT_BACKEND_URL, photoApiUrl: parsed.photoApiUrl || DEFAULT_PHOTO_API_URL, selectedDate: parsed.selectedDate || new Date().toISOString().slice(0, 10), theme: parsed.theme === 'dark' ? 'dark' : 'light', classPickerMode: parsed.classPickerMode === 'dropdown' ? 'dropdown' : 'buttons' };
       } catch {
-        return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, photoApiUrl: DEFAULT_PHOTO_API_URL, selectedDate: todayKey(), theme: 'light' };
+        return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, photoApiUrl: DEFAULT_PHOTO_API_URL, selectedDate: todayKey(), theme: 'light', classPickerMode: 'buttons' };
       }
     }
 
@@ -3173,7 +3173,7 @@
       state.photoApiUrl = prefs.photoApiUrl || DEFAULT_PHOTO_API_URL;
       state.selectedDate = prefs.selectedDate || todayKey();
       state.theme = prefs.theme === 'dark' ? 'dark' : 'light';
-      state.classPickerMode = prefs.classPickerMode === 'buttons' ? 'buttons' : 'dropdown';
+      state.classPickerMode = prefs.classPickerMode === 'dropdown' ? 'dropdown' : 'buttons';
       document.documentElement.classList.toggle('theme-dark', state.theme === 'dark');
       document.documentElement.classList.toggle('theme-light', state.theme !== 'dark');
       updateThemeControls(state.theme);
