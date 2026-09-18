@@ -1337,14 +1337,14 @@
     const DEFAULT_BACKEND_URL = 'https://attendance-pedro-data.pedrosill1944.workers.dev';
     const API_TIMEOUT_MS = 15000;
     const LEGACY_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbzWfzY9w2-Q3SiDZlTZP2H4ZZyKPmc70eCy-o_RhTs_kZ7_LrAUnVAtJBMrxX4OQ7r4Hw/exec';
-    const DEFAULT_PHOTO_API_URL = '';
+    const DEFAULT_PHOTO_API_URL = 'https://attendance-pedro-media.pedrosill1944.workers.dev';
     const APP_SHARE_URL = 'https://attendance-pedro.pedrosill1944.workers.dev/';
     const APP_SHARE_TITLE = 'Presenças de Ginástica';
     const APP_SHARE_TEXT = 'Abra a aplicação de presenças de ginástica.';
     let state = {
       selectedClassId: '',
       webhookUrl: '',
-      photoApiUrl: '',
+      photoApiUrl: DEFAULT_PHOTO_API_URL,
       selectedDate: todayKey(),
       theme: 'light',
       classPickerMode: 'buttons',

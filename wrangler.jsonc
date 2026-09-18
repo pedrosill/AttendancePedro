@@ -3,7 +3,8 @@
   "name": "attendance-pedro-media",
   "main": "photo-worker.js",
   "compatibility_date": "2026-09-17",
-  "workers_dev": false,
+  "workers_dev": true,
+  "preview_urls": false,
   "r2_buckets": [
     {
       "binding": "MEMBER_PHOTOS",
