@@ -18,9 +18,17 @@ function response(body, init, request, env) {
   return new Response(body, { ...init, headers });
 }
 
-function authorised(request, env) {
+async function authorised(request, env, ctx) {
   const allowedEmails = String(env.ACCESS_EMAILS || '').split(',').map(value => value.trim().toLowerCase()).filter(Boolean);
-  const email = String(request.headers.get('Cf-Access-Authenticated-User-Email') || '').trim().toLowerCase();
+  let email = String(request.headers.get('Cf-Access-Authenticated-User-Email') || '').trim().toLowerCase();
+  if (!email && ctx?.access?.getIdentity) {
+    try {
+      const identity = await ctx.access.getIdentity();
+      email = String(identity?.email || '').trim().toLowerCase();
+    } catch {
+      email = '';
+    }
+  }
   return allowedEmails.length > 0 && allowedEmails.includes(email);
 }
 
@@ -35,14 +43,14 @@ function isWebp(bytes) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') return response(null, { status: 204 }, request, env);
 
     const ids = photoIds(new URL(request.url).pathname);
     if (!ids) return response(JSON.stringify({ ok: false, error: 'Not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } }, request, env);
 
     // This Worker must be served only through a Cloudflare Access protected route.
-    if (!authorised(request, env)) return response(JSON.stringify({ ok: false, error: 'Access denied' }), { status: 403, headers: { 'Content-Type': 'application/json' } }, request, env);
+    if (!(await authorised(request, env, ctx))) return response(JSON.stringify({ ok: false, error: 'Access denied' }), { status: 403, headers: { 'Content-Type': 'application/json' } }, request, env);
 
     const key = `photos/${ids.classId}/${ids.memberId}.webp`;
     if (request.method === 'GET') {
