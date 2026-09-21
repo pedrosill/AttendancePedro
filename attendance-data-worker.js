@@ -1,12 +1,17 @@
 const STATE_KEY = 'state';
 const STATE_SYNC_KEY = 'state:last-sync';
-const CACHE_MAX_AGE_MS = 60 * 1000;
+// The D1 database is the fast source of truth. Sheets is refreshed in the
+// background, so a five-minute refresh window avoids rewriting unchanged
+// cache rows on every active screen request.
+const CACHE_MAX_AGE_MS = 5 * 60 * 1000;
 const MAX_OUTBOX_BATCH = 10;
 const OUTBOX_LOCK_MS = 60 * 1000;
 const MAX_OUTBOX_BACKOFF_MS = 15 * 60 * 1000;
 const MUTATION_LOCK_MS = 30 * 1000;
 const SHEETS_TIMEOUT_MS = 15 * 1000;
 let activeFlush = null;
+let activeStateRefresh = null;
+const activeReadRefreshes = new Map();
 
 function corsHeaders(request, env) {
   const origin = request.headers.get('Origin') || '';
@@ -89,6 +94,44 @@ function normaliseState(value) {
   };
 }
 
+function stableJson(value) {
+  if (Array.isArray(value)) return '[' + value.map(stableJson).join(',') + ']';
+  if (value && typeof value === 'object') {
+    return '{' + Object.keys(value).sort().map(key => JSON.stringify(key) + ':' + stableJson(value[key])).join(',') + '}';
+  }
+  return JSON.stringify(value);
+}
+
+function stateFingerprint(value) {
+  const state = normaliseState(value);
+  return stableJson({
+    classes: state.classes
+      .map(cls => ({
+        id: cls.id,
+        name: cls.name,
+        trainingDays: cls.trainingDays,
+        seasonStart: cls.seasonStart,
+        members: cls.memberProfiles.map(profile => ({
+          id: profile.id,
+          name: profile.name,
+          photoKey: profile.photoKey,
+          photoVersion: profile.photoVersion
+        }))
+      }))
+      .sort((left, right) => left.id.localeCompare(right.id))
+  });
+}
+
+function attendanceFingerprint(value) {
+  const attendance = normaliseAttendanceResult(value) || {};
+  return stableJson({
+    classId: attendance.classId || '',
+    className: attendance.className || '',
+    date: attendance.date || '',
+    members: Array.isArray(attendance.members) ? attendance.members : []
+  });
+}
+
 function classNameKey(value) {
   return String(value || '').trim().toLocaleLowerCase('pt-PT');
 }
@@ -130,6 +173,7 @@ async function readCoreState(env) {
 
 async function writeCoreState(env, value) {
   const state = normaliseState(value);
+  if (stateFingerprint(await readCoreState(env)) === stateFingerprint(state)) return false;
   const classIds = state.classes.map(item => item.id);
   const statements = [];
   if (classIds.length) {
@@ -159,6 +203,9 @@ async function writeCoreState(env, value) {
 
 async function writeClassCore(env, value) {
   const cls = normaliseClass(value);
+  const currentState = await readCoreState(env);
+  const current = findClass(currentState, cls.id);
+  if (current && stateFingerprint({ classes: [current] }) === stateFingerprint({ classes: [cls] })) return false;
   const statements = [env.DB.prepare(`INSERT INTO classes_core (id, name, name_key, training_days_json, season_start, version, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET name = excluded.name, name_key = excluded.name_key,
@@ -223,6 +270,8 @@ async function readAttendanceCore(env, classId, date) {
 
 async function writeAttendanceCore(env, value) {
   const attendance = normaliseAttendanceResult(value);
+  const current = await readAttendanceCore(env, attendance.classId, attendance.date);
+  if (current && attendanceFingerprint(current) === attendanceFingerprint(attendance)) return current;
   await env.DB.prepare(`INSERT INTO attendance_core (class_id, date_key, class_name, members_json, operation_id, updated_at)
     VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(class_id, date_key) DO UPDATE SET class_name = excluded.class_name,
@@ -238,8 +287,12 @@ async function readValue(env, key) {
 }
 
 async function writeValue(env, key, value) {
+  const serialised = JSON.stringify(value);
+  const current = await env.DB.prepare('SELECT value FROM kv WHERE key = ?').bind(key).first();
+  if (current?.value === serialised) return false;
   await env.DB.prepare('INSERT INTO kv (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at')
-    .bind(key, JSON.stringify(value), now()).run();
+    .bind(key, serialised, now()).run();
+  return true;
 }
 
 async function ensureCoreState(env) {
@@ -293,16 +346,28 @@ async function getOrBootstrapState(env) {
   return cached || importStateFromSheets(env, true);
 }
 
-async function refreshStateInBackground(env) {
-  let lock;
-  try {
-    lock = await acquireMutationLock(env, 'state');
-    await importStateFromSheets(env);
+async function needsStateRefresh(env) {
+  const pending = await env.DB.prepare('SELECT COUNT(*) AS count FROM outbox').first();
+  if (Number(pending?.count || 0) > 0) return false;
+  const lastSync = await readValue(env, STATE_SYNC_KEY);
+  return !lastSync || now() - Number(lastSync) >= CACHE_MAX_AGE_MS;
+}
+
+function refreshStateInBackground(env) {
+  if (activeStateRefresh) return activeStateRefresh;
+  activeStateRefresh = (async () => {
+    if (!(await needsStateRefresh(env))) return;
+    let lock;
+    try {
+      lock = await acquireMutationLock(env, 'state');
+      await importStateFromSheets(env);
   } catch (error) {
     console.error('Background state sync failed:', error);
-  } finally {
-    await releaseMutationLock(env, lock);
-  }
+    } finally {
+      await releaseMutationLock(env, lock);
+    }
+  })().finally(() => { activeStateRefresh = null; });
+  return activeStateRefresh;
 }
 
 function findClass(state, classId) {
@@ -408,6 +473,10 @@ async function claimOutboxRow(env) {
 }
 
 async function flushOutbox(env) {
+  const initial = await env.DB.prepare('SELECT COUNT(*) AS count FROM outbox').first();
+  if (Number(initial?.count || 0) === 0) return;
+  let successCount = 0;
+  let lastError = '';
   for (let index = 0; index < MAX_OUTBOX_BATCH; index += 1) {
     const row = await claimOutboxRow(env);
     if (!row) break;
@@ -418,19 +487,25 @@ async function flushOutbox(env) {
         body: row.payload
       });
       await env.DB.prepare('DELETE FROM outbox WHERE id = ? AND lock_token = ?').bind(row.id, row.lockToken).run();
-      await writeSyncStatus(env, { lastSuccessAt: now(), lastError: '' });
+      successCount += 1;
     } catch (error) {
       const attempts = Number(row.attempts || 0) + 1;
       const retryDelay = Math.min(1000 * (2 ** Math.min(attempts, 10)), MAX_OUTBOX_BACKOFF_MS);
       await env.DB.prepare('UPDATE outbox SET attempts = ?, last_error = ?, next_attempt_at = ?, locked_until = NULL, lock_token = NULL WHERE id = ? AND lock_token = ?')
         .bind(attempts, String(error), now() + retryDelay, row.id, row.lockToken).run();
-      await writeSyncStatus(env, { lastError: String(error) });
+      lastError = String(error);
       console.error('Background Sheets write failed:', error);
       break;
     }
   }
+  if (successCount || lastError) {
+    await writeSyncStatus(env, {
+      lastSuccessAt: successCount ? now() : undefined,
+      lastError: lastError || ''
+    });
+  }
   const remaining = await env.DB.prepare('SELECT COUNT(*) AS count FROM outbox').first();
-  if (Number(remaining?.count || 0) === 0) await refreshStateInBackground(env);
+  if (successCount && Number(remaining?.count || 0) === 0) await refreshStateInBackground(env);
 }
 
 function scheduleFlush(env) {
@@ -450,11 +525,15 @@ async function queueSheetsWrite(env, payload) {
 
 async function writeSyncStatus(env, values) {
   const current = await env.DB.prepare('SELECT last_success_at, last_error FROM sync_status WHERE id = 1').first();
+  const lastSuccessAt = values.lastSuccessAt ?? current?.last_success_at ?? null;
+  const lastError = values.lastError ?? current?.last_error ?? '';
+  if (Number(lastSuccessAt || 0) === Number(current?.last_success_at || 0) && lastError === (current?.last_error || '')) return false;
   await env.DB.prepare(`INSERT INTO sync_status (id, last_success_at, last_error, updated_at)
     VALUES (1, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET last_success_at = excluded.last_success_at,
     last_error = excluded.last_error, updated_at = excluded.updated_at`)
-    .bind(values.lastSuccessAt ?? current?.last_success_at ?? null, values.lastError ?? current?.last_error ?? '', now()).run();
+    .bind(lastSuccessAt, lastError, now()).run();
+  return true;
 }
 
 async function readSyncStatus(env) {
@@ -512,20 +591,26 @@ async function invalidateAllAttendanceCaches(env) {
   await deleteCacheKeys(env, ['attendance:', 'recent:', 'sync:attendance:', 'sync:recent:']);
 }
 
-async function refreshReadCacheInBackground(env, action, query, cacheKey) {
-  try {
-    const pending = await env.DB.prepare('SELECT COUNT(*) AS count FROM outbox').first();
-    if (Number(pending?.count || 0) > 0) return;
-    const syncKey = 'sync:' + cacheKey;
-    const lastSync = await readValue(env, syncKey);
-    if (lastSync && now() - Number(lastSync) < CACHE_MAX_AGE_MS) return;
-    const result = await importAttendance(env, action, query);
-    if (action === 'attendance') await writeAttendanceCore(env, result);
-    await writeValue(env, cacheKey, result);
-    await writeValue(env, syncKey, now());
-  } catch (error) {
-    console.error('Background attendance sync failed:', error);
-  }
+function refreshReadCacheInBackground(env, action, query, cacheKey) {
+  const refreshKey = action + ':' + cacheKey;
+  if (activeReadRefreshes.has(refreshKey)) return activeReadRefreshes.get(refreshKey);
+  const promise = (async () => {
+    try {
+      const pending = await env.DB.prepare('SELECT COUNT(*) AS count FROM outbox').first();
+      if (Number(pending?.count || 0) > 0) return;
+      const syncKey = 'sync:' + cacheKey;
+      const lastSync = await readValue(env, syncKey);
+      if (lastSync && now() - Number(lastSync) < CACHE_MAX_AGE_MS) return;
+      const result = await importAttendance(env, action, query);
+      if (action === 'attendance') await writeAttendanceCore(env, result);
+      await writeValue(env, cacheKey, result);
+      await writeValue(env, syncKey, now());
+    } catch (error) {
+      console.error('Background attendance sync failed:', error);
+    }
+  })().finally(() => { activeReadRefreshes.delete(refreshKey); });
+  activeReadRefreshes.set(refreshKey, promise);
+  return promise;
 }
 
 async function handleGet(request, env, ctx) {
@@ -610,6 +695,9 @@ async function handlePost(request, env, ctx) {
         filled: true,
         operationId
       };
+      if (previousAttendance && attendanceFingerprint(previousAttendance) === attendanceFingerprint(attendance)) {
+        return jsonResponse({ ok: true, attendance: previousAttendance, unchanged: true }, 200, request, env);
+      }
       await invalidateClassCaches(env, classId);
       await writeAttendanceCore(env, attendance);
       await writeValue(env, 'attendance:' + classId + ':' + date, attendance);
@@ -620,6 +708,9 @@ async function handlePost(request, env, ctx) {
 
     const mutation = applyClassMutation(current, payload);
     if (!mutation.result.ok) return jsonResponse(mutation.result, 400, request, env);
+    if (stateFingerprint(current) === stateFingerprint(mutation.state)) {
+      return jsonResponse({ ...mutation.result, unchanged: true }, 200, request, env);
+    }
     if (action === 'saveClasses') await invalidateAllAttendanceCaches(env);
     else await invalidateClassCaches(env, classId);
     if (action === 'saveClasses') await writeState(env, mutation.state);
