@@ -554,6 +554,9 @@
     .member-photo-preview .member-avatar { width: 72px; height: 72px; }
     .member-photo-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
     .photo-file-input { width: 100%; min-height: 44px; }
+    .photo-upload-progress { display: grid; gap: var(--space-2); }
+    .photo-upload-progress progress { width: 100%; height: 0.65rem; accent-color: var(--class-accent, var(--color-primary)); }
+    .photo-upload-progress[hidden] { display: none; }
     .photo-dialog-backdrop {
       position: fixed;
       inset: 0;
@@ -1269,6 +1272,10 @@
             <label for="memberPhotoInput">Fotografia</label>
             <input id="memberPhotoInput" class="photo-file-input" type="file" accept="image/jpeg,image/png,image/webp" capture="user" />
           </div>
+          <div class="photo-upload-progress" id="memberPhotoUploadProgress" hidden aria-live="polite">
+            <span class="tiny" id="memberPhotoUploadProgressLabel">A preparar fotografia...</span>
+            <progress id="memberPhotoUploadProgressBar" max="100" value="0"></progress>
+          </div>
           <div id="memberPhotoPreview" class="member-photo-preview" hidden>
             <img class="member-avatar" id="memberPhotoPreviewImage" src="assets/avatars/example-1.png" alt="Pré-visualização da fotografia" />
             <button class="ghost-btn" type="button" id="clearMemberPhotoBtn">Remover fotografia</button>
@@ -1328,6 +1335,10 @@
         <button class="primary-btn" type="button" id="chooseDialogMemberPhotoBtn">Adicionar fotografia</button>
         <button class="ghost-btn" type="button" id="clearDialogMemberPhotoBtn" hidden>Remover fotografia</button>
         <input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp" id="dialogMemberPhotoInput" />
+        <div class="photo-upload-progress" id="dialogPhotoUploadProgress" hidden aria-live="polite">
+          <span class="tiny" id="dialogPhotoUploadProgressLabel">A preparar fotografia...</span>
+          <progress id="dialogPhotoUploadProgressBar" max="100" value="0"></progress>
+        </div>
       </div>
     </div>
   </div>
@@ -1401,6 +1412,9 @@
       memberPhotoInput: document.getElementById('memberPhotoInput'),
       memberPhotoPreview: document.getElementById('memberPhotoPreview'),
       memberPhotoPreviewImage: document.getElementById('memberPhotoPreviewImage'),
+      memberPhotoUploadProgress: document.getElementById('memberPhotoUploadProgress'),
+      memberPhotoUploadProgressLabel: document.getElementById('memberPhotoUploadProgressLabel'),
+      memberPhotoUploadProgressBar: document.getElementById('memberPhotoUploadProgressBar'),
       singleMemberAvatar: document.getElementById('singleMemberAvatar'),
       singleMemberAvatarTrigger: document.getElementById('singleMemberAvatarTrigger'),
       memberPhotoDialog: document.getElementById('memberPhotoDialog'),
@@ -1408,6 +1422,9 @@
       memberPhotoDialogImage: document.getElementById('memberPhotoDialogImage'),
       memberPhotoDialogName: document.getElementById('memberPhotoDialogName'),
       memberPhotoDialogActions: document.getElementById('memberPhotoDialogActions'),
+      dialogPhotoUploadProgress: document.getElementById('dialogPhotoUploadProgress'),
+      dialogPhotoUploadProgressLabel: document.getElementById('dialogPhotoUploadProgressLabel'),
+      dialogPhotoUploadProgressBar: document.getElementById('dialogPhotoUploadProgressBar'),
       chooseDialogMemberPhotoBtn: document.getElementById('chooseDialogMemberPhotoBtn'),
       clearDialogMemberPhotoBtn: document.getElementById('clearDialogMemberPhotoBtn'),
       dialogMemberPhotoInput: document.getElementById('dialogMemberPhotoInput'),
@@ -2308,20 +2325,67 @@
       }
     }
 
+    function setPhotoUploadProgress(percent, label, visible = true) {
+      const value = Math.max(0, Math.min(100, Math.round(percent)));
+      [
+        [els.memberPhotoUploadProgress, els.memberPhotoUploadProgressLabel, els.memberPhotoUploadProgressBar],
+        [els.dialogPhotoUploadProgress, els.dialogPhotoUploadProgressLabel, els.dialogPhotoUploadProgressBar]
+      ].forEach(([panel, text, bar]) => {
+        if (!panel) return;
+        panel.hidden = !visible;
+        if (text) text.textContent = label;
+        if (bar) bar.value = value;
+      });
+      if (els.chooseDialogMemberPhotoBtn) els.chooseDialogMemberPhotoBtn.disabled = visible;
+      if (els.clearDialogMemberPhotoBtn) els.clearDialogMemberPhotoBtn.disabled = visible;
+    }
+
+    function uploadWebpWithProgress(url, image, onProgress) {
+      return new Promise((resolve, reject) => {
+        const request = new XMLHttpRequest();
+        request.open('POST', url, true);
+        request.withCredentials = true;
+        request.setRequestHeader('Content-Type', 'text/plain;charset=UTF-8');
+        request.upload.addEventListener('progress', event => {
+          if (event.lengthComputable) onProgress((event.loaded / event.total) * 100);
+        });
+        request.onerror = () => reject(new Error('Não foi possível ligar ao servidor de fotografias. Confirma o login do Cloudflare Access neste dispositivo.'));
+        request.ontimeout = () => reject(new Error('O envio da fotografia demorou demasiado tempo.'));
+        request.timeout = API_TIMEOUT_MS;
+        request.onload = () => {
+          let result;
+          try {
+            result = JSON.parse(request.responseText || '{}');
+          } catch {
+            reject(new Error('O servidor de fotografias pediu autenticação. Abre o URL das fotografias e inicia sessão no Cloudflare Access.'));
+            return;
+          }
+          if (request.status < 200 || request.status >= 300 || !result.ok) {
+            reject(new Error(result.error || 'Não foi possível enviar a fotografia.'));
+            return;
+          }
+          resolve(result);
+        };
+        request.send(image);
+      });
+    }
+
     async function uploadMemberPhoto(classId, profile, file) {
       if (!state.photoApiUrl) throw new Error('Configure o URL do servidor de fotografias nas definições.');
-      const image = await fileToWebp(file);
-      const response = await fetch(`${state.photoApiUrl.replace(/\/$/, '')}/photos/${encodeURIComponent(classId)}/${encodeURIComponent(profile.id)}`, {
-        // POST with a safelisted content type avoids a CORS preflight, which
-        // Cloudflare Access may reject before the authenticated request.
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-        body: image
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result.ok) throw new Error(result.error || 'Não foi possível enviar a fotografia.');
-      return { ...profile, photoKey: result.photoKey, photoVersion: Date.now() };
+      setPhotoUploadProgress(0, 'A preparar fotografia...');
+      try {
+        const image = await fileToWebp(file);
+        setPhotoUploadProgress(0, 'A enviar fotografia...');
+        const result = await uploadWebpWithProgress(
+          `${state.photoApiUrl.replace(/\/$/, '')}/photos/${encodeURIComponent(classId)}/${encodeURIComponent(profile.id)}`,
+          image,
+          percent => setPhotoUploadProgress(percent, `A enviar fotografia... ${Math.round(percent)}%`)
+        );
+        setPhotoUploadProgress(100, 'Fotografia enviada.');
+        return { ...profile, photoKey: result.photoKey, photoVersion: Date.now() };
+      } finally {
+        setPhotoUploadProgress(0, '', false);
+      }
     }
 
     async function deleteMemberPhoto(classId, profile) {
