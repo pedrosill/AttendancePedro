@@ -1666,7 +1666,7 @@
     function memberAvatarMarkup(cls, name, options = {}) {
       const extraClass = options.large ? ' member-avatar-large' : '';
       const loading = options.eager ? 'eager' : 'lazy';
-      const image = '<img class="member-avatar' + extraClass + '" src="' + escapeAttr(memberPhotoUrl(cls, name)) + '" alt="Retrato de ' + escapeAttr(name) + '" loading="' + loading + '" crossorigin="use-credentials" />';
+      const image = '<img class="member-avatar' + extraClass + '" src="' + escapeAttr(memberPhotoUrl(cls, name)) + '" alt="Retrato de ' + escapeAttr(name) + '" loading="' + loading + '" />';
       if (!options.expandable) return image;
       const profile = memberProfile(cls, name);
       return '<button class="member-avatar-trigger" type="button" data-open-member-photo="' + escapeAttr(profile.id) + '" data-member-photo-name="' + escapeAttr(name) + '" aria-label="Ampliar fotografia de ' + escapeAttr(name) + '">' + image + '</button>';
