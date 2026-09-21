@@ -1666,7 +1666,7 @@
     function memberAvatarMarkup(cls, name, options = {}) {
       const extraClass = options.large ? ' member-avatar-large' : '';
       const loading = options.eager ? 'eager' : 'lazy';
-      const image = '<img class="member-avatar' + extraClass + '" src="' + escapeAttr(memberPhotoUrl(cls, name)) + '" alt="Retrato de ' + escapeAttr(name) + '" loading="' + loading + '" />';
+      const image = '<img class="member-avatar' + extraClass + '" src="' + escapeAttr(memberPhotoUrl(cls, name)) + '" alt="Retrato de ' + escapeAttr(name) + '" loading="' + loading + '" crossorigin="use-credentials" />';
       if (!options.expandable) return image;
       const profile = memberProfile(cls, name);
       return '<button class="member-avatar-trigger" type="button" data-open-member-photo="' + escapeAttr(profile.id) + '" data-member-photo-name="' + escapeAttr(name) + '" aria-label="Ampliar fotografia de ' + escapeAttr(name) + '">' + image + '</button>';
@@ -2312,9 +2312,11 @@
       if (!state.photoApiUrl) throw new Error('Configure o URL do servidor de fotografias nas definições.');
       const image = await fileToWebp(file);
       const response = await fetch(`${state.photoApiUrl.replace(/\/$/, '')}/photos/${encodeURIComponent(classId)}/${encodeURIComponent(profile.id)}`, {
-        method: 'PUT',
+        // POST with a safelisted content type avoids a CORS preflight, which
+        // Cloudflare Access may reject before the authenticated request.
+        method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'image/webp' },
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
         body: image
       });
       const result = await response.json().catch(() => ({}));
@@ -2324,8 +2326,8 @@
 
     async function deleteMemberPhoto(classId, profile) {
       if (!profile?.photoKey || profile.photoKey.startsWith('assets/') || !state.photoApiUrl) return;
-      const response = await fetch(`${state.photoApiUrl.replace(/\/$/, '')}/photos/${encodeURIComponent(classId)}/${encodeURIComponent(profile.id)}`, {
-        method: 'DELETE',
+      const response = await fetch(`${state.photoApiUrl.replace(/\/$/, '')}/photos/${encodeURIComponent(classId)}/${encodeURIComponent(profile.id)}?action=delete`, {
+        method: 'POST',
         credentials: 'include'
       });
       if (!response.ok) throw new Error('Não foi possível remover a fotografia.');

@@ -66,8 +66,10 @@ export default {
       }, request, env);
     }
 
-    if (request.method === 'PUT') {
-      if (request.headers.get('Content-Type') !== 'image/webp') {
+    const action = new URL(request.url).searchParams.get('action');
+    if (request.method === 'PUT' || (request.method === 'POST' && action !== 'delete')) {
+      const contentType = String(request.headers.get('Content-Type') || '').split(';')[0].toLowerCase();
+      if (contentType !== 'image/webp' && contentType !== 'text/plain') {
         return response(JSON.stringify({ ok: false, error: 'Only WebP images are accepted' }), { status: 415, headers: { 'Content-Type': 'application/json' } }, request, env);
       }
       const image = await request.arrayBuffer();
@@ -78,7 +80,7 @@ export default {
       return response(JSON.stringify({ ok: true, photoKey: key }), { status: 201, headers: { 'Content-Type': 'application/json' } }, request, env);
     }
 
-    if (request.method === 'DELETE') {
+    if (request.method === 'DELETE' || (request.method === 'POST' && action === 'delete')) {
       await env.MEMBER_PHOTOS.delete(key);
       return response(JSON.stringify({ ok: true }), { status: 200, headers: { 'Content-Type': 'application/json' } }, request, env);
     }
