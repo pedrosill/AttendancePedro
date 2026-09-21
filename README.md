@@ -123,7 +123,7 @@ Fotografias próprias são convertidas no browser para WebP quadrado com, no má
 2. Criar uma aplicação Cloudflare Access para o domínio do Worker e permitir apenas os emails dos treinadores.
 3. Atualizar `ALLOWED_ORIGIN` e `ACCESS_EMAILS` em [wrangler.jsonc](wrangler.jsonc). Usar o domínio final sem `/` no fim.
 4. Configurar uma rota personalizada protegida por Access. `workers_dev` está desativado para impedir acesso não protegido pelo domínio `workers.dev`.
-5. Executar `npx wrangler deploy`.
+5. Executar `npx wrangler deploy --config .\wrangler.jsonc` ou, preferencialmente, usar `.\Deploy-AttendanceApp.ps1`, que valida os nomes dos três Workers antes de publicar.
 6. Na app, abrir `Definições` → `Editar script`, inserir o URL do Worker em `URL do servidor de fotografias` e guardar.
 
 O Worker rejeita pedidos sem email autorizado, tipos que não sejam WebP e imagens acima de 1 MB. As fotos são entregues com cache privada. Como o controlo de acesso depende do Cloudflare Access, não publique nem ative um endpoint público do bucket.
