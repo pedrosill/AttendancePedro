@@ -96,3 +96,23 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: wrangler deploy --config static-wrangler.jsonc
+
+      - name: Verify production endpoints
+        shell: bash
+        run: |
+          for attempt in {1..12}; do
+            app_status=$(curl -sS -o /tmp/attendance-index.html -w '%{http_code}' https://attendance-pedro.pedrosill1944.workers.dev/ || true)
+            cors_status=$(curl -sS -o /dev/null -w '%{http_code}' -X OPTIONS \
+              -H 'Origin: https://attendance-pedro.pedrosill1944.workers.dev' \
+              -H 'Access-Control-Request-Method: GET' \
+              -H 'Access-Control-Request-Headers: authorization' \
+              'https://attendance-pedro-data.pedrosill1944.workers.dev/?action=bootstrap' || true)
+            if [ "$app_status" = '200' ] && grep -q 'Presenças de Ginástica' /tmp/attendance-index.html && [ "$cors_status" = '204' ]; then
+              echo 'App pública e preflight CORS confirmados.'
+              exit 0
+            fi
+            echo "A aguardar propagação (tentativa $attempt/12): app=$app_status cors=$cors_status"
+            sleep 5
+          done
+          echo 'A app pública ou o preflight CORS não ficaram disponíveis.' >&2
+          exit 1
