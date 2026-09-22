@@ -60,7 +60,7 @@ O frontend comunica com o Worker D1. O Worker usa o URL `/exec` da implementaç�
 
 As gravações são protegidas por `LockService` para evitar que duas gravações simultâneas criem a mesma data duas vezes.
 
-O Worker aceita POSTs apenas da origem pública configurada em `ALLOWED_ORIGIN`. Isto reduz pedidos cross-site, mas não substitui autenticação. Antes de disponibilizar a app fora do grupo de treinadores, proteger o endpoint D1 com Cloudflare Access num domínio próprio ou acrescentar uma autenticação equivalente.
+O Worker aceita pedidos apenas da origem pública configurada em `ALLOWED_ORIGIN` e exige um token assinado emitido depois da validação do PIN da app. A sessão fica válida durante 30 dias nesse dispositivo.
 
 ## Optimização e preservação de dados
 
@@ -120,13 +120,12 @@ Fotografias próprias são convertidas no browser para WebP quadrado com, no má
 ### Configurar R2 e o Worker
 
 1. No Cloudflare, criar o bucket R2 privado `attendance-pedro-member-photos`.
-2. Criar uma aplicação Cloudflare Access para o domínio do Worker e permitir apenas os emails dos treinadores.
-3. Atualizar `ALLOWED_ORIGIN` e `ACCESS_EMAILS` em [wrangler.jsonc](wrangler.jsonc). Usar o domínio final sem `/` no fim.
-4. Configurar uma rota personalizada protegida por Access. `workers_dev` está desativado para impedir acesso não protegido pelo domínio `workers.dev`.
+2. Atualizar `ALLOWED_ORIGIN` em [wrangler.jsonc](wrangler.jsonc). O acesso às fotografias usa o PIN da app, não Cloudflare Access.
+3. Configurar os secrets `APP_AUTH_SECRET` no Worker D1 e no Worker de fotografias, e `APP_PIN` no Worker D1.
 5. Executar `npx wrangler deploy --config .\wrangler.jsonc` ou, preferencialmente, usar `.\Deploy-AttendanceApp.ps1`, que valida os nomes dos três Workers antes de publicar.
-6. Na app, abrir `Definições` → `Editar script`, inserir o URL do Worker em `URL do servidor de fotografias` e guardar.
+6. Na app, abrir `Definições` → `Editar script`, inserir `https://attendance-pedro-media-public.pedrosill1944.workers.dev` em `URL do servidor de fotografias` e guardar.
 
-O Worker rejeita pedidos sem email autorizado, tipos que não sejam WebP e imagens acima de 1 MB. As fotos são entregues com cache privada. Como o controlo de acesso depende do Cloudflare Access, não publique nem ative um endpoint público do bucket.
+O Worker rejeita pedidos sem token válido, tipos que não sejam WebP e imagens acima de 1 MB. As fotos são entregues com cache privada; o bucket R2 continua privado.
 
 Antes de usar fotos reais, confirmar consentimento dos encarregados de educação e uma política de remoção. Ao remover um membro na app, a respetiva fotografia própria é também eliminada do Worker.
 

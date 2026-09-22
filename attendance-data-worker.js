@@ -4,6 +4,7 @@ const STATE_SYNC_KEY = 'state:last-sync';
 // background, so a five-minute refresh window avoids rewriting unchanged
 // cache rows on every active screen request.
 const CACHE_MAX_AGE_MS = 5 * 60 * 1000;
+const AUTH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_OUTBOX_BATCH = 10;
 const OUTBOX_LOCK_MS = 60 * 1000;
 const MAX_OUTBOX_BACKOFF_MS = 15 * 60 * 1000;
@@ -19,7 +20,7 @@ function corsHeaders(request, env) {
   return {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Credentials': 'true',
     Vary: 'Origin'
   };
@@ -33,6 +34,50 @@ function jsonResponse(body, status, request, env) {
 
 function now() { return Date.now(); }
 function id() { return crypto.randomUUID(); }
+
+function base64UrlEncode(bytes) {
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function base64UrlDecode(value) {
+  const text = String(value || '');
+  const padded = text.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((text.length + 3) % 4);
+  const binary = atob(padded);
+  return Uint8Array.from(binary, char => char.charCodeAt(0));
+}
+
+async function authKey(env) {
+  if (!env.APP_AUTH_SECRET) throw new Error('APP_AUTH_SECRET não configurado');
+  return crypto.subtle.importKey('raw', new TextEncoder().encode(env.APP_AUTH_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);
+}
+
+async function createAuthToken(env) {
+  const expiresAt = now() + AUTH_TOKEN_TTL_MS;
+  const payload = base64UrlEncode(new TextEncoder().encode(JSON.stringify({ version: 1, expiresAt })));
+  const signature = await crypto.subtle.sign('HMAC', await authKey(env), new TextEncoder().encode(payload));
+  return { token: `${payload}.${base64UrlEncode(new Uint8Array(signature))}`, expiresAt };
+}
+
+async function verifyAuthToken(token, env) {
+  try {
+    const [payload, signature] = String(token || '').split('.');
+    if (!payload || !signature) return false;
+    const valid = await crypto.subtle.verify('HMAC', await authKey(env), base64UrlDecode(signature), new TextEncoder().encode(payload));
+    if (!valid) return false;
+    const details = JSON.parse(new TextDecoder().decode(base64UrlDecode(payload)));
+    return Number(details.expiresAt || 0) > now();
+  } catch {
+    return false;
+  }
+}
+
+async function requireAuth(request, env) {
+  const authorization = request.headers.get('Authorization') || '';
+  const token = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
+  return verifyAuthToken(token, env);
+}
 
 async function fetchWithTimeout(url, init = {}, timeout = SHEETS_TIMEOUT_MS) {
   const controller = new AbortController();
@@ -614,6 +659,7 @@ function refreshReadCacheInBackground(env, action, query, cacheKey) {
 }
 
 async function handleGet(request, env, ctx) {
+  if (!(await requireAuth(request, env))) return jsonResponse({ ok: false, error: 'Authentication required' }, 401, request, env);
   const url = new URL(request.url);
   const action = url.searchParams.get('action') || 'state';
   if (action === 'syncStatus') return jsonResponse(await readSyncStatus(env), 200, request, env);
@@ -662,6 +708,13 @@ async function handleGet(request, env, ctx) {
 async function handlePost(request, env, ctx) {
   const payload = await request.json();
   const action = String(payload.action || '');
+  if (action === 'login') {
+    if (!env.APP_PIN || String(payload.pin || '') !== String(env.APP_PIN)) {
+      return jsonResponse({ ok: false, error: 'PIN inválido' }, 401, request, env);
+    }
+    return jsonResponse({ ok: true, ...(await createAuthToken(env)) }, 200, request, env);
+  }
+  if (!(await requireAuth(request, env))) return jsonResponse({ ok: false, error: 'Authentication required' }, 401, request, env);
   if (!['saveClasses', 'saveClass', 'addMember', 'removeMember', 'removeClass', 'saveAttendance'].includes(action)) {
     return jsonResponse({ ok: false, error: 'Unknown action' }, 400, request, env);
   }

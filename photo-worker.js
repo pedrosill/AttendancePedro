@@ -1,13 +1,41 @@
 const MAX_IMAGE_BYTES = 1024 * 1024;
 
+function base64UrlDecode(value) {
+  const text = String(value || '');
+  const padded = text.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((text.length + 3) % 4);
+  const binary = atob(padded);
+  return Uint8Array.from(binary, char => char.charCodeAt(0));
+}
+
+async function authKey(env) {
+  if (!env.APP_AUTH_SECRET) throw new Error('APP_AUTH_SECRET not configured');
+  return crypto.subtle.importKey('raw', new TextEncoder().encode(env.APP_AUTH_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+}
+
+async function authenticated(request, env) {
+  try {
+    const authorization = request.headers.get('Authorization') || '';
+    const token = authorization.startsWith('Bearer ')
+      ? authorization.slice(7).trim()
+      : new URL(request.url).searchParams.get('token');
+    const [payload, signature] = String(token || '').split('.');
+    if (!payload || !signature) return false;
+    const valid = await crypto.subtle.verify('HMAC', await authKey(env), base64UrlDecode(signature), new TextEncoder().encode(payload));
+    if (!valid) return false;
+    const details = JSON.parse(new TextDecoder().decode(base64UrlDecode(payload)));
+    return Number(details.expiresAt || 0) > Date.now();
+  } catch {
+    return false;
+  }
+}
+
 function corsHeaders(request, env) {
   const origin = request.headers.get('Origin') || '';
   if (!origin || origin !== env.ALLOWED_ORIGIN) return {};
   return {
     'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Methods': 'GET, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     Vary: 'Origin'
   };
 }
@@ -16,20 +44,6 @@ function response(body, init, request, env) {
   const headers = new Headers(init && init.headers);
   Object.entries(corsHeaders(request, env)).forEach(([key, value]) => headers.set(key, value));
   return new Response(body, { ...init, headers });
-}
-
-async function authorised(request, env, ctx) {
-  const allowedEmails = String(env.ACCESS_EMAILS || '').split(',').map(value => value.trim().toLowerCase()).filter(Boolean);
-  let email = String(request.headers.get('Cf-Access-Authenticated-User-Email') || '').trim().toLowerCase();
-  if (!email && ctx?.access?.getIdentity) {
-    try {
-      const identity = await ctx.access.getIdentity();
-      email = String(identity?.email || '').trim().toLowerCase();
-    } catch {
-      email = '';
-    }
-  }
-  return allowedEmails.length > 0 && allowedEmails.includes(email);
 }
 
 function photoIds(pathname) {
@@ -49,8 +63,7 @@ export default {
     const ids = photoIds(new URL(request.url).pathname);
     if (!ids) return response(JSON.stringify({ ok: false, error: 'Not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } }, request, env);
 
-    // This Worker must be served only through a Cloudflare Access protected route.
-    if (!(await authorised(request, env, ctx))) return response(JSON.stringify({ ok: false, error: 'Access denied' }), { status: 403, headers: { 'Content-Type': 'application/json' } }, request, env);
+    if (!(await authenticated(request, env))) return response(JSON.stringify({ ok: false, error: 'Authentication required' }), { status: 401, headers: { 'Content-Type': 'application/json' } }, request, env);
 
     const key = `photos/${ids.classId}/${ids.memberId}.webp`;
     if (request.method === 'GET') {

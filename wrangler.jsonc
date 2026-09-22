@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "attendance-pedro-media",
+  "name": "attendance-pedro-media-public",
   "main": "photo-worker.js",
   "compatibility_date": "2026-09-17",
   "workers_dev": true,
@@ -12,7 +12,6 @@
     }
   ],
   "vars": {
-    "ALLOWED_ORIGIN": "https://attendance-pedro.pedrosill1944.workers.dev",
-    "ACCESS_EMAILS": "pedrosill1944@gmail.com"
+    "ALLOWED_ORIGIN": "https://attendance-pedro.pedrosill1944.workers.dev"
   }
 }

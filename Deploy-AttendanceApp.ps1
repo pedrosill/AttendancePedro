@@ -22,7 +22,7 @@ function Assert-WorkerName {
 }
 
 Assert-WorkerName 'data-wrangler.jsonc' 'attendance-pedro-data'
-Assert-WorkerName 'wrangler.jsonc' 'attendance-pedro-media'
+Assert-WorkerName 'wrangler.jsonc' 'attendance-pedro-media-public'
 Assert-WorkerName 'static-wrangler.jsonc' 'attendance-pedro'
 
 Write-Host 'Configurações dos três Workers confirmadas.' -ForegroundColor Green
@@ -55,4 +55,4 @@ Write-Host ''
 Write-Host 'Deploy concluído sem misturar Workers.' -ForegroundColor Green
 Write-Host 'App:       https://attendance-pedro.pedrosill1944.workers.dev/'
 Write-Host 'Dados:     https://attendance-pedro-data.pedrosill1944.workers.dev/'
-Write-Host 'Fotografias: https://attendance-pedro-media.pedrosill1944.workers.dev/'
+Write-Host 'Fotografias: https://attendance-pedro-media-public.pedrosill1944.workers.dev/'
