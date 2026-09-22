@@ -3017,7 +3017,14 @@
             showNotice('Não foi possível carregar as presenças desta classe.');
           });
         }
-      } catch {
+      } catch (error) {
+        if (error?.message === 'Sessão necessária.' || (els.authGate && !els.authGate.hidden)) {
+          const title = els.loadingClassesText?.querySelector('strong');
+          const message = els.loadingClassesText?.querySelector('span');
+          if (title) title.textContent = 'Introduz o PIN para continuar';
+          if (message) message.textContent = 'A sessão deste dispositivo terminou.';
+          return false;
+        }
         const title = els.loadingClassesText?.querySelector('strong');
         const message = els.loadingClassesText?.querySelector('span');
         if (title) title.textContent = 'Não foi possível carregar as classes';
