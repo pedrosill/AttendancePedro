@@ -32,6 +32,12 @@ function jsonResponse(body, status, request, env) {
   return new Response(JSON.stringify(body), { status, headers });
 }
 
+function emptyCorsResponse(status, request, env) {
+  const headers = new Headers();
+  Object.entries(corsHeaders(request, env)).forEach(([key, value]) => headers.set(key, value));
+  return new Response(null, { status, headers });
+}
+
 function now() { return Date.now(); }
 function id() { return crypto.randomUUID(); }
 
@@ -784,7 +790,7 @@ async function handlePost(request, env, ctx) {
 
 export default {
   async fetch(request, env, ctx) {
-    if (request.method === 'OPTIONS') return jsonResponse({}, 204, request, env);
+    if (request.method === 'OPTIONS') return emptyCorsResponse(204, request, env);
     if (request.method === 'POST' && request.headers.get('Origin') !== env.ALLOWED_ORIGIN) {
       return jsonResponse({ ok: false, error: 'Origin not allowed' }, 403, request, env);
     }

@@ -3018,7 +3018,6 @@
           });
         }
       } catch (error) {
-        console.error('Falha ao carregar o estado partilhado:', error);
         if (error?.message === 'Sessão necessária.' || (els.authGate && !els.authGate.hidden)) {
           const title = els.loadingClassesText?.querySelector('strong');
           const message = els.loadingClassesText?.querySelector('span');
