@@ -109,7 +109,16 @@ Depois de guardada, a configuração fica em `trainingDaysJson` e `seasonStart` 
 3. Guardar o URL `/exec` nas definições da aplicação, se for diferente do predefinido.
 4. Fazer push de `index.html` para o repositório ligado ao Cloudflare.
 
-O endpoint é público na configuração atual. Não devem ser guardados dados sensíveis sem adicionar autenticação ou uma camada de proteção.
+### Deploy automático com GitHub Actions
+
+O workflow [deploy.yml](.github/workflows/deploy.yml) valida o código, aplica as migrações D1 e publica os três Workers sempre que há um push para `main`. Para o activar, criar estes secrets no repositório em `Settings` -> `Secrets and variables` -> `Actions`:
+
+- `CLOUDFLARE_API_TOKEN`: token Cloudflare com permissões para publicar Workers e gerir D1.
+- `CLOUDFLARE_ACCOUNT_ID`: ID da conta Cloudflare.
+
+O workflow não recria os secrets `APP_PIN` e `APP_AUTH_SECRET`: esses secrets permanecem guardados nos Workers Cloudflare durante cada deploy. O job de publicação usa o ambiente GitHub `production`; se esse ambiente tiver reviewers obrigatórios, o deploy aguarda aprovação antes de publicar.
+
+O acesso à app e às fotografias é protegido pelo PIN da app e por tokens de sessão. O URL do backend não deve ser tratado como uma API pública sem autenticação.
 
 ## Fotografias de membros
 

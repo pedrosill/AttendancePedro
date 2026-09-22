@@ -1,0 +1,98 @@
+name: Deploy Attendance App
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: attendance-production
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate Worker configuration
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const expected = {
+            'data-wrangler.jsonc': 'attendance-pedro-data',
+            'wrangler.jsonc': 'attendance-pedro-media-public',
+            'static-wrangler.jsonc': 'attendance-pedro'
+          };
+          for (const [file, name] of Object.entries(expected)) {
+            const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+            if (config.name !== name) throw new Error(`${file}: expected ${name}, got ${config.name}`);
+          }
+          NODE
+
+      - name: Check JavaScript
+        run: |
+          node --check attendance-data-worker.js
+          node --check photo-worker.js
+          node --check static-worker.js
+
+      - name: Run tests
+        run: node --test tests/attendance.test.js
+
+  deploy:
+    name: Deploy production
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Wrangler
+        run: npm install --global wrangler@4.136.1
+
+      - name: Apply D1 migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: wrangler d1 migrations apply attendance-pedro-data --remote --config data-wrangler.jsonc
+
+      - name: Deploy D1 Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: wrangler deploy --config data-wrangler.jsonc
+
+      - name: Deploy photo Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: wrangler deploy --config wrangler.jsonc
+
+      - name: Prepare static assets
+        run: |
+          mkdir -p public/assets/avatars
+          cp index.html Logo1.png LogoAppSCP.png manifest.webmanifest public/
+          cp assets/avatars/*.png public/assets/avatars/
+
+      - name: Deploy static app last
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: wrangler deploy --config static-wrangler.jsonc
