@@ -2523,9 +2523,11 @@
 
     async function deleteMemberPhoto(classId, profile) {
       if (!profile?.photoKey || profile.photoKey.startsWith('assets/') || !state.photoApiUrl) return;
+      const headers = {};
+      if (state.authToken) headers.Authorization = `Bearer ${state.authToken}`;
       const response = await fetch(`${state.photoApiUrl.replace(/\/$/, '')}/photos/${encodeURIComponent(classId)}/${encodeURIComponent(profile.id)}?action=delete`, {
         method: 'POST',
-        credentials: 'include'
+        headers
       });
       if (!response.ok) throw new Error('Não foi possível remover a fotografia.');
     }
