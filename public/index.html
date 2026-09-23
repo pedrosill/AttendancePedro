@@ -1362,6 +1362,17 @@
     </div>
   </div>
 
+  <div class="confirm-dialog-backdrop" id="confirmMemberRemovalDialog" hidden aria-hidden="true">
+    <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirmMemberRemovalTitle" aria-describedby="confirmMemberRemovalMessage">
+      <h3 id="confirmMemberRemovalTitle">Remover membro?</h3>
+      <p id="confirmMemberRemovalMessage">Esta ação não pode ser anulada.</p>
+      <div class="confirm-dialog-actions">
+        <button class="ghost-btn" type="button" id="cancelMemberRemovalBtn">Cancelar</button>
+        <button class="danger-btn" type="button" id="confirmMemberRemovalBtn">Remover membro</button>
+      </div>
+    </div>
+  </div>
+
   <div class="photo-dialog-backdrop" id="memberPhotoDialog" hidden aria-hidden="true">
     <div class="photo-dialog" id="memberPhotoDialogPanel" role="dialog" aria-modal="true" aria-labelledby="memberPhotoDialogName" tabindex="-1">
       <img class="photo-dialog-image" id="memberPhotoDialogImage" src="assets/avatars/example-1.png" alt="" />
@@ -1417,6 +1428,8 @@
     let classRemovalMode = false;
     let pendingClassRemovalId = '';
     let pendingClassRemovalTrigger = null;
+    let pendingMemberRemovalName = '';
+    let pendingMemberRemovalTrigger = null;
     let activePhotoDialog = null;
     const els = {
       main: document.getElementById('main'),
@@ -2400,9 +2413,14 @@
       let source;
       let release = () => {};
       if (typeof createImageBitmap === 'function') {
-        source = await createImageBitmap(file);
-        release = () => source.close?.();
-      } else {
+        try {
+          source = await createImageBitmap(file);
+          release = () => source.close?.();
+        } catch {
+          source = null;
+        }
+      }
+      if (!source) {
         const objectUrl = URL.createObjectURL(file);
         const image = new Image();
         try {
@@ -2428,9 +2446,13 @@
         canvas.height = size;
         const context = canvas.getContext('2d');
         context.drawImage(source, sourceX, sourceY, sourceSize, sourceSize, 0, 0, size, size);
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.82));
-        if (!blob || blob.size > 1024 * 1024) throw new Error('Não foi possível otimizar a fotografia.');
-        return blob;
+        const webp = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.82));
+        if (webp && webp.type === 'image/webp' && webp.size <= 1024 * 1024) return webp;
+
+        // Some iPhone browsers decode the source correctly but export PNG when WebP is requested.
+        const jpeg = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.86));
+        if (!jpeg || jpeg.size > 1024 * 1024) throw new Error('Não foi possível otimizar a fotografia.');
+        return jpeg;
       } finally {
         release();
       }
@@ -2456,7 +2478,7 @@
         const request = new XMLHttpRequest();
         request.open('POST', url, true);
         if (state.authToken) request.setRequestHeader('Authorization', `Bearer ${state.authToken}`);
-        request.setRequestHeader('Content-Type', 'text/plain;charset=UTF-8');
+        request.setRequestHeader('Content-Type', image.type || 'application/octet-stream');
         request.upload.addEventListener('progress', event => {
           if (event.lengthComputable) onProgress((event.loaded / event.total) * 100);
         });
@@ -2649,6 +2671,37 @@
       pendingClassRemovalId = '';
       pendingClassRemovalTrigger = null;
       if (restoreFocus) trigger?.focus();
+    }
+
+    function showMemberRemovalDialog(name, trigger) {
+      const dialog = document.getElementById('confirmMemberRemovalDialog');
+      const message = document.getElementById('confirmMemberRemovalMessage');
+      const confirmButton = document.getElementById('confirmMemberRemovalBtn');
+      if (!name || !dialog) return;
+      pendingMemberRemovalName = name;
+      pendingMemberRemovalTrigger = trigger || null;
+      if (message) message.textContent = `Tem a certeza de que quer remover o membro «${name}»? Esta ação não pode ser anulada.`;
+      dialog.hidden = false;
+      dialog.setAttribute('aria-hidden', 'false');
+      confirmButton?.focus();
+    }
+
+    function closeMemberRemovalDialog(restoreFocus = true) {
+      const dialog = document.getElementById('confirmMemberRemovalDialog');
+      if (dialog) {
+        dialog.hidden = true;
+        dialog.setAttribute('aria-hidden', 'true');
+      }
+      const trigger = pendingMemberRemovalTrigger;
+      pendingMemberRemovalName = '';
+      pendingMemberRemovalTrigger = null;
+      if (restoreFocus) trigger?.focus();
+    }
+
+    function confirmMemberRemoval() {
+      const name = pendingMemberRemovalName;
+      closeMemberRemovalDialog(false);
+      if (name) removeMember(name);
     }
 
     function confirmClassRemoval() {
@@ -3284,7 +3337,7 @@
       els.editMemberList.addEventListener('click', event => {
         const btn = event.target.closest('[data-remove-member]');
         if (!btn) return;
-        removeMember(btn.dataset.removeMember);
+        showMemberRemovalDialog(btn.dataset.removeMember, btn);
       });
 
       els.classListEditor.addEventListener('click', event => {
@@ -3336,6 +3389,11 @@
       document.getElementById('confirmClassRemovalDialog').addEventListener('click', event => {
         if (event.target.id === 'confirmClassRemovalDialog') closeClassRemovalDialog();
       });
+      document.getElementById('cancelMemberRemovalBtn').addEventListener('click', () => closeMemberRemovalDialog());
+      document.getElementById('confirmMemberRemovalBtn').addEventListener('click', confirmMemberRemoval);
+      document.getElementById('confirmMemberRemovalDialog').addEventListener('click', event => {
+        if (event.target.id === 'confirmMemberRemovalDialog') closeMemberRemovalDialog();
+      });
       document.addEventListener('keydown', event => {
         const dialog = document.getElementById('confirmClassRemovalDialog');
         if (event.key === 'Escape' && els.memberPhotoDialog && !els.memberPhotoDialog.hidden) {
@@ -3343,6 +3401,8 @@
           return;
         }
         if (event.key === 'Escape' && dialog && !dialog.hidden) closeClassRemovalDialog();
+        const memberDialog = document.getElementById('confirmMemberRemovalDialog');
+        if (event.key === 'Escape' && memberDialog && !memberDialog.hidden) closeMemberRemovalDialog();
       });
 
       els.webhookInput.addEventListener('change', () => {

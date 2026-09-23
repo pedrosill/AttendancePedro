@@ -124,7 +124,7 @@ O acesso à app e às fotografias é protegido pelo PIN da app e por tokens de s
 
 A app inclui quatro retratos genéricos em `assets/avatars/`. Estes são usados automaticamente até existir uma fotografia própria. Não são fotografias de membros reais.
 
-Fotografias próprias são convertidas no browser para WebP quadrado com, no máximo, `256 x 256` px e 1 MB. O ficheiro [photo-worker.js](photo-worker.js) guarda-as num bucket R2 privado; o Sheets recebe apenas a referência, nunca o ficheiro.
+Fotografias próprias são convertidas no browser para WebP quadrado, ou JPEG como fallback em browsers móveis que não exportem WebP, com no máximo `256 x 256` px e 1 MB. O ficheiro [photo-worker.js](photo-worker.js) guarda-as num bucket R2 privado; o Sheets recebe apenas a referência, nunca o ficheiro.
 
 ### Configurar R2 e o Worker
 

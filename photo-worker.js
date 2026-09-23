@@ -56,6 +56,14 @@ function isWebp(bytes) {
   return view.length >= 12 && String.fromCharCode(...view.slice(0, 4)) === 'RIFF' && String.fromCharCode(...view.slice(8, 12)) === 'WEBP';
 }
 
+function imageContentType(bytes) {
+  const view = new Uint8Array(bytes);
+  if (isWebp(bytes)) return 'image/webp';
+  if (view.length >= 3 && view[0] === 0xff && view[1] === 0xd8 && view[2] === 0xff) return 'image/jpeg';
+  if (view.length >= 8 && view[0] === 0x89 && view[1] === 0x50 && view[2] === 0x4e && view[3] === 0x47 && view[4] === 0x0d && view[5] === 0x0a && view[6] === 0x1a && view[7] === 0x0a) return 'image/png';
+  return '';
+}
+
 export default {
   async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') return response(null, { status: 204 }, request, env);
@@ -82,14 +90,15 @@ export default {
     const action = new URL(request.url).searchParams.get('action');
     if (request.method === 'PUT' || (request.method === 'POST' && action !== 'delete')) {
       const contentType = String(request.headers.get('Content-Type') || '').split(';')[0].toLowerCase();
-      if (contentType !== 'image/webp' && contentType !== 'text/plain') {
-        return response(JSON.stringify({ ok: false, error: 'Only WebP images are accepted' }), { status: 415, headers: { 'Content-Type': 'application/json' } }, request, env);
+      if (!['image/webp', 'image/jpeg', 'image/png', 'text/plain'].includes(contentType)) {
+        return response(JSON.stringify({ ok: false, error: 'Formato de imagem não suportado' }), { status: 415, headers: { 'Content-Type': 'application/json' } }, request, env);
       }
       const image = await request.arrayBuffer();
-      if (image.byteLength === 0 || image.byteLength > MAX_IMAGE_BYTES || !isWebp(image)) {
+      const detectedContentType = imageContentType(image);
+      if (image.byteLength === 0 || image.byteLength > MAX_IMAGE_BYTES || !detectedContentType) {
         return response(JSON.stringify({ ok: false, error: 'Invalid image' }), { status: 400, headers: { 'Content-Type': 'application/json' } }, request, env);
       }
-      await env.MEMBER_PHOTOS.put(key, image, { httpMetadata: { contentType: 'image/webp' } });
+      await env.MEMBER_PHOTOS.put(key, image, { httpMetadata: { contentType: detectedContentType } });
       return response(JSON.stringify({ ok: true, photoKey: key }), { status: 201, headers: { 'Content-Type': 'application/json' } }, request, env);
     }
 
