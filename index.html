@@ -619,6 +619,7 @@
     }
     .photo-dialog-name { margin: 0 0 var(--space-4); font-size: var(--text-lg); font-weight: 800; }
     .photo-dialog-actions { display: grid; gap: var(--space-2); }
+    .photo-edit-options { display: grid; gap: var(--space-2); padding-left: var(--space-3); border-left: 2px solid var(--class-accent, var(--color-primary)); }
     .photo-dialog-rename { display: grid; gap: var(--space-2); text-align: left; }
     .member-name { margin: 0; font-size: var(--text-base); font-weight: 700; letter-spacing: -0.01em; }
     .member-meta { margin: 0.2rem 0 0; color: var(--color-text-muted); font-size: var(--text-sm); }
@@ -1402,8 +1403,11 @@
       <img class="photo-dialog-image" id="memberPhotoDialogImage" src="assets/avatars/example-1.png" alt="" />
       <p class="photo-dialog-name" id="memberPhotoDialogName"></p>
       <div class="photo-dialog-actions" id="memberPhotoDialogActions" hidden>
-        <button class="primary-btn" type="button" id="chooseDialogMemberPhotoBtn">Adicionar fotografia</button>
-        <button class="ghost-btn" type="button" id="clearDialogMemberPhotoBtn" hidden>Remover fotografia</button>
+        <button class="primary-btn" type="button" id="toggleDialogPhotoActionsBtn" aria-expanded="false" aria-controls="dialogPhotoEditOptions">Editar fotografia</button>
+        <div class="photo-edit-options" id="dialogPhotoEditOptions" hidden>
+          <button class="primary-btn" type="button" id="chooseDialogMemberPhotoBtn">Alterar fotografia</button>
+          <button class="ghost-btn" type="button" id="clearDialogMemberPhotoBtn" hidden>Remover fotografia</button>
+        </div>
         <button class="ghost-btn" type="button" id="toggleDialogMemberRenameBtn">Alterar nome</button>
         <div class="photo-dialog-rename" id="dialogMemberRenamePanel" hidden>
           <label for="dialogMemberNameInput">Nome do membro</label>
@@ -1513,6 +1517,8 @@
       memberPhotoDialogImage: document.getElementById('memberPhotoDialogImage'),
       memberPhotoDialogName: document.getElementById('memberPhotoDialogName'),
       memberPhotoDialogActions: document.getElementById('memberPhotoDialogActions'),
+      toggleDialogPhotoActionsBtn: document.getElementById('toggleDialogPhotoActionsBtn'),
+      dialogPhotoEditOptions: document.getElementById('dialogPhotoEditOptions'),
       dialogPhotoUploadProgress: document.getElementById('dialogPhotoUploadProgress'),
       dialogPhotoUploadProgressLabel: document.getElementById('dialogPhotoUploadProgressLabel'),
       dialogPhotoUploadProgressBar: document.getElementById('dialogPhotoUploadProgressBar'),
@@ -1811,6 +1817,9 @@
       };
       const editable = els.screens.edit.classList.contains('active');
       els.memberPhotoDialogActions.hidden = !editable;
+      if (els.dialogPhotoEditOptions) els.dialogPhotoEditOptions.hidden = true;
+      els.toggleDialogPhotoActionsBtn?.setAttribute('aria-expanded', 'false');
+      if (els.dialogMemberRenamePanel) els.dialogMemberRenamePanel.hidden = true;
       refreshMemberPhotoDialog();
       els.memberPhotoDialog.hidden = false;
       els.memberPhotoDialog.setAttribute('aria-hidden', 'false');
@@ -2560,6 +2569,7 @@
         if (text) text.textContent = label;
         if (bar) bar.value = value;
       });
+      if (els.toggleDialogPhotoActionsBtn) els.toggleDialogPhotoActionsBtn.disabled = visible;
       if (els.chooseDialogMemberPhotoBtn) els.chooseDialogMemberPhotoBtn.disabled = visible;
       if (els.clearDialogMemberPhotoBtn) els.clearDialogMemberPhotoBtn.disabled = visible;
     }
@@ -3438,6 +3448,11 @@
       });
       els.memberPhotoDialog?.addEventListener('click', event => {
         if (event.target === els.memberPhotoDialog) closeMemberPhotoDialog();
+      });
+      els.toggleDialogPhotoActionsBtn?.addEventListener('click', () => {
+        if (!els.dialogPhotoEditOptions) return;
+        els.dialogPhotoEditOptions.hidden = !els.dialogPhotoEditOptions.hidden;
+        els.toggleDialogPhotoActionsBtn.setAttribute('aria-expanded', String(!els.dialogPhotoEditOptions.hidden));
       });
       els.chooseDialogMemberPhotoBtn?.addEventListener('click', () => els.dialogMemberPhotoInput?.click());
       els.toggleDialogMemberRenameBtn?.addEventListener('click', () => {
