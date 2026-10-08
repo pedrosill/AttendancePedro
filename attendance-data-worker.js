@@ -5,14 +5,16 @@ const STATE_SYNC_KEY = 'state:last-sync';
 // cache rows on every active screen request.
 const CACHE_MAX_AGE_MS = 5 * 60 * 1000;
 const AUTH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const DEFAULT_SEASON_START = '2026-09-08';
+const MAX_HISTORY_DAYS = 800;
+const HISTORY_SYNC_RETRY_MS = 60 * 1000;
 const MAX_OUTBOX_BATCH = 10;
 const OUTBOX_LOCK_MS = 60 * 1000;
 const MAX_OUTBOX_BACKOFF_MS = 15 * 60 * 1000;
 const MUTATION_LOCK_MS = 30 * 1000;
 const SHEETS_TIMEOUT_MS = 15 * 1000;
 let activeFlush = null;
-let activeStateRefresh = null;
-const activeReadRefreshes = new Map();
+const activeHistorySyncs = new Map();
 
 function corsHeaders(request, env) {
   const origin = request.headers.get('Origin') || '';
@@ -278,7 +280,9 @@ async function writeClassCore(env, value) {
 async function deleteClassCore(env, classId) {
   await env.DB.batch([
     env.DB.prepare('DELETE FROM members_core WHERE class_id = ?').bind(classId),
-    env.DB.prepare('DELETE FROM classes_core WHERE id = ?').bind(classId)
+    env.DB.prepare('DELETE FROM classes_core WHERE id = ?').bind(classId),
+    env.DB.prepare('DELETE FROM attendance_dates WHERE class_id = ?').bind(classId),
+    env.DB.prepare('DELETE FROM attendance_history_sync WHERE class_id = ?').bind(classId)
   ]);
 }
 
@@ -322,14 +326,121 @@ async function readAttendanceCore(env, classId, date) {
 async function writeAttendanceCore(env, value) {
   const attendance = normaliseAttendanceResult(value);
   const current = await readAttendanceCore(env, attendance.classId, attendance.date);
-  if (current && attendanceFingerprint(current) === attendanceFingerprint(attendance)) return current;
-  await env.DB.prepare(`INSERT INTO attendance_core (class_id, date_key, class_name, members_json, operation_id, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT(class_id, date_key) DO UPDATE SET class_name = excluded.class_name,
-    members_json = excluded.members_json, operation_id = excluded.operation_id, updated_at = excluded.updated_at`)
-    .bind(attendance.classId, attendance.date, attendance.className || '', JSON.stringify(attendance.members || []), attendance.operationId || id(), now())
-    .run();
+  const statements = [];
+  if (!current || attendanceFingerprint(current) !== attendanceFingerprint(attendance)) {
+    statements.push(env.DB.prepare(`INSERT INTO attendance_core (class_id, date_key, class_name, members_json, operation_id, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(class_id, date_key) DO UPDATE SET class_name = excluded.class_name,
+      members_json = excluded.members_json, operation_id = excluded.operation_id, updated_at = excluded.updated_at`)
+      .bind(attendance.classId, attendance.date, attendance.className || '', JSON.stringify(attendance.members || []), attendance.operationId || id(), now()));
+  }
+  statements.push(env.DB.prepare('INSERT OR IGNORE INTO attendance_dates (class_id, date_key, created_at) VALUES (?, ?, ?)')
+    .bind(attendance.classId, attendance.date, now()));
+  await env.DB.batch(statements);
   return attendance;
+}
+
+async function readHistorySyncStatus(env, classId) {
+  return env.DB.prepare('SELECT complete, last_attempt_at, last_error FROM attendance_history_sync WHERE class_id = ?')
+    .bind(classId).first();
+}
+
+async function syncClassAttendanceHistory(env, classId) {
+  if (activeHistorySyncs.has(classId)) return activeHistorySyncs.get(classId);
+  const promise = (async () => {
+    const attemptedAt = now();
+    const claim = await env.DB.prepare(`INSERT INTO attendance_history_sync (class_id, complete, last_attempt_at, last_error, updated_at)
+      VALUES (?, 0, ?, '', ?)
+      ON CONFLICT(class_id) DO UPDATE SET last_attempt_at = excluded.last_attempt_at, last_error = '', updated_at = excluded.updated_at
+      WHERE attendance_history_sync.complete = 0
+        AND (attendance_history_sync.last_error <> '' OR attendance_history_sync.last_attempt_at <= ?)`)
+      .bind(classId, attemptedAt, attemptedAt, attemptedAt - HISTORY_SYNC_RETRY_MS).run();
+    if (Number(claim?.meta?.changes || 0) !== 1) return;
+
+    try {
+      await scheduleFlush(env);
+      const pending = await env.DB.prepare('SELECT COUNT(*) AS count FROM outbox').first();
+      if (Number(pending?.count || 0) > 0) throw new Error('Há alterações pendentes de sincronização. O histórico será tentado novamente quando o Sheets estiver atualizado.');
+      const result = await importAttendance(env, 'attendanceHistory', { classId });
+      if (!Array.isArray(result.records)) throw new Error('Apps Script não devolveu o histórico de presenças.');
+      const statements = [];
+      for (const record of result.records) {
+        const attendance = normaliseAttendanceResult({
+          ...record,
+          classId,
+          className: result.className || record.className || '',
+          filled: true,
+          operationId: `sheets-import:${classId}:${record.date}`
+        });
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(attendance.date || '') || !Array.isArray(attendance.members)) continue;
+        statements.push(env.DB.prepare(`INSERT OR IGNORE INTO attendance_core (class_id, date_key, class_name, members_json, operation_id, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?)`)
+          .bind(classId, attendance.date, attendance.className, JSON.stringify(attendance.members), attendance.operationId, attemptedAt));
+        statements.push(env.DB.prepare('INSERT OR IGNORE INTO attendance_dates (class_id, date_key, created_at) VALUES (?, ?, ?)')
+          .bind(classId, attendance.date, attemptedAt));
+      }
+      for (let offset = 0; offset < statements.length; offset += 100) {
+        await env.DB.batch(statements.slice(offset, offset + 100));
+      }
+      await env.DB.prepare(`UPDATE attendance_history_sync SET complete = 1, last_error = '', updated_at = ? WHERE class_id = ?`)
+        .bind(now(), classId).run();
+    } catch (error) {
+      await env.DB.prepare(`UPDATE attendance_history_sync SET last_error = ?, updated_at = ? WHERE class_id = ?`)
+        .bind(String(error.message || error), now(), classId).run();
+      console.error('Attendance history import failed:', classId, error);
+    }
+  })().finally(() => { activeHistorySyncs.delete(classId); });
+  activeHistorySyncs.set(classId, promise);
+  return promise;
+}
+
+async function syncNextAttendanceHistory(env) {
+  const row = await env.DB.prepare(`SELECT c.id FROM classes_core c
+    LEFT JOIN attendance_history_sync h ON h.class_id = c.id
+    WHERE COALESCE(h.complete, 0) = 0
+      AND COALESCE(h.last_attempt_at, 0) <= ?
+    ORDER BY COALESCE(h.last_attempt_at, 0), c.name_key LIMIT 1`)
+    .bind(now() - HISTORY_SYNC_RETRY_MS).first();
+  if (row?.id) await syncClassAttendanceHistory(env, row.id);
+}
+
+async function recentAttendanceFromD1(env, cls, dateKey, requestedCount = 2) {
+  const sync = await readHistorySyncStatus(env, cls.id);
+  const historyReady = Number(sync?.complete || 0) === 1;
+  const base = {
+    ok: true,
+    classId: cls.id,
+    className: cls.name,
+    historyReady,
+    historyError: sync?.last_error || ''
+  };
+  if (!historyReady) return { ...base, dates: [] };
+
+  const anchorKey = /^\d{4}-\d{2}-\d{2}$/.test(dateKey || '') ? dateKey : new Date().toISOString().slice(0, 10);
+  const anchor = new Date(`${anchorKey}T00:00:00Z`);
+  const startKey = /^\d{4}-\d{2}-\d{2}$/.test(cls.seasonStart || '') ? cls.seasonStart : DEFAULT_SEASON_START;
+  const seasonStart = new Date(`${startKey}T00:00:00Z`);
+  const dateRows = await env.DB.prepare('SELECT date_key FROM attendance_dates WHERE class_id = ? AND date_key >= ? AND date_key <= ?')
+    .bind(cls.id, startKey, anchorKey).all();
+  const trainingDays = new Set((cls.trainingDays || []).map(Number));
+  const count = Math.max(1, Math.min(Number(requestedCount) || 2, 10));
+  const filledDates = new Set((dateRows.results || []).map(row => row.date_key));
+  const recent = [];
+  const missing = [];
+  const cursor = new Date(anchor);
+  let scanned = 0;
+  while (cursor >= seasonStart && scanned < MAX_HISTORY_DAYS) {
+    scanned += 1;
+    if (trainingDays.has(cursor.getUTCDay())) {
+      const date = cursor.toISOString().slice(0, 10);
+      const item = { date, filled: filledDates.has(date) };
+      if (recent.length < count) recent.push(item);
+      else if (!item.filled) missing.push(item);
+    }
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
+  }
+  if (cursor >= seasonStart) return { ok: false, error: 'A época começa há mais de 800 dias. Corrige a data de início da classe.' };
+  return { ...base, seasonStart: startKey, trainingDays: [...trainingDays], dates: recent.concat(missing) };
 }
 
 async function renameAttendanceMember(env, classId, oldName, newName) {
@@ -420,30 +531,6 @@ async function importStateFromSheets(env, force = false) {
 async function getOrBootstrapState(env) {
   const cached = await readState(env);
   return cached || importStateFromSheets(env, true);
-}
-
-async function needsStateRefresh(env) {
-  const pending = await env.DB.prepare('SELECT COUNT(*) AS count FROM outbox').first();
-  if (Number(pending?.count || 0) > 0) return false;
-  const lastSync = await readValue(env, STATE_SYNC_KEY);
-  return !lastSync || now() - Number(lastSync) >= CACHE_MAX_AGE_MS;
-}
-
-function refreshStateInBackground(env) {
-  if (activeStateRefresh) return activeStateRefresh;
-  activeStateRefresh = (async () => {
-    if (!(await needsStateRefresh(env))) return;
-    let lock;
-    try {
-      lock = await acquireMutationLock(env, 'state');
-      await importStateFromSheets(env);
-  } catch (error) {
-    console.error('Background state sync failed:', error);
-    } finally {
-      await releaseMutationLock(env, lock);
-    }
-  })().finally(() => { activeStateRefresh = null; });
-  return activeStateRefresh;
 }
 
 function findClass(state, classId) {
@@ -584,8 +671,6 @@ async function flushOutbox(env) {
       lastError: lastError || ''
     });
   }
-  const remaining = await env.DB.prepare('SELECT COUNT(*) AS count FROM outbox').first();
-  if (successCount && Number(remaining?.count || 0) === 0) await refreshStateInBackground(env);
 }
 
 function scheduleFlush(env) {
@@ -671,28 +756,6 @@ async function invalidateAllAttendanceCaches(env) {
   await deleteCacheKeys(env, ['attendance:', 'recent:', 'sync:attendance:', 'sync:recent:']);
 }
 
-function refreshReadCacheInBackground(env, action, query, cacheKey) {
-  const refreshKey = action + ':' + cacheKey;
-  if (activeReadRefreshes.has(refreshKey)) return activeReadRefreshes.get(refreshKey);
-  const promise = (async () => {
-    try {
-      const pending = await env.DB.prepare('SELECT COUNT(*) AS count FROM outbox').first();
-      if (Number(pending?.count || 0) > 0) return;
-      const syncKey = 'sync:' + cacheKey;
-      const lastSync = await readValue(env, syncKey);
-      if (lastSync && now() - Number(lastSync) < CACHE_MAX_AGE_MS) return;
-      const result = await importAttendance(env, action, query);
-      if (action === 'attendance') await writeAttendanceCore(env, result);
-      await writeValue(env, cacheKey, result);
-      await writeValue(env, syncKey, now());
-    } catch (error) {
-      console.error('Background attendance sync failed:', error);
-    }
-  })().finally(() => { activeReadRefreshes.delete(refreshKey); });
-  activeReadRefreshes.set(refreshKey, promise);
-  return promise;
-}
-
 async function handleGet(request, env, ctx) {
   if (!(await requireAuth(request, env))) return jsonResponse({ ok: false, error: 'Authentication required' }, 401, request, env);
   const url = new URL(request.url);
@@ -702,59 +765,58 @@ async function handleGet(request, env, ctx) {
     const state = await getOrBootstrapState(env);
     const classId = url.searchParams.get('classId') || '';
     const date = url.searchParams.get('date') || '';
-    const recentKey = 'recent:' + classId + ':' + date + ':' + (url.searchParams.get('count') || '2');
+    const cls = findClass(state, classId);
     const attendance = classId && date
-      ? await readAttendanceCore(env, classId, date) || await readValue(env, 'attendance:' + classId + ':' + date)
+      ? await readAttendanceCore(env, classId, date)
       : null;
-    const recent = classId ? await readValue(env, recentKey) : null;
-    const query = Object.fromEntries([...url.searchParams.entries()].filter(([key]) => key !== 'action'));
-    if (classId && date && !attendance) ctx.waitUntil(refreshReadCacheInBackground(env, 'attendance', query, 'attendance:' + classId + ':' + date));
-    if (classId && !recent) ctx.waitUntil(refreshReadCacheInBackground(env, 'recentAttendance', query, recentKey));
-    ctx.waitUntil(refreshStateInBackground(env));
+    let recent = null;
+    if (cls) {
+      const recentDate = url.searchParams.get('recentDate') || date;
+      recent = await recentAttendanceFromD1(env, cls, recentDate, url.searchParams.get('count') || '2');
+      if (!recent.historyReady) ctx.waitUntil(syncClassAttendanceHistory(env, classId).catch(error => console.error('Attendance history import failed:', error)));
+    }
     ctx.waitUntil(scheduleFlush(env));
     return jsonResponse({ ...state, attendance, recent, sync: await readSyncStatus(env) }, 200, request, env);
   }
   if (action === 'state') {
     const state = await getOrBootstrapState(env);
-    ctx.waitUntil(refreshStateInBackground(env));
     ctx.waitUntil(scheduleFlush(env));
     return jsonResponse(state, 200, request, env);
   }
 
   const classId = url.searchParams.get('classId') || '';
   const date = url.searchParams.get('date') || '';
-  const cacheKey = action === 'attendance'
-    ? 'attendance:' + classId + ':' + date
-    : 'recent:' + classId + ':' + date + ':' + (url.searchParams.get('count') || '2');
-  const cached = action === 'attendance'
-    ? await readAttendanceCore(env, classId, date) || await readValue(env, cacheKey)
-    : await readValue(env, cacheKey);
-  const query = Object.fromEntries(url.searchParams.entries());
-  const forceRecentRefresh = action === 'recentAttendance' && url.searchParams.get('refresh') === '1';
-  if (cached) {
-    if (action === 'recentAttendance') {
-      const lastSync = await readValue(env, 'sync:' + cacheKey);
-      if (!forceRecentRefresh && lastSync && now() - Number(lastSync) < CACHE_MAX_AGE_MS) {
-        return jsonResponse(cached, 200, request, env);
-      }
-      const pending = await env.DB.prepare('SELECT COUNT(*) AS count FROM outbox').first();
-      if (Number(pending?.count || 0) > 0) await scheduleFlush(env);
-      const refreshed = await importAttendance(env, action, query);
-      await writeValue(env, cacheKey, refreshed);
-      await writeValue(env, 'sync:' + cacheKey, now());
-      return jsonResponse(refreshed, 200, request, env);
-    }
-    ctx.waitUntil(refreshReadCacheInBackground(env, action, query, cacheKey));
-    return jsonResponse(action === 'attendance' ? normaliseAttendanceResult(cached) : cached, 200, request, env);
-  }
   if (action === 'recentAttendance') {
-    const pending = await env.DB.prepare('SELECT COUNT(*) AS count FROM outbox').first();
-    if (Number(pending?.count || 0) > 0) await scheduleFlush(env);
+    const state = await readState(env);
+    const cls = findClass(state, classId);
+    if (!cls) return jsonResponse({ ok: false, error: 'Class not found' }, 404, request, env);
+    const result = await recentAttendanceFromD1(env, cls, date, url.searchParams.get('count') || '2');
+    if (!result.historyReady) {
+      ctx.waitUntil(syncClassAttendanceHistory(env, classId).catch(error => console.error('Attendance history import failed:', error)));
+    }
+    return jsonResponse(result, 200, request, env);
   }
-  const result = await importAttendance(env, action, query);
-  await writeValue(env, cacheKey, result);
-  await writeValue(env, 'sync:' + cacheKey, now());
-  return jsonResponse(result, 200, request, env);
+  if (action === 'attendance') {
+    const attendance = await readAttendanceCore(env, classId, date);
+    if (attendance) return jsonResponse(attendance, 200, request, env);
+    const sync = await readHistorySyncStatus(env, classId);
+    if (Number(sync?.complete || 0) !== 1) {
+      ctx.waitUntil(syncClassAttendanceHistory(env, classId).catch(error => console.error('Attendance history import failed:', error)));
+      return jsonResponse({ ok: false, error: 'O histórico desta classe ainda está a ser importado para a base de dados. Tenta novamente dentro de momentos.' }, 503, request, env);
+    }
+    const state = await readState(env);
+    const cls = findClass(state, classId);
+    if (!cls) return jsonResponse({ ok: false, error: 'Class not found' }, 404, request, env);
+    return jsonResponse({
+      ok: true,
+      classId,
+      className: cls.name,
+      date,
+      filled: false,
+      members: cls.members.map(name => ({ name, status: 'pending' }))
+    }, 200, request, env);
+  }
+  return jsonResponse({ ok: false, error: 'Unknown action' }, 400, request, env);
 }
 
 async function handlePost(request, env, ctx) {
@@ -865,6 +927,9 @@ export default {
     }
   },
   async scheduled(_event, env, ctx) {
-    ctx.waitUntil(scheduleFlush(env));
+    ctx.waitUntil(Promise.all([
+      scheduleFlush(env),
+      syncNextAttendanceHistory(env).catch(error => console.error('Scheduled attendance history import failed:', error))
+    ]));
   }
 };

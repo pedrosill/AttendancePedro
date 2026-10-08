@@ -15,7 +15,7 @@ As preferências locais limitam-se ao tema, ao modo de seleção de turmas, à �
 
 O ficheiro [attendance-data-worker.js](attendance-data-worker.js) expõe a mesma API que a app já usa. A app consulta primeiro o D1, e o Worker coloca as alterações numa fila `outbox` para as enviar ao Apps Script através de `ctx.waitUntil`. O Sheets deixa de bloquear o carregamento normal.
 
-Quando o D1 ainda não tem dados, o primeiro pedido importa o estado atual do Sheets. Depois disso, o Worker responde do D1 e tenta atualizar o estado em segundo plano a cada minuto. Se o Sheets estiver temporariamente indisponível, os dados já guardados no D1 continuam disponíveis e as gravações pendentes permanecem na fila.
+Quando o D1 ainda não tem dados, o primeiro pedido importa o estado atual do Sheets. Depois disso, as leituras normais usam apenas o D1. O histórico antigo de presenças é importado uma vez por classe, em segundo plano, para as tabelas D1; as novas gravações são guardadas primeiro no D1 e copiadas para o Sheets através da fila `outbox`. Se o Sheets estiver temporariamente indisponível, as leituras continuam disponíveis e as gravações pendentes permanecem na fila.
 
 ### Configurar D1
 
@@ -49,7 +49,7 @@ O frontend comunica com o Worker D1. O Worker usa o URL `/exec` da implementaç�
 - `GET ?action=state`: devolve todas as turmas, membros e configuração dos treinos.
 - `GET ?action=bootstrap&classId=...&date=yyyy-MM-dd`: devolve o estado, a presença local e a cache de treinos recentes num único pedido.
 - `GET ?action=attendance&classId=...&date=yyyy-MM-dd`: devolve presenças de uma turma/data.
-- `GET ?action=recentAttendance&classId=...&date=yyyy-MM-dd&count=2`: devolve os últimos treinos agendados e indica se estão preenchidos.
+- `GET ?action=recentAttendance&classId=...&date=yyyy-MM-dd&count=2`: calcula no D1 os últimos treinos agendados e indica se estão preenchidos. Se o histórico ainda não tiver sido importado, devolve `historyReady: false` em vez de classificar datas como por preencher.
 - `GET ?action=syncStatus`: devolve o número de operações pendentes e o último erro de sincronização.
 - `POST { action: "saveClass", class: {...} }`: cria ou renomeia uma turma sem substituir as restantes.
 - `POST { action: "addMember", classId, member }`: adiciona um membro à turma, incluindo o perfil e a referência da fotografia.
@@ -58,7 +58,7 @@ O frontend comunica com o Worker D1. O Worker usa o URL `/exec` da implementaç�
 - `POST { action: "saveClasses", classes: [...] }`: mantém-se para compatibilidade e sincronização completa.
 - `POST { action: "saveAttendance", classId, className, date, members: [...] }`: guarda ou atualiza uma presença.
 
-As gravações são protegidas por `LockService` para evitar que duas gravações simultâneas criem a mesma data duas vezes.
+As gravações no D1 usam a chave única `classId + date`; a cópia do Sheets continua a atualizar a coluna existente pela mesma data. O histórico do Sheets é lido pelo endpoint `attendanceHistory` e importado de forma idempotente: registos que já existem no D1 nunca são substituídos pela importação.
 
 Em `Classes` → `Configurar dias de treino`, é possível editar a data de início da época e os dias de treino de cada classe. A app grava esta configuração na classe partilhada (D1 e `__classes__` no Sheets); não é necessário editar manualmente a folha técnica. Se a época estiver configurada para começar há mais de 800 dias, o endpoint devolve um erro visível para corrigir a data em vez de fazer uma pesquisa excessivamente longa.
 
@@ -66,11 +66,11 @@ O Worker aceita pedidos apenas da origem pública configurada em `ALLOWED_ORIGIN
 
 ## Optimização e preservação de dados
 
-Ao abrir a aplicação, as turmas e os membros são apresentados assim que o estado partilhado chega. As presenças são carregadas em segundo plano. Durante a sessão, pedidos repetidos para a mesma turma/data são reutilizados em memória; este cache não é guardado no navegador e é invalidado ao mudar de turma, mudar de data, alterar o URL ou guardar presenças. O Apps Script mantém ainda uma cache partilhada de turmas e membros durante cinco minutos, eliminada imediatamente após qualquer alteração gravada pela aplicação; assim, abrir a app noutro dispositivo não precisa de percorrer todas as folhas de presenças.
+Ao abrir a aplicação, turmas e membros vêm do D1. As presenças e o resumo de treinos também são lidos do D1; o Apps Script só é chamado para a importação inicial do estado, para importar o histórico de uma classe ainda não sincronizada, e para copiar alterações pendentes. A importação por classe é repetível sem duplicar nem substituir registos, e o cron processa gradualmente as restantes classes. Se a importação falhar, a app mostra o erro e não apresenta datas como por preencher até o histórico estar pronto.
 
 As operações de membros não reconstroem a folha inteira: adicionar um membro acrescenta a linha em falta e ordena linhas completas, mantendo as presenças associadas ao nome; remover um membro elimina apenas a sua linha. Renomear uma turma move a folha existente. O Apps Script lê `__classes__` uma vez por operação e escreve o estado actualizado sob lock.
 
-A migração `0003_core_tables.sql` cria tabelas D1 separadas para turmas, membros e presenças. O `kv` antigo mantém-se como compatibilidade e recuperação durante a transição; os registos de presença usam a chave única `classId + date`.
+A migração `0003_core_tables.sql` cria tabelas D1 separadas para turmas, membros e presenças. A migração `0004_attendance_history.sql` acrescenta o índice de datas de presença e o estado de importação do histórico por classe. O `kv` antigo mantém-se como compatibilidade e recuperação durante a transição; os registos de presença usam a chave única `classId + date`.
 
 ## Estrutura do Sheets
 

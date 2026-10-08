@@ -1648,11 +1648,11 @@
       if (els.actionAttendanceDateDisplay) els.actionAttendanceDateDisplay.textContent = displayWeekday(value);
       if (els.attendanceDateDisplay) els.attendanceDateDisplay.textContent = displayAttendanceDate(value);
     }
-    function renderRecentTrainingList(items, loading = false) {
+    function renderRecentTrainingList(items, loading = false, message = '') {
       if (!els.recentTrainingList) return;
       if (!items.length) {
         els.recentTrainingList.innerHTML = loading
-          ? '<p class="recent-training-empty tiny">A verificar...</p>'
+          ? `<p class="recent-training-empty tiny">${escapeHtml(message || 'A verificar...')}</p>`
           : '<p class="recent-training-empty tiny">Não existem treinos definidos para este período.</p>';
         return;
       }
@@ -1745,17 +1745,31 @@
       renderRecentTrainingList(cachedItems || [], !cachedItems);
       const request = (async () => {
         try {
-          const result = await apiGet('recentAttendance', { classId: cls.id, date: dateKey, count: 2, refresh: force ? '1' : '0' });
-          requireApiSuccess(result, 'Não foi possível carregar os treinos');
-          if (!Array.isArray(result.dates)) throw new Error('O backend ainda não suporta o resumo de treinos');
+          let result;
+          for (let attempt = 0; attempt < 9; attempt += 1) {
+            result = await apiGet('recentAttendance', { classId: cls.id, date: dateKey, count: 2, retry: force && attempt === 0 ? '1' : '0' });
+            requireApiSuccess(result, 'Não foi possível carregar os treinos');
+            if (!Array.isArray(result.dates)) throw new Error('O backend ainda não suporta o resumo de treinos');
+            if (result.historyReady !== false) break;
+            if (requestRevision !== recentTrainingRevision || state.selectedClassId !== cls.id) return [];
+            const message = result.historyError
+              ? `Não foi possível importar o histórico: ${result.historyError}`
+              : 'A importar o histórico de presenças para a base de dados...';
+            if (requestId === recentTrainingRequestId) renderRecentTrainingList([], true, message);
+            if (attempt === 8) {
+              if (requestId === recentTrainingRequestId) {
+                els.recentTrainingList.innerHTML = `<p class="recent-training-empty tiny">${escapeHtml(message)}</p><button class="secondary-btn" type="button" data-recent-training-retry>Tentar novamente</button>`;
+              }
+              return [];
+            }
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
           const items = result.dates.map(item => ({ dateKey: item.date, filled: !!item.filled }));
           if (requestRevision === recentTrainingRevision) {
             recentTrainingCache.set(key, items);
             recentTrainingCacheAt.set(key, Date.now());
           }
-          if (requestRevision === recentTrainingRevision && requestId === recentTrainingRequestId && state.selectedClassId === cls.id) {
-            renderRecentTrainingList(items);
-          }
+          if (requestRevision === recentTrainingRevision && requestId === recentTrainingRequestId && state.selectedClassId === cls.id) renderRecentTrainingList(items);
           return items;
         } catch (error) {
           if (requestRevision === recentTrainingRevision && requestId === recentTrainingRequestId && state.selectedClassId === cls.id) {
@@ -3265,6 +3279,7 @@
         const res = await apiGet('bootstrap', {
           classId: state.selectedClassId,
           date: selectedDateKey(),
+          recentDate: todayKey(),
           count: 2
         });
         requireApiSuccess(res, 'O backend devolveu um erro ao carregar as classes');
@@ -3275,7 +3290,7 @@
         renderClassOptions();
         renderTopSummary();
         if (res.attendance && state.selectedClassId) applyAttendanceResult(state.selectedClassId, selectedDateKey(), res.attendance);
-        if (res.recent && Array.isArray(res.recent.dates) && state.selectedClassId && selectedDateKey() === todayKey()) {
+        if (res.recent?.historyReady && Array.isArray(res.recent.dates) && state.selectedClassId) {
           const recentKey = recentTrainingRequestKey(state.selectedClassId, todayKey());
           recentTrainingCache.set(recentKey, res.recent.dates.map(item => ({ dateKey: item.date, filled: !!item.filled })));
           recentTrainingCacheAt.set(recentKey, Date.now() - RECENT_TRAINING_CACHE_TTL_MS - 1);
@@ -3491,6 +3506,12 @@
         els.attendanceDateInput.addEventListener('change', syncAttendanceDate);
       }
       els.recentTrainingList.addEventListener('click', event => {
+        if (event.target.closest('[data-recent-training-retry]')) {
+          recentTrainingCache.delete(recentTrainingRequestKey(state.selectedClassId, todayKey()));
+          recentTrainingCacheAt.delete(recentTrainingRequestKey(state.selectedClassId, todayKey()));
+          loadRecentTrainingStatus({ force: true }).catch(() => {});
+          return;
+        }
         const button = event.target.closest('[data-recent-training-date]');
         if (!button) return;
         const dateKey = button.dataset.recentTrainingDate;

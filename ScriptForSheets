@@ -29,6 +29,7 @@ function doGet(e) {
   try {
     var action = String((e && e.parameter && e.parameter.action) || 'state');
     if (action === 'attendance') return jsonResponse(getAttendanceState(e.parameter));
+    if (action === 'attendanceHistory') return jsonResponse(getAttendanceHistoryState(e.parameter));
     if (action === 'recentAttendance') return jsonResponse(getRecentAttendanceState(e.parameter));
     return jsonResponse(getSharedState());
   } catch (error) {
@@ -113,6 +114,62 @@ function getAttendanceState(params) {
   });
 
   return { ok: true, classId: cls.id, className: cls.name, date: dateKey, members: members, filled: !!dateColumn };
+}
+
+function getAttendanceHistoryState(params) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var classId = String((params && params.classId) || '').trim();
+  var cls = findClass(readClasses(ss), classId);
+  if (!cls) return { ok: false, error: 'Class not found' };
+
+  var sheet = ss.getSheetByName(sanitizeSheetName(cls.name));
+  if (!sheet || sheet.getLastColumn() < 2) {
+    return { ok: true, classId: cls.id, className: cls.name, records: [] };
+  }
+
+  var lastColumn = sheet.getLastColumn();
+  var lastRow = sheet.getLastRow();
+  var rawDates = sheet.getRange(2, 2, 1, lastColumn - 1).getValues()[0];
+  var columnsByDate = {};
+  rawDates.forEach(function(value, index) {
+    var dateKey = normalizeDateKey(value);
+    if (!parseDateKey(dateKey)) return;
+    if (!columnsByDate[dateKey]) columnsByDate[dateKey] = [];
+    columnsByDate[dateKey].push(index);
+  });
+
+  var dateKeys = Object.keys(columnsByDate).sort();
+  var rowCount = Math.max(lastRow - 2, 0);
+  var names = rowCount ? sheet.getRange(3, 1, rowCount, 1).getValues().map(function(row) {
+    return String(row[0] || '').trim();
+  }) : [];
+  var values = rowCount ? sheet.getRange(3, 2, rowCount, lastColumn - 1).getValues() : [];
+  var colors = rowCount ? sheet.getRange(3, 2, rowCount, lastColumn - 1).getFontColors() : [];
+  var rowByName = {};
+  names.forEach(function(name, index) {
+    if (name) rowByName[name.toLowerCase()] = index;
+  });
+
+  var records = dateKeys.map(function(dateKey) {
+    var columns = columnsByDate[dateKey];
+    var members = cls.members.map(function(name) {
+      var row = rowByName[name.toLowerCase()];
+      var status = 'pending';
+      if (row !== undefined) {
+        for (var index = columns.length - 1; index >= 0; index--) {
+          var column = columns[index];
+          var value = values[row][column];
+          if (value === '' || value === null || value === undefined) continue;
+          status = statusFromSheetCell(value, colors[row][column]);
+          break;
+        }
+      }
+      return { name: name, status: status };
+    });
+    return { date: dateKey, classId: cls.id, className: cls.name, members: members, filled: true };
+  });
+
+  return { ok: true, classId: cls.id, className: cls.name, records: records };
 }
 
 function getRecentAttendanceState(params) {

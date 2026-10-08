@@ -269,6 +269,31 @@ test('migra os metadados antigos para guardar o calendário da turma', () => {
   assert.equal(meta.valueAt(1, 4), 'trainingDaysJson');
 });
 
+test('attendanceHistory devolve presenças antigas e preserva as justificações pelas cores', () => {
+  const { context, spreadsheet } = createContext();
+  const meta = spreadsheet.insertSheet('__classes__');
+  meta.data = [
+    ['id', 'name', 'membersJson', 'trainingDaysJson', 'seasonStart'],
+    ['gami-id', 'Gami', '["Ana","Bia"]', '[2,4]', '2026-09-08']
+  ];
+  const sheet = spreadsheet.insertSheet('Gami');
+  sheet.data = [
+    ['Membro', 'setembro', 'setembro'],
+    ['', '2026-09-08', '2026-09-10'],
+    ['Ana', 'F', 'A'],
+    ['Bia', '*', 'F']
+  ];
+  sheet.setFontColorAt(3, 2, '#d19900');
+  sheet.setFontColorAt(3, 3, '#d19900');
+  sheet.setFontColorAt(4, 3, '#a13544');
+
+  const result = JSON.parse(context.doGet({ parameter: { action: 'attendanceHistory', classId: 'gami-id' } }).value);
+  assert.equal(result.ok, true);
+  assert.deepEqual(Array.from(result.records, record => record.date), ['2026-09-08', '2026-09-10']);
+  assert.deepEqual(Array.from(result.records[0].members, member => member.status), ['absent_justified', 'attended']);
+  assert.deepEqual(Array.from(result.records[1].members, member => member.status), ['late_told', 'absent_not_justified']);
+});
+
 test('migra membros antigos para perfis com ID sem alterar a folha de presenças', () => {
   const { context, spreadsheet } = createContext();
   const meta = spreadsheet.insertSheet('__classes__');
