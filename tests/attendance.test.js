@@ -45,9 +45,30 @@ class MockRange {
   }
 
   setBackground() { return this; }
+  setFontWeight() { return this; }
+  setHorizontalAlignment() { return this; }
+  merge() {
+    this.sheet.merges.push({ row: this.row, column: this.column, rowCount: this.rowCount, columnCount: this.columnCount });
+    for (let row = 0; row < this.rowCount; row += 1) {
+      for (let column = 0; column < this.columnCount; column += 1) {
+        if (row === 0 && column === 0) continue;
+        this.sheet.setValueAt(this.row + row, this.column + column, '');
+      }
+    }
+    return this;
+  }
+  breakApart() {
+    this.sheet.merges = this.sheet.merges.filter(merge =>
+      merge.row + merge.rowCount <= this.row || merge.row >= this.row + this.rowCount ||
+      merge.column + merge.columnCount <= this.column || merge.column >= this.column + this.columnCount
+    );
+    return this;
+  }
+  setNote(note) { this.sheet.notes[`${this.row}:${this.column}`] = note; return this; }
+  getNote() { return this.sheet.notes[`${this.row}:${this.column}`] || ''; }
 
   sort(spec) {
-    this.sheet.sort(spec);
+    this.sheet.sort(spec, this.row, this.rowCount, this.column, this.columnCount);
     return this;
   }
 
@@ -65,6 +86,8 @@ class MockSheet {
     this.data = [];
     this.fontColors = [];
     this.rules = [];
+    this.notes = {};
+    this.merges = [];
   }
 
   getName() { return this.name; }
@@ -114,16 +137,21 @@ class MockSheet {
   setFrozenRows() {}
   setFrozenColumns() {}
 
-  sort(spec) {
-    const start = 1;
-    const column = (spec.column || 1) - 1;
-    const rows = this.data.slice(start).map((row, index) => ({
+  insertRowsBefore(row, count) {
+    this.data.splice(row - 1, 0, ...Array.from({ length: count }, () => []));
+    this.fontColors.splice(row - 1, 0, ...Array.from({ length: count }, () => []));
+  }
+
+  sort(spec, rangeRow = 2, rangeRowCount = this.getLastRow() - rangeRow + 1, rangeColumn = 1) {
+    const start = rangeRow - 1;
+    const column = rangeColumn + (spec.column || 1) - 2;
+    const rows = this.data.slice(start, start + rangeRowCount).map((row, index) => ({
       values: row,
       colors: this.fontColors[start + index] || [],
     })).filter(item => item.values.some(value => value !== '' && value !== null && value !== undefined));
     rows.sort((a, b) => String(a.values[column] || '').localeCompare(String(b.values[column] || ''), 'pt-PT'));
-    this.data = this.data.slice(0, start).concat(rows.map(item => item.values));
-    this.fontColors = this.fontColors.slice(0, start).concat(rows.map(item => item.colors));
+    this.data.splice(start, rangeRowCount, ...rows.map(item => item.values));
+    this.fontColors.splice(start, rangeRowCount, ...rows.map(item => item.colors));
   }
 
   deleteRow(row) {
@@ -194,7 +222,9 @@ function createContext() {
       getUuid: () => 'generated-id',
       formatDate(date, _timezone, pattern) {
         if (pattern === 'yyyy-MM-dd') return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
+        if (pattern === 'yyyy-MM') return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0')].join('-');
         if (pattern === 'dd/MM') return [String(date.getDate()).padStart(2, '0'), String(date.getMonth() + 1).padStart(2, '0')].join('/');
+        if (pattern === 'MMMM yyyy') return `${['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'][date.getMonth()]} ${date.getFullYear()}`;
         return date.toISOString();
       }
     },
@@ -308,16 +338,40 @@ test('migra a tabela antiga, mantém células vazias e reaplica as cores', () =>
     ['2026-09-09', '', 'Late']
   ];
 
-  context.transposeLegacyAttendanceSheet(sheet);
+  context.ensureAttendanceHeader(sheet);
 
   assert.equal(sheet.valueAt(1, 1), 'Membro');
-  assert.equal(sheet.valueAt(2, 1), 'Ana');
-  assert.equal(sheet.valueAt(2, 2), '*');
-  assert.equal(sheet.valueAt(2, 3), '');
-  assert.equal(sheet.valueAt(3, 3), 'A');
-  assert.equal(sheet.fontColorAt(2, 2), '#437a22');
-  assert.equal(sheet.fontColorAt(3, 3), '#d19900');
+  assert.equal(sheet.valueAt(1, 2), 'setembro 2026');
+  assert.equal(context.normalizeDateKey(sheet.valueAt(2, 2)), '2026-09-08');
+  assert.equal(sheet.valueAt(3, 1), 'Ana');
+  assert.equal(sheet.valueAt(3, 2), '*');
+  assert.equal(sheet.valueAt(3, 3), '');
+  assert.equal(sheet.valueAt(4, 3), 'A');
+  assert.equal(sheet.fontColorAt(3, 2), '#437a22');
+  assert.equal(sheet.fontColorAt(4, 3), '#d19900');
   assert.equal(sheet.rules.length, 0);
+});
+
+test('agrupa as datas por mês e mantém datas e presenças ordenadas', () => {
+  const { context, spreadsheet } = createContext();
+  const sheet = spreadsheet.insertSheet('Gami');
+  sheet.data = [
+    ['Membro', '2026-10-01', '2026-09-10', '2026-09-03'],
+    ['Ana', 'F', 'A', '*']
+  ];
+
+  context.ensureAttendanceHeader(sheet);
+  context.normalizeAttendanceDates(sheet);
+  context.sortDateColumnsByDate(sheet);
+
+  assert.equal(sheet.valueAt(1, 2), 'setembro 2026');
+  assert.equal(sheet.valueAt(1, 4), 'outubro 2026');
+  assert.deepEqual(sheet.data[1].slice(1).map(date => context.normalizeDateKey(date)), [
+    '2026-09-03', '2026-09-10', '2026-10-01'
+  ]);
+  assert.deepEqual(sheet.data[2], ['Ana', '*', 'A', 'F']);
+  assert.ok(sheet.merges.some(range => range.row === 1 && range.column === 2 && range.columnCount === 2));
+  assert.ok(sheet.merges.some(range => range.row === 1 && range.column === 1 && range.rowCount === 2));
 });
 
 test('a mesma data atualiza a coluna existente sem criar duplicados', () => {
@@ -334,8 +388,8 @@ test('a mesma data atualiza a coluna existente sem criar duplicados', () => {
 
   const sheet = spreadsheet.getSheetByName('Gami');
   assert.equal(sheet.getLastColumn(), 2);
-  assert.equal(sheet.valueAt(2, 2), 'A');
-  assert.equal(sheet.fontColorAt(2, 2), '#d19900');
+  assert.equal(sheet.valueAt(3, 2), 'A');
+  assert.equal(sheet.fontColorAt(3, 2), '#d19900');
   assert.deepEqual(getLockCounts(), { waits: 2, releases: 2 });
 });
 
@@ -360,8 +414,9 @@ test('usa a cor do texto para recuperar a justificação', () => {
   });
 
   const sheet = spreadsheet.getSheetByName('Gami');
-  assert.equal(sheet.valueAt(2, 2), 'A');
-  assert.equal(sheet.fontColorAt(2, 2), '#d19900');
+  const anaRow = sheet.data.findIndex(row => row[0] === 'Ana') + 1;
+  assert.equal(sheet.valueAt(anaRow, 2), 'A');
+  assert.equal(sheet.fontColorAt(anaRow, 2), '#d19900');
   const state = context.getAttendanceState({ classId: 'gami-id', date: '2026-09-08' });
   assert.deepEqual(JSON.parse(JSON.stringify(state.members.map(member => [member.name, member.status]))), [
     ['Ana', 'late_told'],
@@ -378,11 +433,12 @@ test('consolida colunas duplicadas da mesma data', () => {
     ['Bia', '', 'A']
   ];
 
+  context.ensureAttendanceHeader(sheet);
   context.deduplicateDateColumns(sheet);
 
   assert.equal(sheet.getLastColumn(), 2);
-  assert.equal(sheet.valueAt(2, 2), 'F');
-  assert.equal(sheet.valueAt(3, 2), 'A');
+  assert.equal(sheet.valueAt(3, 2), 'F');
+  assert.equal(sheet.valueAt(4, 2), 'A');
 });
 
 test('operações de membros preservam o estado mais recente da turma', () => {
@@ -399,7 +455,7 @@ test('operações de membros preservam o estado mais recente da turma', () => {
   const removed = JSON.parse(post({ action: 'removeMember', classId: 'gami-id', memberName: 'Ana' }).value);
   assert.deepEqual(JSON.parse(JSON.stringify(removed.class.members)), ['Bia']);
   assert.deepEqual(JSON.parse(meta.valueAt(2, 3)), ['Bia']);
-  assert.equal(spreadsheet.getSheetByName('Gami').valueAt(2, 1), 'Bia');
+  assert.equal(spreadsheet.getSheetByName('Gami').valueAt(3, 1), 'Bia');
 });
 
 test('adicionar membro ordena a linha completa sem trocar presenças', () => {
@@ -421,7 +477,7 @@ test('adicionar membro ordena a linha completa sem trocar presenças', () => {
   }) } }).value);
 
   assert.equal(result.ok, true);
-  assert.deepEqual(sheet.data.slice(1).map((row, index) => [row[0], sheet.valueAt(index + 2, 2)]), [
+  assert.deepEqual(sheet.data.slice(2).map((row, index) => [row[0], sheet.valueAt(index + 3, 2)]), [
     ['Ana', ''],
     ['Bia', 'A'],
     ['Zoe', '*']
@@ -447,9 +503,9 @@ test('remover membro elimina a linha completa sem deslocar presenças', () => {
   }) } }).value);
 
   assert.equal(result.ok, true);
-  assert.equal(sheet.getLastRow(), 2);
-  assert.equal(sheet.valueAt(2, 1), 'Zoe');
-  assert.equal(sheet.valueAt(2, 2), '*');
+  assert.equal(sheet.getLastRow(), 3);
+  assert.equal(sheet.valueAt(3, 1), 'Zoe');
+  assert.equal(sheet.valueAt(3, 2), '*');
 });
 
 test('renomear uma turma não substitui membros existentes', () => {
@@ -469,6 +525,44 @@ test('renomear uma turma não substitui membros existentes', () => {
   assert.deepEqual(JSON.parse(JSON.stringify(result.class.members)), ['Ana', 'Bia']);
   assert.equal(spreadsheet.getSheetByName('Gami'), null);
   assert.ok(spreadsheet.getSheetByName('Gami Nova'));
+});
+
+test('renomear um membro preserva as presenças históricas e a fotografia', () => {
+  const { context, spreadsheet } = createContext();
+  const profiles = [
+    { id: 'member-ana', name: 'Ana', photoKey: 'photos/ana.jpg', photoVersion: 123 },
+    { id: 'member-bia', name: 'Bia', photoKey: '', photoVersion: 0 }
+  ];
+  spreadsheet.insertSheet('__classes__').data = [
+    ['id', 'name', 'membersJson', 'trainingDaysJson', 'seasonStart', 'memberProfilesJson'],
+    ['gami-id', 'Gami', '["Ana","Bia"]', '[2,4]', '2026-09-08', JSON.stringify(profiles)]
+  ];
+  const sheet = spreadsheet.insertSheet('Gami');
+  sheet.data = [
+    ['Membro', '2026-09-08'],
+    ['Ana', '*'],
+    ['Bia', 'F']
+  ];
+
+  const result = JSON.parse(context.doPost({ postData: { contents: JSON.stringify({
+    action: 'saveClass',
+    class: {
+      id: 'gami-id',
+      name: 'Gami',
+      members: ['Ana Costa', 'Bia'],
+      memberProfiles: [
+        { ...profiles[0], name: 'Ana Costa' },
+        profiles[1]
+      ]
+    }
+  }) } }).value);
+
+  assert.equal(result.ok, true);
+  assert.equal(sheet.valueAt(3, 1), 'Ana Costa');
+  assert.equal(sheet.valueAt(3, 2), '*');
+  assert.equal(sheet.valueAt(4, 1), 'Bia');
+  assert.equal(sheet.valueAt(4, 2), 'F');
+  assert.equal(result.class.memberProfiles[0].photoKey, 'photos/ana.jpg');
 });
 
 test('remover uma turma remove também a sua folha', () => {

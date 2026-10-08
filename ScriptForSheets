@@ -94,11 +94,11 @@ function getAttendanceState(params) {
   var members = [];
   var statusByName = {};
   if (dateColumn) {
-    var memberCount = sheet.getLastRow() - 1;
+    var memberCount = sheet.getLastRow() - 2;
     if (memberCount > 0) {
-      var names = sheet.getRange(2, 1, memberCount, 1).getValues();
-      var values = sheet.getRange(2, dateColumn, memberCount, 1).getValues();
-      var colors = sheet.getRange(2, dateColumn, memberCount, 1).getFontColors();
+      var names = sheet.getRange(3, 1, memberCount, 1).getValues();
+      var values = sheet.getRange(3, dateColumn, memberCount, 1).getValues();
+      var colors = sheet.getRange(3, dateColumn, memberCount, 1).getFontColors();
       names.forEach(function(row, index) {
         var name = String(row[0] || '').trim();
         if (!name) return;
@@ -231,6 +231,17 @@ function saveClass(data) {
   } else {
     getOrCreateClassSheet(ss, record.name);
   }
+  var attendanceSheet = getOrCreateClassSheet(ss, record.name);
+  if (prior) {
+    var updatedProfilesById = {};
+    record.memberProfiles.forEach(function(profile) { updatedProfilesById[profile.id] = profile; });
+    (prior.memberProfiles || []).forEach(function(profile) {
+      var updatedProfile = updatedProfilesById[profile.id];
+      if (updatedProfile && profile.name !== updatedProfile.name) {
+        renameMemberRow(attendanceSheet, profile.name, updatedProfile.name);
+      }
+    });
+  }
   writeClasses(ss, replaceClassRecord(existing, record));
   return { ok: true, class: record };
 }
@@ -308,7 +319,10 @@ function removeMember(data) {
   }), cls.members, cls.memberProfiles);
   writeClasses(ss, replaceClassRecord(classes, cls));
   var sheet = ss.getSheetByName(sanitizeSheetName(cls.name));
-  if (sheet) removeMemberRows(sheet, memberName);
+  if (sheet) {
+    ensureAttendanceHeader(sheet);
+    removeMemberRows(sheet, memberName);
+  }
   return { ok: true, class: cls, removedMember: removedMember || null };
 }
 
@@ -361,8 +375,8 @@ function saveAttendance(data) {
     statusByName[name] = normalizeSemanticStatus(member.status);
   });
 
-  var memberCount = sheet.getLastRow() - 1;
-  var memberRows = memberCount > 0 ? sheet.getRange(2, 1, memberCount, 1).getValues() : [];
+  var memberCount = sheet.getLastRow() - 2;
+  var memberRows = memberCount > 0 ? sheet.getRange(3, 1, memberCount, 1).getValues() : [];
   var values = memberRows.map(function(memberRow) {
     var name = String(memberRow[0] || '').trim();
     return [STATUS_MAP[statusByName[name] || 'pending'] || STATUS_MAP.pending];
@@ -373,10 +387,10 @@ function saveAttendance(data) {
     return [TEXT_COLORS[semanticStatus] || TEXT_COLORS.absent];
   });
   if (values.length) {
-    sheet.getRange(2, dateColumn, values.length, 1).setValues(values);
-    sheet.getRange(2, dateColumn, colors.length, 1).setFontColors(colors);
+    sheet.getRange(3, dateColumn, values.length, 1).setValues(values);
+    sheet.getRange(3, dateColumn, colors.length, 1).setFontColors(colors);
   }
-  sheet.getRange(1, dateColumn).setNumberFormat('dd/MM');
+  sheet.getRange(2, dateColumn).setNumberFormat('dd/MM');
   sortMemberRowsByName(sheet);
   sortDateColumnsByDate(sheet);
   applyAttendanceFormatting(sheet);
@@ -529,14 +543,54 @@ function deleteClassSheet(ss, className) {
 function ensureAttendanceHeader(sheet) {
   if (sheet.getLastRow() === 0) {
     sheet.getRange(1, 1).setValue('Membro');
-    sheet.setFrozenRows(1);
-    return;
   }
 
   var firstHeader = String(sheet.getRange(1, 1).getValue() || '').trim().toLowerCase();
   if (firstHeader === 'date' || firstHeader === 'data') transposeLegacyAttendanceSheet(sheet);
   if (!String(sheet.getRange(1, 1).getValue() || '').trim()) sheet.getRange(1, 1).setValue('Membro');
-  sheet.setFrozenRows(1);
+  var monthlyHeaderExists = isMonthlyAttendanceHeader(sheet);
+  if (!monthlyHeaderExists) {
+    var lastColumn = sheet.getLastColumn();
+    var oldDates = lastColumn > 1 ? sheet.getRange(1, 2, 1, lastColumn - 1).getValues() : [[]];
+    sheet.insertRowsBefore(2, 1);
+    if (lastColumn > 1) sheet.getRange(2, 2, 1, lastColumn - 1).setValues(oldDates);
+    sheet.getRange(1, 1).setValue('Membro');
+    sheet.getRange(1, 1, 2, 1).merge();
+    sheet.getRange(1, 1).setNote('attendance-month-header-v1');
+  }
+  sheet.setFrozenRows(2);
+  sheet.setFrozenColumns(1);
+  if (!monthlyHeaderExists) rebuildMonthlyAttendanceHeaders(sheet);
+}
+
+function isMonthlyAttendanceHeader(sheet) {
+  return String(sheet.getRange(1, 1).getNote() || '') === 'attendance-month-header-v1';
+}
+
+function rebuildMonthlyAttendanceHeaders(sheet) {
+  var dateCount = sheet.getLastColumn() - 1;
+  if (dateCount <= 0) return;
+  var monthNames = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+  var monthRow = sheet.getRange(1, 2, 1, dateCount);
+  monthRow.breakApart();
+  monthRow.setValues([Array(dateCount).fill('')]);
+  var dates = sheet.getRange(2, 2, 1, dateCount).getValues()[0];
+  var groups = [];
+  dates.forEach(function(value, index) {
+    var date = parseDateKey(value);
+    var key = date ? Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM') : '';
+    var label = date ? monthNames[Number(key.slice(5)) - 1] + ' ' + key.slice(0, 4) : '';
+    var column = index + 2;
+    var current = groups[groups.length - 1];
+    if (!key) return;
+    if (current && current.key === key && current.end === column - 1) current.end = column;
+    else groups.push({ key: key, label: label, start: column, end: column });
+  });
+  groups.forEach(function(group) {
+    sheet.getRange(1, group.start).setValue(group.label);
+    if (group.end > group.start) sheet.getRange(1, group.start, 1, group.end - group.start + 1).merge();
+  });
+  monthRow.setFontWeight('bold').setHorizontalAlignment('center').setBackground('#f0f2f5');
 }
 
 function transposeLegacyAttendanceSheet(sheet) {
@@ -601,12 +655,12 @@ function transposeLegacyAttendanceSheet(sheet) {
 
 function ensureDateColumnDisplayFormat(sheet) {
   if (sheet.getLastColumn() < 2) return;
-  sheet.getRange(1, 2, 1, sheet.getLastColumn() - 1).setNumberFormat('dd/MM');
+  sheet.getRange(2, 2, 1, sheet.getLastColumn() - 1).setNumberFormat('dd/MM');
 }
 
 function normalizeAttendanceDates(sheet) {
   if (sheet.getLastColumn() < 2) return;
-  var range = sheet.getRange(1, 2, 1, sheet.getLastColumn() - 1);
+  var range = sheet.getRange(2, 2, 1, sheet.getLastColumn() - 1);
   var values = range.getValues();
   var changed = false;
   for (var i = 0; i < values[0].length; i++) {
@@ -641,8 +695,8 @@ function ensureMemberHeaders(sheet, members) {
 }
 
 function ensureMemberRows(sheet, members) {
-  var lastRow = sheet.getLastRow();
-  var existing = lastRow >= 2 ? sheet.getRange(2, 1, lastRow - 1, 1).getValues() : [];
+  var lastRow = Math.max(sheet.getLastRow(), 2);
+  var existing = lastRow >= 3 ? sheet.getRange(3, 1, lastRow - 2, 1).getValues() : [];
   var names = existing.map(function(row) { return String(row[0] || '').trim(); }).filter(Boolean);
   var seen = {};
   names.forEach(function(name) { seen[name.toLowerCase()] = true; });
@@ -658,9 +712,9 @@ function ensureMemberRows(sheet, members) {
     sortMemberRowsByName(sheet);
   }
   sheet.setFrozenColumns(1);
-  var finalRowCount = sheet.getLastRow() - 1;
+  var finalRowCount = sheet.getLastRow() - 2;
   return finalRowCount > 0
-    ? sheet.getRange(2, 1, finalRowCount, 1).getValues().map(function(row) { return String(row[0] || '').trim(); }).filter(Boolean)
+    ? sheet.getRange(3, 1, finalRowCount, 1).getValues().map(function(row) { return String(row[0] || '').trim(); }).filter(Boolean)
     : [];
 }
 
@@ -714,17 +768,35 @@ function findMemberProfile(profiles, memberId, memberName) {
 
 function removeMemberRows(sheet, memberName) {
   var target = String(memberName || '').trim().toLowerCase();
-  for (var row = sheet.getLastRow(); row >= 2; row--) {
+  for (var row = sheet.getLastRow(); row >= 3; row--) {
     var current = String(sheet.getRange(row, 1).getValue() || '').trim().toLowerCase();
     if (current === target) sheet.deleteRow(row);
   }
+}
+
+function renameMemberRow(sheet, oldName, newName) {
+  var oldKey = String(oldName || '').trim().toLowerCase();
+  var newKey = String(newName || '').trim().toLowerCase();
+  if (!oldKey || !newKey || oldKey === newKey) return false;
+  for (var row = 3; row <= sheet.getLastRow(); row++) {
+    var current = String(sheet.getRange(row, 1).getValue() || '').trim().toLowerCase();
+    if (current === newKey) return false;
+  }
+  for (var targetRow = 3; targetRow <= sheet.getLastRow(); targetRow++) {
+    var member = String(sheet.getRange(targetRow, 1).getValue() || '').trim().toLowerCase();
+    if (member === oldKey) {
+      sheet.getRange(targetRow, 1).setValue(String(newName || '').trim());
+      return true;
+    }
+  }
+  return false;
 }
 
 function deduplicateDateColumns(sheet) {
   if (sheet.getLastColumn() < 3) return;
   var lastRow = sheet.getLastRow();
   var dateCount = sheet.getLastColumn() - 1;
-  var headers = sheet.getRange(1, 2, 1, dateCount).getValues()[0];
+  var headers = sheet.getRange(2, 2, 1, dateCount).getValues()[0];
   var firstByDate = {};
   var duplicates = [];
 
@@ -739,12 +811,13 @@ function deduplicateDateColumns(sheet) {
     }
   });
 
+  if (duplicates.length) sheet.getRange(1, 2, 1, dateCount).breakApart();
   duplicates.reverse().forEach(function(item) {
-    var rowCount = lastRow - 1;
+    var rowCount = lastRow - 2;
     if (rowCount > 0) {
-      var sourceValues = sheet.getRange(2, item.column, rowCount, 1).getValues();
-      var sourceColors = sheet.getRange(2, item.column, rowCount, 1).getFontColors();
-      var targetRange = sheet.getRange(2, item.target, rowCount, 1);
+      var sourceValues = sheet.getRange(3, item.column, rowCount, 1).getValues();
+      var sourceColors = sheet.getRange(3, item.column, rowCount, 1).getFontColors();
+      var targetRange = sheet.getRange(3, item.target, rowCount, 1);
       var targetValues = targetRange.getValues();
       var targetColors = targetRange.getFontColors();
       for (var row = 0; row < rowCount; row++) {
@@ -759,6 +832,7 @@ function deduplicateDateColumns(sheet) {
     sheet.deleteColumn(item.column);
   });
   ensureDateColumnDisplayFormat(sheet);
+  rebuildMonthlyAttendanceHeaders(sheet);
 }
 
 function findColumnByDate(sheet, dateKey) {
@@ -767,7 +841,7 @@ function findColumnByDate(sheet, dateKey) {
 
 function getDateColumnMap(sheet) {
   if (sheet.getLastColumn() < 2) return {};
-  var dates = sheet.getRange(1, 2, 1, sheet.getLastColumn() - 1).getValues()[0];
+  var dates = sheet.getRange(2, 2, 1, sheet.getLastColumn() - 1).getValues()[0];
   var map = {};
   dates.forEach(function(value, index) {
     var key = normalizeDateKey(value);
@@ -779,20 +853,23 @@ function getDateColumnMap(sheet) {
 function addDateColumn(sheet, dateKey) {
   var column = Math.max(sheet.getLastColumn() + 1, 2);
   var parsed = parseDateKey(dateKey);
-  sheet.getRange(1, column).setValue(parsed || dateKey).setNumberFormat('dd/MM');
+  sheet.getRange(2, column).setValue(parsed || dateKey).setNumberFormat('dd/MM');
   return column;
 }
 
 function sortMemberRowsByName(sheet) {
   if (sheet.getLastRow() < 3) return;
-  sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).sort({ column: 1, ascending: true });
+  sheet.getRange(3, 1, sheet.getLastRow() - 2, sheet.getLastColumn()).sort({ column: 1, ascending: true });
 }
 
 function sortDateColumnsByDate(sheet) {
-  if (sheet.getLastColumn() < 3) return;
+  if (sheet.getLastColumn() < 3) {
+    rebuildMonthlyAttendanceHeaders(sheet);
+    return;
+  }
   var columnCount = sheet.getLastColumn() - 1;
-  var rowCount = sheet.getLastRow();
-  var range = sheet.getRange(1, 2, rowCount, columnCount);
+  var rowCount = sheet.getLastRow() - 1;
+  var range = sheet.getRange(2, 2, rowCount, columnCount);
   var values = range.getValues();
   var colors = range.getFontColors();
   var order = values[0].map(function(value, index) {
@@ -806,12 +883,13 @@ function sortDateColumnsByDate(sheet) {
   });
   range.setValues(sorted);
   range.setFontColors(sortedColors);
-  sheet.getRange(1, 2, 1, columnCount).setNumberFormat('dd/MM');
+  sheet.getRange(2, 2, 1, columnCount).setNumberFormat('dd/MM');
+  rebuildMonthlyAttendanceHeaders(sheet);
 }
 
 function applyAttendanceFormatting(sheet) {
-  if (sheet.getLastRow() < 2 || sheet.getLastColumn() < 2) return;
-  var range = sheet.getRange(2, 2, sheet.getLastRow() - 1, sheet.getLastColumn() - 1);
+  if (sheet.getLastRow() < 3 || sheet.getLastColumn() < 2) return;
+  var range = sheet.getRange(3, 2, sheet.getLastRow() - 2, sheet.getLastColumn() - 1);
   sheet.setConditionalFormatRules([]);
   range.setBackground(null);
 }

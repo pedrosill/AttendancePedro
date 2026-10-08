@@ -538,6 +538,9 @@
       overflow: visible;
     }
     .member-card { display: flex; flex-direction: column; gap: var(--space-3); }
+    .member-card[data-edit-member-card] { cursor: pointer; transition: border-color var(--transition-interactive), box-shadow var(--transition-interactive); }
+    .member-card[data-edit-member-card]:hover { border-color: color-mix(in srgb, var(--class-accent, var(--color-primary)) 38%, var(--color-surface)); }
+    .member-card[data-edit-member-card]:focus-visible { outline: 3px solid var(--class-accent, var(--color-primary)); outline-offset: 3px; }
     .member-top { display: flex; align-items: start; justify-content: space-between; gap: var(--space-3); }
     .member-identity { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
     .member-identity > div { min-width: 0; }
@@ -616,6 +619,7 @@
     }
     .photo-dialog-name { margin: 0 0 var(--space-4); font-size: var(--text-lg); font-weight: 800; }
     .photo-dialog-actions { display: grid; gap: var(--space-2); }
+    .photo-dialog-rename { display: grid; gap: var(--space-2); text-align: left; }
     .member-name { margin: 0; font-size: var(--text-base); font-weight: 700; letter-spacing: -0.01em; }
     .member-meta { margin: 0.2rem 0 0; color: var(--color-text-muted); font-size: var(--text-sm); }
     .status-tag {
@@ -1400,6 +1404,15 @@
       <div class="photo-dialog-actions" id="memberPhotoDialogActions" hidden>
         <button class="primary-btn" type="button" id="chooseDialogMemberPhotoBtn">Adicionar fotografia</button>
         <button class="ghost-btn" type="button" id="clearDialogMemberPhotoBtn" hidden>Remover fotografia</button>
+        <button class="ghost-btn" type="button" id="toggleDialogMemberRenameBtn">Alterar nome</button>
+        <div class="photo-dialog-rename" id="dialogMemberRenamePanel" hidden>
+          <label for="dialogMemberNameInput">Nome do membro</label>
+          <input id="dialogMemberNameInput" class="text-input" type="text" />
+          <div class="toolbar">
+            <button class="primary-btn" type="button" id="saveDialogMemberNameBtn">Guardar nome</button>
+            <button class="ghost-btn" type="button" id="cancelDialogMemberNameBtn">Cancelar</button>
+          </div>
+        </div>
         <input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp" id="dialogMemberPhotoInput" />
         <div class="photo-upload-progress" id="dialogPhotoUploadProgress" hidden aria-live="polite">
           <span class="tiny" id="dialogPhotoUploadProgressLabel">A preparar fotografia...</span>
@@ -1506,6 +1519,9 @@
       chooseDialogMemberPhotoBtn: document.getElementById('chooseDialogMemberPhotoBtn'),
       clearDialogMemberPhotoBtn: document.getElementById('clearDialogMemberPhotoBtn'),
       dialogMemberPhotoInput: document.getElementById('dialogMemberPhotoInput'),
+      toggleDialogMemberRenameBtn: document.getElementById('toggleDialogMemberRenameBtn'),
+      dialogMemberRenamePanel: document.getElementById('dialogMemberRenamePanel'),
+      dialogMemberNameInput: document.getElementById('dialogMemberNameInput'),
       actionAttendanceDateInput: document.getElementById('actionAttendanceDateInput'),
       attendanceDateInput: document.getElementById('attendanceDateInput'),
       recentTrainingList: document.getElementById('recentTrainingList'),
@@ -1779,6 +1795,7 @@
       els.memberPhotoDialogImage.src = memberPhotoUrl(cls, activePhotoDialog.name);
       els.memberPhotoDialogImage.alt = 'Retrato de ' + activePhotoDialog.name;
       els.memberPhotoDialogName.textContent = activePhotoDialog.name;
+      if (els.dialogMemberNameInput) els.dialogMemberNameInput.value = activePhotoDialog.name;
       els.chooseDialogMemberPhotoBtn.textContent = hasCustomPhoto ? 'Alterar fotografia' : 'Adicionar fotografia';
       els.clearDialogMemberPhotoBtn.hidden = !hasCustomPhoto;
     }
@@ -2099,7 +2116,6 @@
     }
 
     function selectClass(classId) {
-      const previousClassId = state.selectedClassId;
       state.selectedClassId = classId;
       persistState();
       if (els.classSelect) els.classSelect.value = classId;
@@ -2108,10 +2124,7 @@
       });
       animateSelection(els.classButtonList?.querySelector(`[data-class-id="${CSS.escape(classId)}"]`) || els.classSelect);
       renderTopSummary();
-      refreshAttendance(state.selectedClassId, selectedDateKey(), { force: true }).catch(() => {
-        showNotice('Não foi possível carregar as presenças desta classe.');
-      });
-      if (els.screens.date?.classList.contains('active') && previousClassId !== classId) loadRecentTrainingStatus({ force: true });
+      if (els.screens.date?.classList.contains('active')) loadRecentTrainingStatus({ force: true });
     }
 
     function renderTopSummary() {
@@ -2311,6 +2324,9 @@
         const profile = memberProfile(cls, name);
         const row = document.createElement('article');
         row.className = 'member-card';
+        row.dataset.editMemberCard = name;
+        row.tabIndex = 0;
+        row.setAttribute('aria-label', `Abrir opções de ${name}`);
         row.style.setProperty('--item-delay', `${Math.min(index, 8) * 25}ms`);
         if (state.removingMemberNames[name]) row.classList.add('is-removing');
         row.innerHTML = `
@@ -2400,6 +2416,14 @@
       if (settingsBtn) settingsBtn.hidden = key !== 'class';
       if (key === 'attendance') renderAttendance();
       if (key === 'attendanceSingle') renderSingleAttendance();
+      if (key === 'attendance' || key === 'attendanceSingle') {
+        const cls = currentClass();
+        if (cls && !attendanceCacheKeys.has(attendanceRequestKey(cls.id, selectedDateKey()))) {
+          refreshAttendance(cls.id, selectedDateKey()).catch(() => {
+            showNotice('Não foi possível carregar as presenças desta classe. Tenta novamente.');
+          });
+        }
+      }
       if (key === 'edit') renderEditList();
       if (key === 'classes') renderClassEditor();
       if (key === 'settings') {
@@ -2685,6 +2709,34 @@
         return true;
       } catch (error) {
         showNotice(error.message || 'Não foi possível atualizar a fotografia.');
+        return false;
+      }
+    }
+
+    async function renameMember(memberId, value) {
+      const cls = currentClass();
+      const profile = cls?.memberProfiles?.find(item => item.id === memberId);
+      const name = String(value || '').trim();
+      if (!cls || !profile || !name) return false;
+      if (name.toLocaleLowerCase('pt-PT') !== profile.name.toLocaleLowerCase('pt-PT') &&
+          cls.members.some(member => member.toLocaleLowerCase('pt-PT') === name.toLocaleLowerCase('pt-PT'))) {
+        showNotice('Já existe um membro com esse nome nesta classe.');
+        return false;
+      }
+      if (name === profile.name) {
+        if (els.dialogMemberRenamePanel) els.dialogMemberRenamePanel.hidden = true;
+        return true;
+      }
+      const members = sortMembers(cls.members.map(member => member === profile.name ? name : member));
+      const memberProfiles = cls.memberProfiles.map(item => item.id === memberId ? { ...item, name } : item);
+      try {
+        await saveClassRecord({ id: cls.id, name: cls.name, members, memberProfiles }, cls.id, { stayOnPage: true });
+        if (activePhotoDialog?.memberId === memberId) activePhotoDialog.name = name;
+        if (els.dialogMemberRenamePanel) els.dialogMemberRenamePanel.hidden = true;
+        refreshMemberPhotoDialog();
+        showNotice('Nome atualizado.', 'success', 1800);
+        return true;
+      } catch {
         return false;
       }
     }
@@ -3132,13 +3184,6 @@
         if (res.recent && Array.isArray(res.recent.dates) && state.selectedClassId && selectedDateKey() === todayKey()) {
           recentTrainingCache.set(recentTrainingRequestKey(state.selectedClassId, todayKey()), res.recent.dates.map(item => ({ dateKey: item.date, filled: !!item.filled })));
         }
-        if (state.selectedClassId) {
-          const hasBootstrapAttendance = res.attendance && res.attendance.classId === state.selectedClassId && res.attendance.date === selectedDateKey();
-          if (hasBootstrapAttendance) return true;
-          refreshAttendance(state.selectedClassId, selectedDateKey(), { force: true }).catch(() => {
-            showNotice('Não foi possível carregar as presenças desta classe.');
-          });
-        }
       } catch (error) {
         if (error?.message === 'Sessão necessária.' || (els.authGate && !els.authGate.hidden)) {
           const title = els.loadingClassesText?.querySelector('strong');
@@ -3395,6 +3440,32 @@
         if (event.target === els.memberPhotoDialog) closeMemberPhotoDialog();
       });
       els.chooseDialogMemberPhotoBtn?.addEventListener('click', () => els.dialogMemberPhotoInput?.click());
+      els.toggleDialogMemberRenameBtn?.addEventListener('click', () => {
+        if (!els.dialogMemberRenamePanel || !activePhotoDialog) return;
+        els.dialogMemberRenamePanel.hidden = !els.dialogMemberRenamePanel.hidden;
+        if (!els.dialogMemberRenamePanel.hidden) {
+          els.dialogMemberNameInput.value = activePhotoDialog.name;
+          els.dialogMemberNameInput.focus();
+          els.dialogMemberNameInput.select();
+        }
+      });
+      document.getElementById('saveDialogMemberNameBtn')?.addEventListener('click', () => {
+        if (activePhotoDialog) renameMember(activePhotoDialog.memberId, els.dialogMemberNameInput.value);
+      });
+      document.getElementById('cancelDialogMemberNameBtn')?.addEventListener('click', () => {
+        if (els.dialogMemberRenamePanel) els.dialogMemberRenamePanel.hidden = true;
+        refreshMemberPhotoDialog();
+      });
+      els.dialogMemberNameInput?.addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          if (activePhotoDialog) renameMember(activePhotoDialog.memberId, els.dialogMemberNameInput.value);
+        }
+        if (event.key === 'Escape' && els.dialogMemberRenamePanel) {
+          els.dialogMemberRenamePanel.hidden = true;
+          refreshMemberPhotoDialog();
+        }
+      });
       els.clearDialogMemberPhotoBtn?.addEventListener('click', () => {
         if (activePhotoDialog) clearMemberPhoto(activePhotoDialog.memberId);
       });
@@ -3406,8 +3477,22 @@
 
       els.editMemberList.addEventListener('click', event => {
         const btn = event.target.closest('[data-remove-member]');
-        if (!btn) return;
-        showMemberRemovalDialog(btn.dataset.removeMember, btn);
+        if (btn) {
+          showMemberRemovalDialog(btn.dataset.removeMember, btn);
+          return;
+        }
+        if (event.target.closest('[data-open-member-photo]')) return;
+        const card = event.target.closest('[data-edit-member-card]');
+        if (!card) return;
+        const profile = memberProfile(currentClass(), card.dataset.editMemberCard);
+        openMemberPhotoDialog(profile.id, profile.name, card);
+      });
+      els.editMemberList.addEventListener('keydown', event => {
+        const card = event.target.closest('[data-edit-member-card]');
+        if (!card || event.target !== card || !['Enter', ' '].includes(event.key)) return;
+        event.preventDefault();
+        const profile = memberProfile(currentClass(), card.dataset.editMemberCard);
+        openMemberPhotoDialog(profile.id, profile.name, card);
       });
 
       els.classListEditor.addEventListener('click', event => {

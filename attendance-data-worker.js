@@ -332,6 +332,27 @@ async function writeAttendanceCore(env, value) {
   return attendance;
 }
 
+async function renameAttendanceMember(env, classId, oldName, newName) {
+  const rows = await env.DB.prepare('SELECT date_key, members_json FROM attendance_core WHERE class_id = ?')
+    .bind(classId).all();
+  const oldKey = String(oldName || '').trim().toLocaleLowerCase('pt-PT');
+  const statements = [];
+  for (const row of rows.results || []) {
+    const members = JSON.parse(row.members_json || '[]');
+    let changed = false;
+    const renamed = members.map(member => {
+      if (String(member.name || '').trim().toLocaleLowerCase('pt-PT') !== oldKey) return member;
+      changed = true;
+      return { ...member, name: newName };
+    });
+    if (changed) {
+      statements.push(env.DB.prepare('UPDATE attendance_core SET members_json = ?, updated_at = ? WHERE class_id = ? AND date_key = ?')
+        .bind(JSON.stringify(renamed), now(), classId, row.date_key));
+    }
+  }
+  if (statements.length) await env.DB.batch(statements);
+}
+
 async function readValue(env, key) {
   const row = await env.DB.prepare('SELECT value FROM kv WHERE key = ?').bind(key).first();
   return row ? JSON.parse(row.value) : null;
@@ -773,6 +794,17 @@ async function handlePost(request, env, ctx) {
     if (!mutation.result.ok) return jsonResponse(mutation.result, 400, request, env);
     if (stateFingerprint(current) === stateFingerprint(mutation.state)) {
       return jsonResponse({ ...mutation.result, unchanged: true }, 200, request, env);
+    }
+    if (action === 'saveClass') {
+      const previousClass = findClass(current, classId);
+      const updatedClass = findClass(mutation.state, classId);
+      const updatedById = new Map((updatedClass?.memberProfiles || []).map(profile => [profile.id, profile]));
+      for (const previousProfile of previousClass?.memberProfiles || []) {
+        const updatedProfile = updatedById.get(previousProfile.id);
+        if (updatedProfile && previousProfile.name !== updatedProfile.name) {
+          await renameAttendanceMember(env, classId, previousProfile.name, updatedProfile.name);
+        }
+      }
     }
     if (action === 'saveClasses') await invalidateAllAttendanceCaches(env);
     else await invalidateClassCaches(env, classId);
