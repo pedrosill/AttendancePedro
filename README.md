@@ -49,8 +49,10 @@ O frontend comunica com o Worker D1. O Worker usa o URL `/exec` da implementaç�
 - `GET ?action=state`: devolve todas as turmas, membros e configuração dos treinos.
 - `GET ?action=bootstrap&classId=...&date=yyyy-MM-dd`: devolve o estado, a presença local e a cache de treinos recentes num único pedido.
 - `GET ?action=attendance&classId=...&date=yyyy-MM-dd`: devolve presenças de uma turma/data.
+- `GET ?action=attendanceOverview&classId=...&count=40`: devolve o histórico recente de presenças de uma classe, diretamente do D1.
 - `GET ?action=recentAttendance&classId=...&date=yyyy-MM-dd&count=2`: calcula no D1 os últimos treinos agendados e indica se estão preenchidos. Se o histórico ainda não tiver sido importado, devolve `historyReady: false` em vez de classificar datas como por preencher.
 - `GET ?action=syncStatus`: devolve o número de operações pendentes e o último erro de sincronização.
+- `GET ?action=databaseDiagnostics&classId=...`: consulta, em modo só de leitura, datas, presenças, importação do histórico e fila de sincronização dessa classe.
 - `POST { action: "saveClass", class: {...} }`: cria ou renomeia uma turma sem substituir as restantes.
 - `POST { action: "addMember", classId, member }`: adiciona um membro à turma, incluindo o perfil e a referência da fotografia.
 - `POST { action: "removeMember", classId, memberName }`: remove um membro e a respetiva linha da folha.

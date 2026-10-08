@@ -713,6 +713,109 @@ async function readSyncStatus(env) {
   };
 }
 
+async function databaseDiagnostics(env, classId) {
+  const state = await readState(env);
+  if (!state) return { ok: false, error: 'Shared state not available' };
+  const cls = findClass(state, classId);
+  if (!cls) return { ok: false, error: 'Class not found' };
+
+  const [history, dateRows, attendanceRows, outboxRows] = await Promise.all([
+    readHistorySyncStatus(env, classId),
+    env.DB.prepare('SELECT date_key, created_at FROM attendance_dates WHERE class_id = ? ORDER BY date_key DESC LIMIT 30')
+      .bind(classId).all(),
+    env.DB.prepare('SELECT date_key, operation_id, updated_at, members_json FROM attendance_core WHERE class_id = ? ORDER BY date_key DESC LIMIT 30')
+      .bind(classId).all(),
+    env.DB.prepare(`SELECT id, payload, created_at, attempts, last_error, operation_id, next_attempt_at
+      FROM outbox
+      WHERE json_extract(payload, '$.classId') = ? OR json_extract(payload, '$.class.id') = ?
+      ORDER BY created_at DESC LIMIT 20`).bind(classId, classId).all()
+  ]);
+
+  const attendance = (attendanceRows.results || []).map(row => {
+    const members = JSON.parse(row.members_json || '[]');
+    const statuses = {};
+    for (const member of members) {
+      const status = normaliseAttendanceStatus(member.status);
+      statuses[status] = (statuses[status] || 0) + 1;
+    }
+    return {
+      date: row.date_key,
+      operationId: row.operation_id || '',
+      updatedAt: row.updated_at,
+      memberCount: members.length,
+      statuses
+    };
+  });
+  const pending = (outboxRows.results || []).flatMap(row => {
+    try {
+      const payload = JSON.parse(row.payload || '{}');
+      if (String(payload.classId || payload.class?.id || '') !== classId) return [];
+      return [{
+        id: row.id,
+        date: payload.date || '',
+        action: payload.action || '',
+        createdAt: row.created_at,
+        attempts: row.attempts,
+        lastError: row.last_error || '',
+        nextAttemptAt: row.next_attempt_at || null,
+        operationId: row.operation_id || ''
+      }];
+    } catch {
+      return [];
+    }
+  }).slice(0, 20);
+
+  return {
+    ok: true,
+    class: { id: cls.id, name: cls.name },
+    tables: {
+      attendanceDates: (dateRows.results || []).map(row => ({ date: row.date_key, createdAt: row.created_at })),
+      attendanceCore: attendance,
+      attendanceHistorySync: history ? {
+        complete: Number(history.complete) === 1,
+        lastAttemptAt: history.last_attempt_at || null,
+        lastError: history.last_error || ''
+      } : null,
+      outbox: pending
+    }
+  };
+}
+
+async function attendanceOverview(env, classId, requestedCount = 40) {
+  const state = await readState(env);
+  if (!state) return { ok: false, error: 'Shared state not available' };
+  const cls = findClass(state, classId);
+  if (!cls) return { ok: false, error: 'Class not found' };
+  const history = await readHistorySyncStatus(env, classId);
+  if (Number(history?.complete || 0) !== 1) {
+    return { ok: true, class: { id: cls.id, name: cls.name }, historyReady: false, historyError: history?.last_error || '', records: [] };
+  }
+  const limit = Math.max(1, Math.min(Number(requestedCount) || 40, 80));
+  const [dateRows, attendanceRows] = await Promise.all([
+    env.DB.prepare('SELECT date_key, created_at FROM attendance_dates WHERE class_id = ? ORDER BY date_key DESC LIMIT ?')
+      .bind(classId, limit).all(),
+    env.DB.prepare('SELECT date_key, operation_id, updated_at, members_json FROM attendance_core WHERE class_id = ? ORDER BY date_key DESC LIMIT ?')
+      .bind(classId, limit).all()
+  ]);
+  const recordsByDate = new Map();
+  for (const row of dateRows.results || []) {
+    recordsByDate.set(row.date_key, { date: row.date_key, dateIndex: true, dateIndexCreatedAt: row.created_at, attendanceRecord: false, members: [] });
+  }
+  for (const row of attendanceRows.results || []) {
+    const entry = recordsByDate.get(row.date_key) || { date: row.date_key, dateIndex: false, dateIndexCreatedAt: null };
+    entry.attendanceRecord = true;
+    entry.operationId = row.operation_id || '';
+    entry.updatedAt = row.updated_at;
+    entry.members = JSON.parse(row.members_json || '[]').map(member => ({
+      name: String(member.name || ''),
+      status: normaliseAttendanceStatus(member.status)
+    }));
+    recordsByDate.set(row.date_key, entry);
+  }
+  const records = [...recordsByDate.values()].sort((a, b) => b.date.localeCompare(a.date)).slice(0, limit);
+  return { ok: true, class: { id: cls.id, name: cls.name }, historyReady: true, records };
+}
+
 function wait(milliseconds) {
   return new Promise(resolve => setTimeout(resolve, milliseconds));
 }
@@ -761,6 +864,19 @@ async function handleGet(request, env, ctx) {
   const url = new URL(request.url);
   const action = url.searchParams.get('action') || 'state';
   if (action === 'syncStatus') return jsonResponse(await readSyncStatus(env), 200, request, env);
+  if (action === 'databaseDiagnostics') {
+    const classId = url.searchParams.get('classId') || '';
+    if (!classId) return jsonResponse({ ok: false, error: 'Missing classId' }, 400, request, env);
+    const result = await databaseDiagnostics(env, classId);
+    return jsonResponse(result, result.ok ? 200 : 404, request, env);
+  }
+  if (action === 'attendanceOverview') {
+    const classId = url.searchParams.get('classId') || '';
+    if (!classId) return jsonResponse({ ok: false, error: 'Missing classId' }, 400, request, env);
+    const result = await attendanceOverview(env, classId, url.searchParams.get('count') || '40');
+    if (!result.historyReady) ctx.waitUntil(syncClassAttendanceHistory(env, classId).catch(error => console.error('Attendance history import failed:', classId, error)));
+    return jsonResponse(result, result.ok ? 200 : 404, request, env);
+  }
   if (action === 'bootstrap') {
     const state = await getOrBootstrapState(env);
     const classId = url.searchParams.get('classId') || '';
