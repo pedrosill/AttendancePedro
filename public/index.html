@@ -664,17 +664,28 @@
     .status-detail-row.is-placeholder .status-btn { visibility: hidden; }
     .status-detail-row.completed { visibility: hidden; pointer-events: none; }
     .status-detail-row .status-btn { min-height: 44px; }
-    .single-attendance-card {
+    #screen-attendance-single .single-attendance-card {
       display: flex;
       flex-direction: column;
-      gap: var(--space-4);
+      align-items: center;
+      gap: clamp(var(--space-2), 1.8dvh, var(--space-4));
       width: 100%;
       min-height: 320px;
-      padding-top: clamp(1rem, 4vh, 2.5rem);
+      padding-top: clamp(0.5rem, 2dvh, 1.25rem);
     }
     #screen-attendance-single .single-attendance-card { flex: 1; }
+    #screen-attendance-single .member-avatar-trigger { align-self: center; }
+    #screen-attendance-single .member-avatar-large {
+      width: min(clamp(148px, 27dvh, 260px), 70vw);
+      height: min(clamp(148px, 27dvh, 260px), 70vw);
+    }
+    #screen-attendance-single .member-name-large,
+    #screen-attendance-single .member-progress,
+    #screen-attendance-single .status-row,
+    #screen-attendance-single .status-detail-row,
+    #screen-attendance-single .single-nav { width: 100%; }
     #screen-attendance-single .single-attendance-card > .status-row {
-      margin-top: clamp(1.5rem, 6vh, 3.5rem);
+      margin-top: clamp(0.5rem, 2dvh, 1rem);
     }
     #screen-attendance-single .single-attendance-card > .status-row .status-btn {
       min-height: 84px;
