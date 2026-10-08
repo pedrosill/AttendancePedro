@@ -1577,7 +1577,7 @@
     let attendanceHistoryEntries = [];
     let attendanceHistoryRequestId = 0;
     let attendanceHistoryClassId = '';
-    let attendanceHistoryDisplayedCount = 8;
+    let attendanceHistoryDisplayedCount = 5;
     const els = {
       main: document.getElementById('main'),
       authGate: document.getElementById('authGate'),
@@ -2243,6 +2243,9 @@
     function renderAttendanceHistory(records) {
       const sessions = records.filter(record => record.hasAttendance).sort((a, b) => a.date.localeCompare(b.date));
       const visibleSessions = sessions.slice(-attendanceHistoryDisplayedCount);
+      const remainingSessions = sessions.length - visibleSessions.length;
+      const revealCount = Math.min(5, remainingSessions);
+      const revealLabel = revealCount === 1 ? 'treino anterior' : 'treinos anteriores';
       els.attendanceHistoryCount.textContent = sessions.length
         ? `${visibleSessions.length} de ${sessions.length}`
         : '';
@@ -2293,7 +2296,7 @@
             <tbody>${sortedMembers.map(name => `<tr><th class="member-heading" scope="row" title="${escapeAttr(name)}">${escapeHtml(name)}</th>${visibleSessions.map(session => cell(name, session)).join('')}</tr>`).join('')}</tbody>
           </table>
         </div>
-        ${sessions.length > visibleSessions.length ? `<button class="secondary-btn history-more" type="button" data-history-more>Ver mais 8 treinos</button>` : ''}`;
+        ${remainingSessions ? `<button class="secondary-btn history-more" type="button" data-history-more>Ver ${revealCount} ${revealLabel}</button>` : ''}`;
     }
 
     async function loadAttendanceHistory(classId = '') {
@@ -2310,7 +2313,7 @@
         els.attendanceHistoryCount.textContent = '';
         return;
       }
-      if (attendanceHistoryClassId !== chosenClassId) attendanceHistoryDisplayedCount = 8;
+      if (attendanceHistoryClassId !== chosenClassId) attendanceHistoryDisplayedCount = 5;
       attendanceHistoryClassId = chosenClassId;
       const chosenClass = state.classes.find(cls => cls.id === chosenClassId);
       if (chosenClass) els.screens.records.style.setProperty('--class-accent', colorFromString(chosenClass.name));
@@ -3697,7 +3700,7 @@
           return;
         }
         if (!event.target.closest('[data-history-more]')) return;
-        attendanceHistoryDisplayedCount += 8;
+        attendanceHistoryDisplayedCount += 5;
         renderAttendanceHistory(attendanceHistoryEntries);
       });
       document.getElementById('copyShareLinkBtn').addEventListener('click', copyAppLink);
