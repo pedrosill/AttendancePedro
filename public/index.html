@@ -164,6 +164,7 @@
     .auth-card form { display: grid; gap: var(--space-4); margin-top: var(--space-6); }
     .auth-card .primary-btn { width: 100%; }
     .auth-message { min-height: 1.5em; margin: var(--space-3) 0 0; color: var(--color-error); }
+    .pin-value { padding: 0.45rem 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface-2); font-family: ui-monospace, monospace; font-size: var(--text-lg); font-weight: 700; letter-spacing: 0.12em; }
     button, select, input {
       font: inherit;
       color: inherit;
@@ -1140,6 +1141,14 @@
       <button class="primary-btn sheets-settings-btn" type="button" id="openSheetsSettingsBtn">Abrir Google Sheets</button>
 
       <div class="stack">
+        <label>Acesso à aplicação</label>
+        <div class="toolbar">
+          <button class="secondary-btn" type="button" id="toggleAppPinBtn" aria-expanded="false">Ver PIN</button>
+          <output class="pin-value" id="appPinValue" aria-live="polite" hidden></output>
+        </div>
+      </div>
+
+      <div class="stack">
         <label>Forma de escolher a classe</label>
         <div class="settings-choice-grid">
           <button class="secondary-btn settings-choice" type="button" id="pickerDropdownBtn">Lista suspensa</button>
@@ -1465,6 +1474,7 @@
       scriptPanel: document.getElementById('scriptPanel'),
       webhookInput: document.getElementById('webhookInput'),
       syncStatusText: document.getElementById('syncStatusText'),
+      appPinValue: document.getElementById('appPinValue'),
       photoApiInput: document.getElementById('photoApiInput'),
       memberPhotoInput: document.getElementById('memberPhotoInput'),
       memberPhotoPreview: document.getElementById('memberPhotoPreview'),
@@ -1976,6 +1986,43 @@
       return result;
     }
 
+    async function toggleAppPin() {
+      const button = document.getElementById('toggleAppPinBtn');
+      if (!button || !els.appPinValue) return;
+      if (!els.appPinValue.hidden) {
+        els.appPinValue.hidden = true;
+        els.appPinValue.textContent = '';
+        button.textContent = 'Ver PIN';
+        button.setAttribute('aria-expanded', 'false');
+        return;
+      }
+
+      button.disabled = true;
+      button.textContent = 'A consultar...';
+      try {
+        const response = await apiFetch(state.webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'getAppPin' })
+        });
+        if (response.status === 401) {
+          clearAuth();
+          throw new Error('Sessão necessária. Introduz novamente o PIN.');
+        }
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || result.ok !== true || !result.pin) throw new Error(result.error || 'Não foi possível consultar o PIN.');
+        els.appPinValue.textContent = result.pin;
+        els.appPinValue.hidden = false;
+        button.textContent = 'Ocultar PIN';
+        button.setAttribute('aria-expanded', 'true');
+      } catch (error) {
+        showNotice(error.message || 'Não foi possível consultar o PIN.');
+        button.textContent = 'Ver PIN';
+      } finally {
+        button.disabled = false;
+      }
+    }
+
     function requireApiSuccess(result, fallbackMessage) {
       if (!result || result.ok !== true) throw new Error(result?.error || fallbackMessage);
       return result;
@@ -2324,6 +2371,15 @@
 
     function switchScreen(key) {
       if (key !== 'settings') classRemovalMode = false;
+      if (key !== 'settings' && els.appPinValue && !els.appPinValue.hidden) {
+        els.appPinValue.hidden = true;
+        els.appPinValue.textContent = '';
+        const pinButton = document.getElementById('toggleAppPinBtn');
+        if (pinButton) {
+          pinButton.textContent = 'Ver PIN';
+          pinButton.setAttribute('aria-expanded', 'false');
+        }
+      }
       Object.entries(els.screens).forEach(([name, node]) => node.classList.toggle('active', name === key));
       const backBtn = document.getElementById('backToClassesTopBtn');
       if (backBtn) backBtn.hidden = key === 'class';
@@ -3185,6 +3241,7 @@
         window.open('https://docs.google.com/spreadsheets/d/1k7tv6lmwYWUhn4D5rMy5oMvIBhYzaOIdsc5V4ivnJ6U/edit?usp=sharing', '_blank', 'noopener,noreferrer');
       });
       document.getElementById('copyShareLinkBtn').addEventListener('click', copyAppLink);
+      document.getElementById('toggleAppPinBtn').addEventListener('click', toggleAppPin);
       document.getElementById('nativeShareBtn').addEventListener('click', shareApp);
       document.getElementById('goToDateBtn').addEventListener('click', () => {
         if (!state.dateStepTouched) {

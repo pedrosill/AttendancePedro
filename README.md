@@ -119,6 +119,7 @@ O workflow [deploy.yml](.github/workflows/deploy.yml) valida o código, aplica a
 O workflow não recria os secrets `APP_PIN` e `APP_AUTH_SECRET`: esses secrets permanecem guardados nos Workers Cloudflare durante cada deploy. O job de publicação usa o ambiente GitHub `production`; se esse ambiente tiver reviewers obrigatórios, o deploy aguarda aprovação antes de publicar.
 
 O acesso à app e às fotografias é protegido pelo PIN da app e por tokens de sessão. O URL do backend não deve ser tratado como uma API pública sem autenticação.
+Utilizadores com sessão iniciada podem consultar o PIN partilhado em `Definições` → `Ver PIN` e transmiti-lo manualmente a novos utilizadores.
 
 ## Fotografias de membros
 

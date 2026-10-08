@@ -721,6 +721,10 @@ async function handlePost(request, env, ctx) {
     return jsonResponse({ ok: true, ...(await createAuthToken(env)) }, 200, request, env);
   }
   if (!(await requireAuth(request, env))) return jsonResponse({ ok: false, error: 'Authentication required' }, 401, request, env);
+  if (action === 'getAppPin') {
+    if (!env.APP_PIN) return jsonResponse({ ok: false, error: 'APP_PIN não configurado' }, 503, request, env);
+    return jsonResponse({ ok: true, pin: String(env.APP_PIN) }, 200, request, env);
+  }
   if (!['saveClasses', 'saveClass', 'addMember', 'removeMember', 'removeClass', 'saveAttendance'].includes(action)) {
     return jsonResponse({ ok: false, error: 'Unknown action' }, 400, request, env);
   }
