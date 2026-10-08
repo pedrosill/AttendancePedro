@@ -657,7 +657,8 @@ test('o resumo mantém os dois treinos mais recentes e inclui faltas anteriores'
   ];
   const sheet = spreadsheet.insertSheet('Diária');
   sheet.data = [
-    ['Membro', '2026-09-01', '2026-09-03', '2026-09-04'],
+    ['Membro', 'setembro', 'setembro', 'setembro'],
+    ['', '2026-09-01', '2026-09-03', '2026-09-04'],
     ['Ana', '*', '*', '*']
   ];
 
@@ -669,8 +670,8 @@ test('o resumo mantém os dois treinos mais recentes e inclui faltas anteriores'
   ]);
 });
 
-test('o resumo reconhece datas ISO na folha e apresenta o mês e dia sem ano', () => {
-  const { context, spreadsheet } = createContext();
+test('o resumo reconhece datas ISO sem reformatar a folha durante a leitura', () => {
+  const { context, spreadsheet, getLockCounts } = createContext();
   const meta = spreadsheet.insertSheet('__classes__');
   meta.data = [
     ['id', 'name', 'membersJson', 'trainingDaysJson', 'seasonStart'],
@@ -678,19 +679,21 @@ test('o resumo reconhece datas ISO na folha e apresenta o mês e dia sem ano', (
   ];
   const sheet = spreadsheet.insertSheet('Gami');
   sheet.data = [
-    ['Membro', '2026/10/06'],
+    ['Membro', 'outubro'],
+    ['', '2026/10/06'],
     ['Ana', '*']
   ];
 
   const output = context.getRecentAttendanceState({ classId: 'gami-id', date: '2026-10-08', count: '2' });
 
   assert.equal(sheet.valueAt(1, 2), 'outubro');
-  assert.equal(context.normalizeDateKey(sheet.valueAt(2, 2)), '2026-10-06');
+  assert.equal(sheet.valueAt(2, 2), '2026/10/06');
   assert.equal(sheet.valueAt(3, 1), 'Ana');
   assert.deepEqual(JSON.parse(JSON.stringify(output.dates.slice(0, 2))), [
     { date: '2026-10-08', filled: false },
     { date: '2026-10-06', filled: true }
   ]);
+  assert.deepEqual(getLockCounts(), { waits: 0, releases: 0 });
 });
 
 test('alterar o calendário da classe atualiza imediatamente os treinos calculados', () => {

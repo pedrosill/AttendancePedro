@@ -1456,6 +1456,7 @@
     const STORAGE_KEY = 'gym-attendance-prefs-v4';
     const DEFAULT_BACKEND_URL = 'https://attendance-pedro-data.pedrosill1944.workers.dev';
     const API_TIMEOUT_MS = 15000;
+    const RECENT_TRAINING_CACHE_TTL_MS = 60000;
     const LEGACY_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbzWfzY9w2-Q3SiDZlTZP2H4ZZyKPmc70eCy-o_RhTs_kZ7_LrAUnVAtJBMrxX4OQ7r4Hw/exec';
     const DEFAULT_PHOTO_API_URL = 'https://attendance-pedro-media-public.pedrosill1944.workers.dev';
     const LEGACY_PHOTO_API_URL = 'https://attendance-pedro-media.pedrosill1944.workers.dev';
@@ -1487,6 +1488,7 @@
     const attendanceDirtyMembers = new Set();
     const attendanceRequests = new Map();
     const recentTrainingCache = new Map();
+    const recentTrainingCacheAt = new Map();
     const recentTrainingRequests = new Map();
     let classRemovalMode = false;
     let pendingClassRemovalId = '';
@@ -1727,10 +1729,10 @@
       const dateKey = todayKey();
       const key = recentTrainingRequestKey(cls.id, dateKey);
       const force = options.force === true;
-      if (!force && recentTrainingCache.has(key)) {
-        const items = recentTrainingCache.get(key);
-        renderRecentTrainingList(items);
-        return items;
+      const cachedItems = recentTrainingCache.get(key);
+      if (!force && recentTrainingCache.has(key) && Date.now() - (recentTrainingCacheAt.get(key) || 0) < RECENT_TRAINING_CACHE_TTL_MS) {
+        renderRecentTrainingList(cachedItems);
+        return cachedItems;
       }
       if (recentTrainingRequests.has(key)) {
         const items = await recentTrainingRequests.get(key);
@@ -1740,21 +1742,24 @@
 
       const requestId = ++recentTrainingRequestId;
       const requestRevision = recentTrainingRevision;
-      renderRecentTrainingList([], true);
+      renderRecentTrainingList(cachedItems || [], !cachedItems);
       const request = (async () => {
         try {
           const result = await apiGet('recentAttendance', { classId: cls.id, date: dateKey, count: 2, refresh: force ? '1' : '0' });
           requireApiSuccess(result, 'Não foi possível carregar os treinos');
           if (!Array.isArray(result.dates)) throw new Error('O backend ainda não suporta o resumo de treinos');
           const items = result.dates.map(item => ({ dateKey: item.date, filled: !!item.filled }));
-          if (requestRevision === recentTrainingRevision) recentTrainingCache.set(key, items);
+          if (requestRevision === recentTrainingRevision) {
+            recentTrainingCache.set(key, items);
+            recentTrainingCacheAt.set(key, Date.now());
+          }
           if (requestRevision === recentTrainingRevision && requestId === recentTrainingRequestId && state.selectedClassId === cls.id) {
             renderRecentTrainingList(items);
           }
           return items;
         } catch (error) {
           if (requestRevision === recentTrainingRevision && requestId === recentTrainingRequestId && state.selectedClassId === cls.id) {
-            renderRecentTrainingList([]);
+            if (!cachedItems) renderRecentTrainingList([]);
             showNotice(`Não foi possível verificar os últimos treinos: ${error.message || 'erro desconhecido'}`, 'error');
           }
           return [];
@@ -2161,7 +2166,7 @@
       });
       animateSelection(els.classButtonList?.querySelector(`[data-class-id="${CSS.escape(classId)}"]`) || els.classSelect);
       renderTopSummary();
-      if (els.screens.date?.classList.contains('active')) loadRecentTrainingStatus({ force: true });
+      if (els.screens.date?.classList.contains('active')) loadRecentTrainingStatus();
     }
 
     function renderTopSummary() {
@@ -2446,6 +2451,11 @@
       if (status) status.textContent = '';
       try {
         await saveClassRecord({ id: cls.id, name: cls.name, trainingDays: selectedDays, seasonStart }, state.selectedClassId, { stayOnPage: true });
+        recentTrainingRevision += 1;
+        recentTrainingRequestId += 1;
+        recentTrainingRequests.clear();
+        recentTrainingCache.delete(recentTrainingRequestKey(cls.id, todayKey()));
+        recentTrainingCacheAt.delete(recentTrainingRequestKey(cls.id, todayKey()));
         if (status) status.textContent = 'Calendário guardado.';
       } catch (error) {
         if (status) status.textContent = error.message || 'Não foi possível guardar o calendário.';
@@ -2511,7 +2521,7 @@
         renderSettingsClassList();
         refreshSyncStatus();
       }
-      if (key === 'date') loadRecentTrainingStatus({ force: true });
+      if (key === 'date') loadRecentTrainingStatus();
       renderTopSummary();
     }
 
@@ -3063,6 +3073,7 @@
         recentTrainingRequests.clear();
         recentTrainingRequestId += 1;
         recentTrainingCache.clear();
+        recentTrainingCacheAt.clear();
         applyAttendanceResult(cls.id, savedDateKey, res.attendance || { members: payload.members });
         clearAttendanceDirty(cls.id, savedDateKey);
         switchScreen('class');
@@ -3149,6 +3160,7 @@
       attendanceCacheKeys.clear();
       attendanceRequests.clear();
       recentTrainingCache.clear();
+      recentTrainingCacheAt.clear();
       recentTrainingRequests.clear();
       recentTrainingRequestId += 1;
       recentTrainingRevision += 1;
@@ -3264,7 +3276,9 @@
         renderTopSummary();
         if (res.attendance && state.selectedClassId) applyAttendanceResult(state.selectedClassId, selectedDateKey(), res.attendance);
         if (res.recent && Array.isArray(res.recent.dates) && state.selectedClassId && selectedDateKey() === todayKey()) {
-          recentTrainingCache.set(recentTrainingRequestKey(state.selectedClassId, todayKey()), res.recent.dates.map(item => ({ dateKey: item.date, filled: !!item.filled })));
+          const recentKey = recentTrainingRequestKey(state.selectedClassId, todayKey());
+          recentTrainingCache.set(recentKey, res.recent.dates.map(item => ({ dateKey: item.date, filled: !!item.filled })));
+          recentTrainingCacheAt.set(recentKey, Date.now() - RECENT_TRAINING_CACHE_TTL_MS - 1);
         }
       } catch (error) {
         if (error?.message === 'Sessão necessária.' || (els.authGate && !els.authGate.hidden)) {

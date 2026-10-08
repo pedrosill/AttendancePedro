@@ -133,13 +133,8 @@ function getRecentAttendanceState(params) {
   var sheet = ss.getSheetByName(sanitizeSheetName(cls.name));
 
   if (sheet) {
-    withWriteLock(function() {
-      ensureAttendanceHeader(sheet);
-      normalizeAttendanceDates(sheet);
-      deduplicateDateColumns(sheet);
-      sortDateColumnsByDate(sheet);
-      dateColumns = getDateColumnMap(sheet);
-    });
+    // A status check only needs the date headers; formatting and sorting belong to writes.
+    dateColumns = getDateColumnMap(sheet);
   }
 
   var scannedDays = 0;
