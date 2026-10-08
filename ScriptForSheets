@@ -561,11 +561,11 @@ function ensureAttendanceHeader(sheet) {
   }
 
   removeRepeatedDateHeaderRows(sheet);
+  sheet.setFrozenRows(2);
   var memberHeader = sheet.getRange(1, 1, 2, 1);
   memberHeader.breakApart();
   memberHeader.merge();
   sheet.getRange(1, 1).setNote('attendance-month-header-v1');
-  sheet.setFrozenRows(2);
   sheet.setFrozenColumns(1);
   ensureDateColumnDisplayFormat(sheet);
   rebuildMonthlyAttendanceHeaders(sheet);

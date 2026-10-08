@@ -48,6 +48,10 @@ class MockRange {
   setFontWeight() { return this; }
   setHorizontalAlignment() { return this; }
   merge() {
+    const lastRow = this.row + this.rowCount - 1;
+    if (this.row <= this.sheet.frozenRows && lastRow > this.sheet.frozenRows) {
+      throw new Error('Cannot merge frozen rows with unfrozen rows');
+    }
     this.sheet.merges.push({ row: this.row, column: this.column, rowCount: this.rowCount, columnCount: this.columnCount });
     for (let row = 0; row < this.rowCount; row += 1) {
       for (let column = 0; column < this.columnCount; column += 1) {
@@ -88,6 +92,7 @@ class MockSheet {
     this.rules = [];
     this.notes = {};
     this.merges = [];
+    this.frozenRows = 0;
   }
 
   getName() { return this.name; }
@@ -134,7 +139,7 @@ class MockSheet {
 
   clearContents() { this.data = []; this.fontColors = []; }
   setConditionalFormatRules(rules) { this.rules = rules; }
-  setFrozenRows() {}
+  setFrozenRows(rows) { this.frozenRows = rows; }
   setFrozenColumns() {}
 
   insertRowsBefore(row, count) {
@@ -400,6 +405,23 @@ test('repara cabeçalhos de datas repetidos sem voltar a deslocar membros', () =
   assert.equal(sheet.valueAt(4, 1), 'Bia');
   assert.deepEqual(sheet.data[3], ['Bia', '*', 'F', 'A']);
   assert.equal(sheet.fontColorAt(4, 4), '#d19900');
+});
+
+test('corrige a migração quando apenas a primeira linha estava fixa', () => {
+  const { context, spreadsheet } = createContext();
+  const sheet = spreadsheet.insertSheet('Gami');
+  sheet.data = [
+    ['Membro', '2026-10-06'],
+    ['Ana', '*']
+  ];
+  sheet.setFrozenRows(1);
+
+  context.ensureAttendanceHeader(sheet);
+
+  assert.equal(sheet.frozenRows, 2);
+  assert.equal(sheet.valueAt(1, 2), 'outubro');
+  assert.equal(context.normalizeDateKey(sheet.valueAt(2, 2)), '2026-10-06');
+  assert.equal(sheet.valueAt(3, 1), 'Ana');
 });
 
 test('a mesma data atualiza a coluna existente sem criar duplicados', () => {
