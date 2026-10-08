@@ -857,6 +857,8 @@
     .attendance-matrix tr:last-child th, .attendance-matrix tr:last-child td { border-bottom: 0; }
     .attendance-matrix th:last-child, .attendance-matrix td:last-child { border-right: 0; }
     .attendance-matrix thead th { position: sticky; top: 0; z-index: 2; min-width: 62px; background: var(--color-surface-2); color: var(--color-text); }
+    .attendance-matrix thead .month-heading { height: 34px; border-bottom-color: var(--class-accent, var(--color-border)); font-size: var(--text-xs); font-weight: 700; text-align: center; text-transform: capitalize; }
+    .attendance-matrix thead .date-heading { top: 34px; }
     .attendance-matrix thead th > span, .attendance-matrix thead th > strong { display: block; }
     .attendance-matrix thead th > span { color: var(--color-text-muted); font-size: .68rem; font-weight: 600; text-transform: lowercase; }
     .attendance-matrix thead th > strong { font-size: .82rem; }
@@ -2239,8 +2241,8 @@
     }
 
     function renderAttendanceHistory(records) {
-      const sessions = records.filter(record => record.hasAttendance);
-      const visibleSessions = sessions.slice(0, attendanceHistoryDisplayedCount);
+      const sessions = records.filter(record => record.hasAttendance).sort((a, b) => a.date.localeCompare(b.date));
+      const visibleSessions = sessions.slice(-attendanceHistoryDisplayedCount);
       els.attendanceHistoryCount.textContent = sessions.length
         ? `${visibleSessions.length} de ${sessions.length}`
         : '';
@@ -2256,8 +2258,19 @@
         const parsed = new Date(`${date}T12:00:00`);
         const weekday = new Intl.DateTimeFormat('pt-PT', { weekday: 'short' }).format(parsed).replace(/\.$/, '');
         const shortDate = new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: '2-digit' }).format(parsed);
-        return `<th scope="col" title="${displaySingleDate(date)}"><span>${escapeHtml(weekday)}</span><strong>${shortDate}</strong><small>${date.slice(0, 4)}</small></th>`;
+        return `<th class="date-heading" scope="col" title="${displaySingleDate(date)}"><span>${escapeHtml(weekday)}</span><strong>${shortDate}</strong></th>`;
       };
+      const monthGroups = [];
+      visibleSessions.forEach(session => {
+        const key = session.date.slice(0, 7);
+        const previous = monthGroups[monthGroups.length - 1];
+        if (previous?.key === key) previous.count += 1;
+        else {
+          const monthName = new Intl.DateTimeFormat('pt-PT', { month: 'long', year: 'numeric' })
+            .format(new Date(`${key}-01T12:00:00`));
+          monthGroups.push({ key, count: 1, label: monthName.charAt(0).toLocaleUpperCase('pt-PT') + monthName.slice(1) });
+        }
+      });
       const cell = (memberName, session) => {
         const member = session.members.find(item => item.name === memberName);
         const status = String(member?.status || 'pending');
@@ -2273,7 +2286,10 @@
       els.attendanceMatrixContainer.innerHTML = `
         <div class="history-matrix-scroll" role="region" aria-label="Tabela de presenças; desliza horizontalmente para consultar outros treinos" tabindex="0">
           <table class="attendance-matrix">
-            <thead><tr><th class="member-heading" scope="col">Membro</th>${visibleSessions.map(session => dateHeading(session.date)).join('')}</tr></thead>
+            <thead>
+              <tr><th class="member-heading" scope="col" rowspan="2">Membro</th>${monthGroups.map(group => `<th class="month-heading" scope="colgroup" colspan="${group.count}">${escapeHtml(group.label)}</th>`).join('')}</tr>
+              <tr>${visibleSessions.map(session => dateHeading(session.date)).join('')}</tr>
+            </thead>
             <tbody>${sortedMembers.map(name => `<tr><th class="member-heading" scope="row" title="${escapeAttr(name)}">${escapeHtml(name)}</th>${visibleSessions.map(session => cell(name, session)).join('')}</tr>`).join('')}</tbody>
           </table>
         </div>
@@ -2296,6 +2312,8 @@
       }
       if (attendanceHistoryClassId !== chosenClassId) attendanceHistoryDisplayedCount = 8;
       attendanceHistoryClassId = chosenClassId;
+      const chosenClass = state.classes.find(cls => cls.id === chosenClassId);
+      if (chosenClass) els.screens.records.style.setProperty('--class-accent', colorFromString(chosenClass.name));
       const requestId = ++attendanceHistoryRequestId;
       els.attendanceMatrixContainer.innerHTML = '<p class="tiny muted">A carregar os registos...</p>';
       els.attendanceHistoryCount.textContent = '';
