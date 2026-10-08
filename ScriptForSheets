@@ -548,23 +548,76 @@ function ensureAttendanceHeader(sheet) {
   var firstHeader = String(sheet.getRange(1, 1).getValue() || '').trim().toLowerCase();
   if (firstHeader === 'date' || firstHeader === 'data') transposeLegacyAttendanceSheet(sheet);
   if (!String(sheet.getRange(1, 1).getValue() || '').trim()) sheet.getRange(1, 1).setValue('Membro');
-  var monthlyHeaderExists = isMonthlyAttendanceHeader(sheet);
-  if (!monthlyHeaderExists) {
-    var lastColumn = sheet.getLastColumn();
+  var lastColumn = sheet.getLastColumn();
+  var hasDateRow = lastColumn > 1 && isDateHeaderRow(sheet, 2, lastColumn);
+  var legacyMemberInRowTwo = String(sheet.getRange(2, 1).getValue() || '').trim();
+  if (!hasDateRow && (lastColumn > 1 || legacyMemberInRowTwo)) {
     var oldDates = lastColumn > 1 ? sheet.getRange(1, 2, 1, lastColumn - 1).getValues() : [[]];
     sheet.insertRowsBefore(2, 1);
     if (lastColumn > 1) sheet.getRange(2, 2, 1, lastColumn - 1).setValues(oldDates);
     sheet.getRange(1, 1).setValue('Membro');
-    sheet.getRange(1, 1, 2, 1).merge();
-    sheet.getRange(1, 1).setNote('attendance-month-header-v1');
   }
+
+  removeRepeatedDateHeaderRows(sheet);
+  var memberHeader = sheet.getRange(1, 1, 2, 1);
+  memberHeader.breakApart();
+  memberHeader.merge();
+  sheet.getRange(1, 1).setNote('attendance-month-header-v1');
   sheet.setFrozenRows(2);
   sheet.setFrozenColumns(1);
-  if (!monthlyHeaderExists) rebuildMonthlyAttendanceHeaders(sheet);
+  ensureDateColumnDisplayFormat(sheet);
+  rebuildMonthlyAttendanceHeaders(sheet);
 }
 
 function isMonthlyAttendanceHeader(sheet) {
   return String(sheet.getRange(1, 1).getNote() || '') === 'attendance-month-header-v1';
+}
+
+function isDateHeaderRow(sheet, row, lastColumn) {
+  if (lastColumn < 2 || String(sheet.getRange(row, 1).getValue() || '').trim()) return false;
+  var values = sheet.getRange(row, 2, 1, lastColumn - 1).getValues()[0];
+  var dateCount = 0;
+  for (var index = 0; index < values.length; index++) {
+    if (values[index] === '' || values[index] === null || values[index] === undefined) continue;
+    if (!parseDateKey(values[index])) return false;
+    dateCount++;
+  }
+  return dateCount > 0;
+}
+
+function removeRepeatedDateHeaderRows(sheet) {
+  var lastColumn = sheet.getLastColumn();
+  var lastRow = sheet.getLastRow();
+  if (lastColumn < 2 || lastRow < 3 || !isDateHeaderRow(sheet, 2, lastColumn)) return;
+
+  var expected = sheet.getRange(2, 2, 1, lastColumn - 1).getValues()[0];
+  for (var row = 3; row <= lastRow;) {
+    var name = String(sheet.getRange(row, 1).getValue() || '').trim();
+    if (name) break;
+    var values = sheet.getRange(row, 2, 1, lastColumn - 1).getValues()[0];
+    var matches = 0;
+    var onlyDates = true;
+    for (var column = 0; column < values.length; column++) {
+      var value = values[column];
+      if (value === '' || value === null || value === undefined) continue;
+      var dateKey = normalizeDateKey(value);
+      if (!parseDateKey(value)) {
+        onlyDates = false;
+        break;
+      }
+      if (dateKey === normalizeDateKey(expected[column])) matches++;
+      else {
+        onlyDates = false;
+        break;
+      }
+    }
+    if (onlyDates && matches > 0) {
+      sheet.deleteRow(row);
+      lastRow--;
+    } else {
+      row++;
+    }
+  }
 }
 
 function rebuildMonthlyAttendanceHeaders(sheet) {

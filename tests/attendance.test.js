@@ -374,6 +374,34 @@ test('agrupa as datas por mês e mantém datas e presenças ordenadas', () => {
   assert.ok(sheet.merges.some(range => range.row === 1 && range.column === 1 && range.rowCount === 2));
 });
 
+test('repara cabeçalhos de datas repetidos sem voltar a deslocar membros', () => {
+  const { context, spreadsheet } = createContext();
+  const sheet = spreadsheet.insertSheet('Gami');
+  sheet.data = [
+    ['Membro', '08/09', '10/09', '14/09'],
+    ['', '2026/09/08', '2026/09/10', '2026/09/14'],
+    ['', '2026/09/08', '2026/09/10', '2026/09/14'],
+    ['', '2026/09/08', '2026/09/10', '2026/09/14'],
+    ['', '2026/09/08', '2026/09/10', '2026/09/14'],
+    ['Alice Bom', '', '', '*'],
+    ['Bia', '*', 'F', 'A']
+  ];
+  sheet.fontColors = [[], [], [], [], [], ['', '', '', '#437a22'], ['', '#437a22', '#a13544', '#d19900']];
+
+  context.ensureAttendanceHeader(sheet);
+  delete sheet.notes['1:1'];
+  context.ensureAttendanceHeader(sheet);
+
+  assert.equal(sheet.valueAt(1, 2), 'setembro 2026');
+  assert.equal(context.normalizeDateKey(sheet.valueAt(2, 2)), '2026-09-08');
+  assert.equal(sheet.getLastRow(), 4);
+  assert.equal(sheet.valueAt(3, 1), 'Alice Bom');
+  assert.equal(sheet.valueAt(3, 4), '*');
+  assert.equal(sheet.valueAt(4, 1), 'Bia');
+  assert.deepEqual(sheet.data[3], ['Bia', '*', 'F', 'A']);
+  assert.equal(sheet.fontColorAt(4, 4), '#d19900');
+});
+
 test('a mesma data atualiza a coluna existente sem criar duplicados', () => {
   const { context, spreadsheet, getLockCounts } = createContext();
   const meta = spreadsheet.insertSheet('__classes__');
