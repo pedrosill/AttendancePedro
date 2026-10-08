@@ -341,7 +341,7 @@ test('migra a tabela antiga, mantém células vazias e reaplica as cores', () =>
   context.ensureAttendanceHeader(sheet);
 
   assert.equal(sheet.valueAt(1, 1), 'Membro');
-  assert.equal(sheet.valueAt(1, 2), 'setembro 2026');
+  assert.equal(sheet.valueAt(1, 2), 'setembro');
   assert.equal(context.normalizeDateKey(sheet.valueAt(2, 2)), '2026-09-08');
   assert.equal(sheet.valueAt(3, 1), 'Ana');
   assert.equal(sheet.valueAt(3, 2), '*');
@@ -364,8 +364,8 @@ test('agrupa as datas por mês e mantém datas e presenças ordenadas', () => {
   context.normalizeAttendanceDates(sheet);
   context.sortDateColumnsByDate(sheet);
 
-  assert.equal(sheet.valueAt(1, 2), 'setembro 2026');
-  assert.equal(sheet.valueAt(1, 4), 'outubro 2026');
+  assert.equal(sheet.valueAt(1, 2), 'setembro');
+  assert.equal(sheet.valueAt(1, 4), 'outubro');
   assert.deepEqual(sheet.data[1].slice(1).map(date => context.normalizeDateKey(date)), [
     '2026-09-03', '2026-09-10', '2026-10-01'
   ]);
@@ -392,7 +392,7 @@ test('repara cabeçalhos de datas repetidos sem voltar a deslocar membros', () =
   delete sheet.notes['1:1'];
   context.ensureAttendanceHeader(sheet);
 
-  assert.equal(sheet.valueAt(1, 2), 'setembro 2026');
+  assert.equal(sheet.valueAt(1, 2), 'setembro');
   assert.equal(context.normalizeDateKey(sheet.valueAt(2, 2)), '2026-09-08');
   assert.equal(sheet.getLastRow(), 4);
   assert.equal(sheet.valueAt(3, 1), 'Alice Bom');
@@ -644,5 +644,29 @@ test('o resumo mantém os dois treinos mais recentes e inclui faltas anteriores'
     { date: '2026-09-05', filled: false },
     { date: '2026-09-04', filled: true },
     { date: '2026-09-02', filled: false }
+  ]);
+});
+
+test('o resumo reconhece datas ISO na folha e apresenta o mês e dia sem ano', () => {
+  const { context, spreadsheet } = createContext();
+  const meta = spreadsheet.insertSheet('__classes__');
+  meta.data = [
+    ['id', 'name', 'membersJson', 'trainingDaysJson', 'seasonStart'],
+    ['gami-id', 'Gami', '["Ana"]', '[2,4]', '2026-09-08']
+  ];
+  const sheet = spreadsheet.insertSheet('Gami');
+  sheet.data = [
+    ['Membro', '2026/10/06'],
+    ['Ana', '*']
+  ];
+
+  const output = context.getRecentAttendanceState({ classId: 'gami-id', date: '2026-10-08', count: '2' });
+
+  assert.equal(sheet.valueAt(1, 2), 'outubro');
+  assert.equal(context.normalizeDateKey(sheet.valueAt(2, 2)), '2026-10-06');
+  assert.equal(sheet.valueAt(3, 1), 'Ana');
+  assert.deepEqual(JSON.parse(JSON.stringify(output.dates.slice(0, 2))), [
+    { date: '2026-10-08', filled: false },
+    { date: '2026-10-06', filled: true }
   ]);
 });

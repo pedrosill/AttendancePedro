@@ -722,9 +722,26 @@ async function handleGet(request, env, ctx) {
     ? await readAttendanceCore(env, classId, date) || await readValue(env, cacheKey)
     : await readValue(env, cacheKey);
   const query = Object.fromEntries(url.searchParams.entries());
+  const forceRecentRefresh = action === 'recentAttendance' && url.searchParams.get('refresh') === '1';
   if (cached) {
+    if (action === 'recentAttendance') {
+      const lastSync = await readValue(env, 'sync:' + cacheKey);
+      if (!forceRecentRefresh && lastSync && now() - Number(lastSync) < CACHE_MAX_AGE_MS) {
+        return jsonResponse(cached, 200, request, env);
+      }
+      const pending = await env.DB.prepare('SELECT COUNT(*) AS count FROM outbox').first();
+      if (Number(pending?.count || 0) > 0) await scheduleFlush(env);
+      const refreshed = await importAttendance(env, action, query);
+      await writeValue(env, cacheKey, refreshed);
+      await writeValue(env, 'sync:' + cacheKey, now());
+      return jsonResponse(refreshed, 200, request, env);
+    }
     ctx.waitUntil(refreshReadCacheInBackground(env, action, query, cacheKey));
     return jsonResponse(action === 'attendance' ? normaliseAttendanceResult(cached) : cached, 200, request, env);
+  }
+  if (action === 'recentAttendance') {
+    const pending = await env.DB.prepare('SELECT COUNT(*) AS count FROM outbox').first();
+    if (Number(pending?.count || 0) > 0) await scheduleFlush(env);
   }
   const result = await importAttendance(env, action, query);
   await writeValue(env, cacheKey, result);

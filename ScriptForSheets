@@ -135,6 +135,8 @@ function getRecentAttendanceState(params) {
     withWriteLock(function() {
       ensureAttendanceHeader(sheet);
       normalizeAttendanceDates(sheet);
+      deduplicateDateColumns(sheet);
+      sortDateColumnsByDate(sheet);
       dateColumns = getDateColumnMap(sheet);
     });
   }
@@ -632,7 +634,7 @@ function rebuildMonthlyAttendanceHeaders(sheet) {
   dates.forEach(function(value, index) {
     var date = parseDateKey(value);
     var key = date ? Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM') : '';
-    var label = date ? monthNames[Number(key.slice(5)) - 1] + ' ' + key.slice(0, 4) : '';
+    var label = date ? monthNames[Number(key.slice(5)) - 1] : '';
     var column = index + 2;
     var current = groups[groups.length - 1];
     if (!key) return;
@@ -708,7 +710,18 @@ function transposeLegacyAttendanceSheet(sheet) {
 
 function ensureDateColumnDisplayFormat(sheet) {
   if (sheet.getLastColumn() < 2) return;
-  sheet.getRange(2, 2, 1, sheet.getLastColumn() - 1).setNumberFormat('dd/MM');
+  var range = sheet.getRange(2, 2, 1, sheet.getLastColumn() - 1);
+  var dates = range.getValues()[0];
+  var changed = false;
+  for (var index = 0; index < dates.length; index++) {
+    var parsed = parseDateKey(dates[index]);
+    if (parsed && !(dates[index] instanceof Date)) {
+      dates[index] = parsed;
+      changed = true;
+    }
+  }
+  if (changed) range.setValues([dates]);
+  range.setNumberFormat('dd/MM');
 }
 
 function normalizeAttendanceDates(sheet) {

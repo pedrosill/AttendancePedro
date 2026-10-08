@@ -1717,7 +1717,7 @@
       renderRecentTrainingList([], true);
       const request = (async () => {
         try {
-          const result = await apiGet('recentAttendance', { classId: cls.id, date: dateKey, count: 2 });
+          const result = await apiGet('recentAttendance', { classId: cls.id, date: dateKey, count: 2, refresh: force ? '1' : '0' });
           requireApiSuccess(result, 'Não foi possível carregar os treinos');
           if (!Array.isArray(result.dates)) throw new Error('O backend ainda não suporta o resumo de treinos');
           const items = result.dates.map(item => ({ dateKey: item.date, filled: !!item.filled }));
@@ -2439,7 +2439,7 @@
         renderSettingsClassList();
         refreshSyncStatus();
       }
-      if (key === 'date') loadRecentTrainingStatus();
+      if (key === 'date') loadRecentTrainingStatus({ force: true });
       renderTopSummary();
     }
 
