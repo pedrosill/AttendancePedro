@@ -393,8 +393,12 @@ async function sheetsRequest(env, action, init = {}) {
     ...init,
     headers: { Accept: 'application/json', ...(init.headers || {}) }
   });
-  if (!response.ok) throw new Error('Sheets HTTP ' + response.status);
-  const result = await response.json();
+  const body = await response.text();
+  if (!response.ok) throw new Error(`Apps Script respondeu HTTP ${response.status}. Confirma o URL /exec e a implementação publicada.`);
+  let result;
+  try { result = JSON.parse(body); } catch {
+    throw new Error('Apps Script não devolveu JSON válido. Confirma o URL /exec e a implementação publicada.');
+  }
   if (!result || result.ok !== true) throw new Error(result?.error || 'Sheets returned an error');
   return result;
 }
@@ -526,8 +530,12 @@ async function importAttendance(env, action, query) {
   const params = new URLSearchParams({ action });
   Object.entries(query).forEach(([key, value]) => params.set(key, value));
   const response = await fetchWithTimeout(env.SHEETS_API_URL + separator + params.toString(), { headers: { Accept: 'application/json' } });
-  if (!response.ok) throw new Error('Sheets HTTP ' + response.status);
-  const result = await response.json();
+  const body = await response.text();
+  if (!response.ok) throw new Error(`Apps Script respondeu HTTP ${response.status}. Confirma o URL /exec e a implementação publicada.`);
+  let result;
+  try { result = JSON.parse(body); } catch {
+    throw new Error('Apps Script não devolveu JSON válido. Confirma o URL /exec e a implementação publicada.');
+  }
   if (!result || result.ok !== true) throw new Error(result?.error || 'Sheets returned an error');
   return action === 'attendance' ? normaliseAttendanceResult(result) : result;
 }

@@ -2,6 +2,7 @@ var META_SHEET_NAME = '__classes__';
 var META_HEADERS = ['id', 'name', 'membersJson', 'trainingDaysJson', 'seasonStart', 'memberProfilesJson'];
 var ATTENDANCE_HEADERS = ['Membro'];
 var DEFAULT_SEASON_START = '2026-09-08';
+var MAX_RECENT_TRAINING_SCAN_DAYS = 800;
 var SHARED_STATE_CACHE_KEY = 'gym-attendance-shared-state-v1';
 var SHARED_STATE_CACHE_SECONDS = 300;
 var STATUS_MAP = {
@@ -141,7 +142,9 @@ function getRecentAttendanceState(params) {
     });
   }
 
-  while (cursor >= seasonStart) {
+  var scannedDays = 0;
+  while (cursor >= seasonStart && scannedDays < MAX_RECENT_TRAINING_SCAN_DAYS) {
+    scannedDays += 1;
     var dayOfWeek = cursor.getDay();
     if (trainingDays.indexOf(dayOfWeek) !== -1) {
       var dateKey = normalizeDateKey(cursor);
@@ -155,7 +158,17 @@ function getRecentAttendanceState(params) {
     cursor.setDate(cursor.getDate() - 1);
   }
 
-  return { ok: true, classId: cls.id, className: cls.name, dates: recentDates.concat(missingDates) };
+  if (cursor >= seasonStart) {
+    return { ok: false, error: 'A época começa há mais de 800 dias. Corrige a data de início nas definições da classe.' };
+  }
+  return {
+    ok: true,
+    classId: cls.id,
+    className: cls.name,
+    seasonStart: normalizeDateKey(seasonStart),
+    trainingDays: trainingDays,
+    dates: recentDates.concat(missingDates)
+  };
 }
 
 function withWriteLock(callback) {

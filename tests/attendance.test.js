@@ -692,3 +692,46 @@ test('o resumo reconhece datas ISO na folha e apresenta o mês e dia sem ano', (
     { date: '2026-10-06', filled: true }
   ]);
 });
+
+test('alterar o calendário da classe atualiza imediatamente os treinos calculados', () => {
+  const { context, spreadsheet } = createContext();
+  const meta = spreadsheet.insertSheet('__classes__');
+  meta.data = [
+    ['id', 'name', 'membersJson', 'trainingDaysJson', 'seasonStart'],
+    ['gami-id', 'Gami', '[]', '[2,4]', '2026-09-08']
+  ];
+
+  const saved = JSON.parse(context.doPost({ postData: { contents: JSON.stringify({
+    action: 'saveClass',
+    class: { id: 'gami-id', name: 'Gami', trainingDays: [1], seasonStart: '2026-09-09' }
+  }) } }).value);
+  assert.equal(saved.ok, true);
+  assert.deepEqual(Array.from(saved.class.trainingDays), [1]);
+  assert.equal(saved.class.seasonStart, '2026-09-09');
+
+  const output = context.getRecentAttendanceState({ classId: 'gami-id', date: '2026-09-15', count: '2' });
+  assert.equal(output.ok, true);
+  assert.deepEqual(Array.from(output.trainingDays), [1]);
+  assert.equal(output.seasonStart, '2026-09-09');
+  assert.deepEqual(Array.from(output.dates, item => item.date), ['2026-09-14']);
+
+  const cleared = JSON.parse(context.doPost({ postData: { contents: JSON.stringify({
+    action: 'saveClass',
+    class: { id: 'gami-id', name: 'Gami', trainingDays: [], seasonStart: '2026-09-09' }
+  }) } }).value);
+  assert.deepEqual(Array.from(cleared.class.trainingDays), []);
+  assert.deepEqual(Array.from(context.getRecentAttendanceState({ classId: 'gami-id', date: '2026-09-15', count: '2' }).dates), []);
+});
+
+test('o resumo rejeita uma época com uma data de início demasiado antiga', () => {
+  const { context, spreadsheet } = createContext();
+  const meta = spreadsheet.insertSheet('__classes__');
+  meta.data = [
+    ['id', 'name', 'membersJson', 'trainingDaysJson', 'seasonStart'],
+    ['gami-id', 'Gami', '[]', '[2,4]', '2020-01-01']
+  ];
+
+  const output = context.getRecentAttendanceState({ classId: 'gami-id', date: '2026-10-08', count: '2' });
+  assert.equal(output.ok, false);
+  assert.match(output.error, /mais de 800 dias/);
+});

@@ -5,7 +5,7 @@ Aplicação web estática, mobile-first, para registar presenças de turmas de g
 ## Fluxo da aplicação
 
 1. Passo 1: escolher a turma.
-2. Passo 2: escolher a data. A lista é sempre relativa ao dia de hoje: mostra os dois treinos mais recentes e quaisquer treinos anteriores ainda por preencher. Carregar num treino seleciona essa data; se for o treino de hoje por preencher, avança diretamente para o Passo 3.
+2. Passo 2: escolher a data. A lista é sempre relativa ao dia de hoje: mostra os dois treinos mais recentes e quaisquer treinos anteriores ainda por preencher. Carregar num treino seleciona essa data; se for o treino de hoje por preencher, avança diretamente para o Passo 3. O calendário de cada classe (dias da semana e início da época) é configurado na gestão das classes.
 3. Passo 3: escolher o modo de registo, normal ou rápido.
 4. Registar `Presente`, `Atrasado` ou `Falta`, incluindo a justificação quando aplicável.
 
@@ -59,6 +59,8 @@ O frontend comunica com o Worker D1. O Worker usa o URL `/exec` da implementaç�
 - `POST { action: "saveAttendance", classId, className, date, members: [...] }`: guarda ou atualiza uma presença.
 
 As gravações são protegidas por `LockService` para evitar que duas gravações simultâneas criem a mesma data duas vezes.
+
+Em `Classes` → `Configurar dias de treino`, é possível editar a data de início da época e os dias de treino de cada classe. A app grava esta configuração na classe partilhada (D1 e `__classes__` no Sheets); não é necessário editar manualmente a folha técnica. Se a época estiver configurada para começar há mais de 800 dias, o endpoint devolve um erro visível para corrigir a data em vez de fazer uma pesquisa excessivamente longa.
 
 O Worker aceita pedidos apenas da origem pública configurada em `ALLOWED_ORIGIN` e exige um token assinado emitido depois da validação do PIN da app. A sessão fica válida durante 30 dias nesse dispositivo.
 

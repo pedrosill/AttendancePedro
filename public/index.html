@@ -878,6 +878,32 @@
     .class-editor-card-hint { margin: var(--space-1) 0 0; color: var(--color-text-muted); font-size: var(--text-sm); }
     .class-editor-card-arrow { flex: 0 0 auto; color: var(--item-accent, var(--class-accent, var(--color-primary))); font-size: 2rem; line-height: 1; transition: transform var(--transition-interactive), color var(--transition-interactive); }
     .class-editor-card:hover .class-editor-card-arrow { transform: translateX(4px); }
+    .class-editor-card-open {
+      width: 100%;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      text-align: left;
+    }
+    .class-training-config { border-top: 1px solid var(--color-border); padding-top: var(--space-3); }
+    .class-training-config summary { cursor: pointer; font-weight: 700; color: var(--item-accent, var(--color-primary)); }
+    .class-training-form { display: grid; gap: var(--space-3); padding-top: var(--space-3); }
+    .weekday-picker { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+    .weekday-option { position: relative; }
+    .weekday-option input { position: absolute; opacity: 0; inset: 0; }
+    .weekday-option span {
+      display: grid; place-items: center; min-width: 44px; min-height: 42px; padding: 0 0.55rem;
+      border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface-2);
+      font-size: var(--text-sm); font-weight: 700; cursor: pointer;
+    }
+    .weekday-option input:checked + span {
+      border-color: var(--item-accent, var(--color-primary));
+      background: color-mix(in srgb, var(--item-accent, var(--color-primary)) 15%, var(--color-surface));
+      color: var(--item-accent, var(--color-primary));
+    }
+    .weekday-option input:focus-visible + span { outline: 2px solid var(--item-accent, var(--color-primary)); outline-offset: 2px; }
+    .training-config-status { margin: 0; min-height: 1.2em; color: var(--color-text-muted); font-size: var(--text-xs); }
     .muted { color: var(--color-text-muted); }
     .tiny { font-size: var(--text-xs); }
     .row-between { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
@@ -1729,7 +1755,7 @@
         } catch (error) {
           if (requestRevision === recentTrainingRevision && requestId === recentTrainingRequestId && state.selectedClassId === cls.id) {
             renderRecentTrainingList([]);
-            showNotice('Não foi possível verificar os últimos treinos.', 'error');
+            showNotice(`Não foi possível verificar os últimos treinos: ${error.message || 'erro desconhecido'}`, 'error');
           }
           return [];
         }
@@ -1975,8 +2001,10 @@
         clearAuth();
         throw new Error('Sessão necessária.');
       }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
+      const result = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(result?.error || `HTTP ${res.status}`);
+      if (!result) throw new Error('O backend não devolveu uma resposta JSON válida.');
+      return result;
     }
 
     async function apiFetch(url, init = {}) {
@@ -2355,31 +2383,75 @@
 
     function renderClassEditor() {
       els.classListEditor.innerHTML = '';
+      const weekdays = [
+        { value: 1, label: 'Seg' }, { value: 2, label: 'Ter' }, { value: 3, label: 'Qua' },
+        { value: 4, label: 'Qui' }, { value: 5, label: 'Sex' }, { value: 6, label: 'Sáb' },
+        { value: 0, label: 'Dom' }
+      ];
       state.classes.forEach((item, index) => {
         const row = document.createElement('article');
         row.className = 'member-card class-editor-card';
         row.style.setProperty('--item-accent', colorFromString(item.name));
         row.style.setProperty('--item-delay', `${Math.min(index, 8) * 35}ms`);
-        row.tabIndex = 0;
-        row.setAttribute('role', 'button');
-        row.setAttribute('data-edit-members-class', item.id);
-        row.setAttribute('aria-label', `Abrir membros da classe ${item.name}`);
         row.innerHTML = `
           <div class="stack">
-            <div class="class-editor-card-main">
-              <div>
-                <h3 class="member-name" data-rename-trigger="${item.id}" title="Duplo clique para alterar o nome">${escapeHtml(item.name)}</h3>
-                <p class="class-editor-card-hint">Gerir membros</p>
+            <button class="class-editor-card-open" type="button" data-edit-members-class="${escapeAttr(item.id)}" aria-label="Abrir membros da classe ${escapeAttr(item.name)}">
+              <div class="class-editor-card-main">
+                <div>
+                  <h3 class="member-name" data-rename-trigger="${escapeAttr(item.id)}" title="Duplo clique para alterar o nome">${escapeHtml(item.name)}</h3>
+                  <p class="class-editor-card-hint">Gerir membros</p>
+                </div>
+                <span class="class-editor-card-arrow" aria-hidden="true">›</span>
               </div>
-              <span class="class-editor-card-arrow" aria-hidden="true">›</span>
-            </div>
+            </button>
             <div class="field" data-rename-wrapper="${item.id}" hidden>
               <label for="rename-${item.id}">Alterar nome</label>
               <input id="rename-${item.id}" class="text-input" type="text" value="${escapeAttr(item.name)}" data-rename-class="${item.id}" />
             </div>
+            <details class="class-training-config">
+              <summary>Configurar dias de treino</summary>
+              <form class="class-training-form" data-training-config="${escapeAttr(item.id)}">
+                <div class="field">
+                  <label for="season-start-${escapeAttr(item.id)}">Início da época</label>
+                  <input class="text-input" id="season-start-${escapeAttr(item.id)}" name="seasonStart" type="date" value="${escapeAttr(item.seasonStart || '')}" required />
+                </div>
+                <fieldset class="field" style="border:0;padding:0;margin:0">
+                  <legend class="tiny" style="font-weight:700;margin-bottom:.4rem">Dias de treino</legend>
+                  <div class="weekday-picker">
+                    ${weekdays.map(day => `<label class="weekday-option"><input type="checkbox" name="trainingDay" value="${day.value}" aria-label="${['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'][day.value]}" ${item.trainingDays.includes(day.value) ? 'checked' : ''} /><span>${day.label}</span></label>`).join('')}
+                  </div>
+                </fieldset>
+                <button class="secondary-btn" type="submit">Guardar calendário</button>
+                <p class="training-config-status" data-training-status="${escapeAttr(item.id)}" aria-live="polite"></p>
+              </form>
+            </details>
           </div>`;
         els.classListEditor.appendChild(row);
       });
+    }
+
+    async function saveTrainingConfig(form) {
+      const classId = form.dataset.trainingConfig;
+      const cls = state.classes.find(item => item.id === classId);
+      if (!cls) return;
+      const button = form.querySelector('[type="submit"]');
+      const status = form.querySelector('[data-training-status]');
+      const selectedDays = [...form.querySelectorAll('input[name="trainingDay"]:checked')].map(input => Number(input.value));
+      const seasonStart = form.elements.seasonStart.value;
+      if (!seasonStart) {
+        showNotice('Indica a data de início da época.');
+        return;
+      }
+      if (button) { button.disabled = true; button.textContent = 'A guardar...'; }
+      if (status) status.textContent = '';
+      try {
+        await saveClassRecord({ id: cls.id, name: cls.name, trainingDays: selectedDays, seasonStart }, state.selectedClassId, { stayOnPage: true });
+        if (status) status.textContent = 'Calendário guardado.';
+      } catch (error) {
+        if (status) status.textContent = error.message || 'Não foi possível guardar o calendário.';
+      } finally {
+        if (button) { button.disabled = false; button.textContent = 'Guardar calendário'; }
+      }
     }
 
     function renderSettingsClassList() {
@@ -2918,10 +2990,10 @@
       if (Array.isArray(classRecord.memberProfiles)) {
         payload.memberProfiles = classRecord.memberProfiles.map(profile => normalizeMemberProfile(profile, profile.name));
       }
-      if (Array.isArray(classRecord.trainingDays) && classRecord.trainingDays.length) {
+      if (Array.isArray(classRecord.trainingDays)) {
         payload.trainingDays = classRecord.trainingDays.map(Number).filter(day => Number.isInteger(day) && day >= 0 && day <= 6);
       }
-      if (classRecord.seasonStart) payload.seasonStart = String(classRecord.seasonStart);
+      if (classRecord.seasonStart !== undefined) payload.seasonStart = String(classRecord.seasonStart);
       return payload;
     }
 
@@ -2935,7 +3007,7 @@
         showNotice('Alterações guardadas.', 'success', 1800);
         if (!options.stayOnPage) switchScreen('class');
       } catch (error) {
-        showNotice('Não foi possível guardar as alterações. Tenta novamente.');
+        showNotice(`Não foi possível guardar as alterações: ${error.message || 'erro desconhecido'}`);
         throw error;
       }
     }
@@ -3526,6 +3598,12 @@
         }
         const removeBtn = event.target.closest('[data-remove-class]');
         if (removeBtn) showClassRemovalDialog(removeBtn.dataset.removeClass, removeBtn);
+      });
+      els.classListEditor.addEventListener('submit', event => {
+        const form = event.target.closest('[data-training-config]');
+        if (!form) return;
+        event.preventDefault();
+        saveTrainingConfig(form);
       });
       els.classListEditor.addEventListener('dblclick', event => {
         const name = event.target.closest('[data-rename-trigger]');
