@@ -1174,11 +1174,14 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg>
       </button>
       <div class="topbar-actions">
-      <button class="round-btn" type="button" id="editClassesTopBtn" aria-label="Editar classes">
+        <button class="round-btn" type="button" id="attendanceHistoryTopBtn" aria-label="Consultar presenças" title="Consultar presenças" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18M8 14h2m4 0h2m-8 4h2m4 0h2"></path></svg>
+        </button>
+        <button class="round-btn" type="button" id="editClassesTopBtn" aria-label="Editar classes">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16v4z"></path><path d="M13 7l4 4"></path></svg>
         </button>
         <button class="round-btn" type="button" id="settingsTopBtn" aria-label="Abrir definições">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-1.7 1.7-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V22h-2.4v-.2a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06-1.7-1.7.06-.06A1.7 1.7 0 0 0 8.4 15a1.7 1.7 0 0 0-1.56-1.03H6.6v-2.4h.24A1.7 1.7 0 0 0 8.4 10a1.7 1.7 0 0 0-.34-1.88L8 8.06l1.7-1.7.06.06a1.7 1.7 0 0 0 1.88.34 1.7 1.7 0 0 0 1.03-1.56V5h2.4v.2a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 1.7 1.7-.06.06A1.7 1.7 0 0 0 19.4 10a1.7 1.7 0 0 0 1.56 1.03h.24v2.4h-.24A1.7 1.7 0 0 0 19.4 15z"></path></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7m0-4V3m8 18v-9m0-4V3m8 18v-5m0-4V3"></path><path d="M2 14h4m4-4h4m4 6h4"></path></svg>
         </button>
       </div>
     </header>
@@ -1578,6 +1581,7 @@
     let attendanceHistoryRequestId = 0;
     let attendanceHistoryClassId = '';
     let attendanceHistoryDisplayedCount = 5;
+    let attendanceHistoryOrigin = 'settings';
     const els = {
       main: document.getElementById('main'),
       authGate: document.getElementById('authGate'),
@@ -2793,6 +2797,8 @@
       if (backBtn) backBtn.hidden = key === 'class';
       const editBtn = document.getElementById('editClassesTopBtn');
       if (editBtn) editBtn.hidden = key !== 'class';
+      const historyBtn = document.getElementById('attendanceHistoryTopBtn');
+      if (historyBtn) historyBtn.hidden = key !== 'class';
       const settingsBtn = document.getElementById('settingsTopBtn');
       if (settingsBtn) settingsBtn.hidden = key !== 'class';
       if (key === 'attendance') renderAttendance();
@@ -3691,7 +3697,14 @@
       document.getElementById('openSheetsSettingsBtn').addEventListener('click', () => {
         window.open('https://docs.google.com/spreadsheets/d/1k7tv6lmwYWUhn4D5rMy5oMvIBhYzaOIdsc5V4ivnJ6U/edit?usp=sharing', '_blank', 'noopener,noreferrer');
       });
-      document.getElementById('openAttendanceHistoryBtn').addEventListener('click', () => switchScreen('records'));
+      document.getElementById('openAttendanceHistoryBtn').addEventListener('click', () => {
+        attendanceHistoryOrigin = 'settings';
+        switchScreen('records');
+      });
+      document.getElementById('attendanceHistoryTopBtn').addEventListener('click', () => {
+        attendanceHistoryOrigin = 'class';
+        switchScreen('records');
+      });
       els.recordsClassSelect.addEventListener('change', event => loadAttendanceHistory(event.currentTarget.value));
       els.databaseDiagnosticsBtn.addEventListener('click', toggleDatabaseDiagnostics);
       els.attendanceMatrixContainer.addEventListener('click', event => {
@@ -3768,7 +3781,7 @@
       document.getElementById('backToClassesTopBtn').addEventListener('click', () => {
         const activeId = document.querySelector('.screen.active')?.id;
         if (activeId === 'screen-settings') return switchScreen('class');
-        if (activeId === 'screen-records') return switchScreen('settings');
+        if (activeId === 'screen-records') return switchScreen(attendanceHistoryOrigin);
         if (activeId === 'screen-date') return switchScreen('class');
         if (activeId === 'screen-actions') return switchScreen('date');
         if (activeId === 'screen-edit') return switchScreen('classes');
