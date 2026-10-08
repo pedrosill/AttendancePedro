@@ -2228,6 +2228,12 @@
           <p class="tiny muted">Existe uma data em attendance_dates, mas não foi encontrado um registo correspondente em attendance_core.</p>`;
         return;
       }
+      if (!entry.hasAttendance) {
+        els.attendanceHistoryDetail.innerHTML = `
+          <div class="history-detail-header"><h3>${displaySingleDate(entry.date)}</h3><span class="history-status pending">Sem presenças</span></div>
+          <p class="tiny muted">Existe um registo no D1, mas nenhum membro tem um estado de presença guardado. O Passo 2 considera este dia por preencher.</p>`;
+        return;
+      }
       const statuses = { attended: 0, late: 0, absent: 0, pending: 0 };
       entry.members.forEach(member => { statuses[attendanceStatusGroup(member.status)] += 1; });
       const source = String(entry.operationId || '').startsWith('sheets-import:') ? 'Importado do Google Sheets' : 'Guardado pela app';
@@ -2260,8 +2266,8 @@
       els.attendanceHistoryDateList.innerHTML = records.map(record => {
         const counts = { attended: 0, late: 0, absent: 0, pending: 0 };
         record.members.forEach(member => { counts[attendanceStatusGroup(member.status)] += 1; });
-        const label = !record.attendanceRecord
-          ? 'Marcador sem registo'
+        const label = !record.hasAttendance
+          ? 'Sem presenças registadas'
           : `${counts.attended} presentes · ${counts.late} atrasos · ${counts.absent} faltas`;
         return `<button class="history-date-card${record.date === attendanceHistorySelectedDate ? ' active' : ''}" type="button" data-history-date="${escapeAttr(record.date)}" aria-pressed="${record.date === attendanceHistorySelectedDate}">
           <strong>${displaySingleDate(record.date)}</strong><span>${escapeHtml(label)}</span>${record.dateIndex && !record.attendanceRecord ? '<small>Data sem presença</small>' : ''}${record.attendanceRecord && !record.dateIndex ? '<small>Sem índice de data</small>' : ''}
@@ -3320,13 +3326,20 @@
       }
       ensureRosterStatuses();
       const savedDateKey = selectedDateKey();
+      const attendanceMembers = cls.members.map(name => ({ name, status: normalizeAttendanceStatus(currentAttendanceMap()[name]) }));
+      if (!attendanceMembers.some(member => member.status !== 'pending')) {
+        savingAttendance = false;
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Guardar'; }
+        showNotice('Assinala pelo menos uma presença antes de guardar.');
+        return;
+      }
       const payload = {
         action: 'saveAttendance',
         savedAt: new Date().toISOString(),
         date: savedDateKey,
         classId: cls.id,
         className: cls.name,
-        members: cls.members.map(name => ({ name, status: currentAttendanceMap()[name] || 'pending' }))
+        members: attendanceMembers
       };
       try {
         const res = await apiPost(payload);

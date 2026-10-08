@@ -296,6 +296,10 @@ function normaliseAttendanceStatus(value) {
   return 'pending';
 }
 
+function hasRecordedAttendance(members) {
+  return Array.isArray(members) && members.some(member => normaliseAttendanceStatus(member.status) !== 'pending');
+}
+
 function normaliseAttendanceResult(result) {
   if (!result || !Array.isArray(result.members)) return result;
   return {
@@ -420,11 +424,17 @@ async function recentAttendanceFromD1(env, cls, dateKey, requestedCount = 2) {
   const anchor = new Date(`${anchorKey}T00:00:00Z`);
   const startKey = /^\d{4}-\d{2}-\d{2}$/.test(cls.seasonStart || '') ? cls.seasonStart : DEFAULT_SEASON_START;
   const seasonStart = new Date(`${startKey}T00:00:00Z`);
-  const dateRows = await env.DB.prepare('SELECT date_key FROM attendance_dates WHERE class_id = ? AND date_key >= ? AND date_key <= ?')
+  const attendanceRows = await env.DB.prepare('SELECT date_key, members_json FROM attendance_core WHERE class_id = ? AND date_key >= ? AND date_key <= ?')
     .bind(cls.id, startKey, anchorKey).all();
   const trainingDays = new Set((cls.trainingDays || []).map(Number));
   const count = Math.max(1, Math.min(Number(requestedCount) || 2, 10));
-  const filledDates = new Set((dateRows.results || []).map(row => row.date_key));
+  const filledDates = new Set((attendanceRows.results || []).flatMap(row => {
+    try {
+      return hasRecordedAttendance(JSON.parse(row.members_json || '[]')) ? [row.date_key] : [];
+    } catch {
+      return [];
+    }
+  }));
   const recent = [];
   const missing = [];
   const cursor = new Date(anchor);
@@ -802,11 +812,13 @@ async function attendanceOverview(env, classId, requestedCount = 40) {
     recordsByDate.set(row.date_key, { date: row.date_key, dateIndex: true, dateIndexCreatedAt: row.created_at, attendanceRecord: false, members: [] });
   }
   for (const row of attendanceRows.results || []) {
+    const members = JSON.parse(row.members_json || '[]');
     const entry = recordsByDate.get(row.date_key) || { date: row.date_key, dateIndex: false, dateIndexCreatedAt: null };
     entry.attendanceRecord = true;
+    entry.hasAttendance = hasRecordedAttendance(members);
     entry.operationId = row.operation_id || '';
     entry.updatedAt = row.updated_at;
-    entry.members = JSON.parse(row.members_json || '[]').map(member => ({
+    entry.members = members.map(member => ({
       name: String(member.name || ''),
       status: normaliseAttendanceStatus(member.status)
     }));
