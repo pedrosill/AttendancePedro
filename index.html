@@ -60,7 +60,8 @@
       --color-error-highlight: #f2d9dd;
       --shadow-sm: 0 1px 2px rgba(40, 37, 29, 0.06);
       --shadow-md: 0 8px 24px rgba(40, 37, 29, 0.08);
-      --screen-vertical-gap: max(4.5rem, 10dvh);
+      --screen-top-gap: max(4.5rem, 10dvh, calc(env(safe-area-inset-top) + var(--top-control-size) + var(--space-4)));
+      --screen-bottom-gap: max(4.5rem, 10dvh);
       --screen-inline-edge: max(var(--space-4), calc((100% - 90vw) / 2));
       --top-control-size: 56px;
     }
@@ -228,9 +229,9 @@
       display: flex;
       width: 90vw;
       max-width: 100%;
-      min-height: calc(100dvh - var(--screen-vertical-gap) - var(--screen-vertical-gap));
-      margin: var(--screen-vertical-gap) auto;
-      padding-top: calc(var(--space-5) + 3.5rem);
+      min-height: calc(100dvh - var(--screen-top-gap) - var(--screen-bottom-gap));
+      margin: var(--screen-top-gap) auto var(--screen-bottom-gap);
+      padding-top: var(--space-5);
       animation: screen-enter var(--transition-screen) both;
     }
     .screen.active > * { animation: content-enter var(--transition-enter) both; }
@@ -242,7 +243,7 @@
       border-color: color-mix(in srgb, var(--class-accent) 28%, rgba(40,37,29,.08));
       box-shadow: 0 0 0 1px color-mix(in srgb, var(--class-accent) 14%, transparent), var(--shadow-md);
     }
-    .screen-header { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+    .screen-header { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
     .eyebrow {
       margin: 0;
       color: var(--class-accent, var(--color-primary));
@@ -259,8 +260,9 @@
       letter-spacing: -0.02em;
     }
     .screen-header p { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
+    .screen-header .class-context { color: var(--class-accent, var(--color-text-muted)); font-weight: 700; line-height: 1.25; }
     .field { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; width: 100%; }
-    #screen-class .field { margin-top: var(--space-3); }
+    #screen-class .field { margin-top: 0; }
     label { font-weight: 700; font-size: var(--text-sm); }
     .color-row { display: flex; align-items: center; gap: var(--space-2); }
     .class-color-preview {
@@ -901,7 +903,7 @@
     .add-member-toolbar .round-btn { min-width: 68px; min-height: 68px; width: 68px; height: 68px; font-size: 2.25rem; line-height: 1; font-weight: 500; }
     .toolbar .small-action { flex: 0 0 auto; }
     #screen-class .class-button-list { grid-template-columns: 1fr; }
-    #screen-class .summary-grid { margin-top: var(--space-3); }
+    #screen-class .summary-grid { margin-top: 0; }
     .member-card .small-action { white-space: nowrap; flex: 0 0 auto; }
     .tap-feedback { animation: tap-feedback 280ms ease-out; }
     .selection-feedback { animation: selection-feedback 240ms var(--transition-interactive) both; }
@@ -1121,7 +1123,7 @@
     }
     @media (max-width: 639px) {
       .screen { padding: var(--space-4); gap: var(--space-4); }
-      .screen.active { padding-top: calc(var(--space-4) + 2.5rem); }
+      .screen.active { padding-top: var(--space-4); }
       .screen-header h1,
       .screen-header h2 { font-size: clamp(1.35rem, 6vw, 1.8rem); }
       input[type="date"] {
@@ -1146,7 +1148,6 @@
       .round-btn { flex: 0 0 auto; }
       .class-actions { gap: var(--space-1); }
       .class-actions .small-action { padding: 0 0.6rem; font-size: var(--text-xs); }
-      #screen-class .summary-grid { margin-top: var(--space-5); }
       #screen-edit .screen-header { margin-top: 0; }
       #screen-edit .member-card .small-action { padding-inline: 0.55rem; font-size: var(--text-xs); }
     }
@@ -1194,7 +1195,6 @@
 
     <section class="screen active" id="screen-class" aria-labelledby="class-title">
       <div class="screen-header">
-        <p class="eyebrow">Passo 1</p>
         <h1 id="class-title">Escolher classe</h1>
       </div>
 
@@ -1330,9 +1330,8 @@
 
     <section class="screen" id="screen-date" aria-labelledby="date-title">
       <div class="screen-header">
-        <p class="eyebrow">Passo 2</p>
         <h2 id="date-title">Escolher data</h2>
-        <p id="dateClassLabel">Classe selecionada: —</p>
+        <p id="dateClassLabel" class="class-context"></p>
       </div>
 
       <div class="field">
@@ -1353,9 +1352,8 @@
 
     <section class="screen" id="screen-actions" aria-labelledby="actions-title">
       <div class="screen-header">
-        <p class="eyebrow">Passo 3</p>
         <h2 id="actions-title">Escolher ação</h2>
-        <p id="actionsClassLabel">Classe selecionada: —</p>
+        <p id="actionsClassLabel" class="class-context"></p>
       </div>
 
       <div class="action-grid">
@@ -1375,9 +1373,8 @@
 
     <section class="screen" id="screen-attendance" aria-labelledby="attendance-title">
       <div class="screen-header">
-        <p class="eyebrow">Passo 3</p>
         <h2 id="attendance-title">Registar presenças</h2>
-        <p id="attendanceClassLabel">Classe: —</p>
+        <p id="attendanceClassLabel" class="class-context"></p>
       </div>
 
       <div class="summary-grid" aria-label="Resumo das presenças">
@@ -2533,8 +2530,9 @@
         if (els.attendanceDateInput) els.attendanceDateInput.value = selectedDateKey();
         if (els.singleAttendanceDateInput) els.singleAttendanceDateInput.value = selectedDateKey();
         updateDateDisplays();
-        els.selectedClassLabel.textContent = 'Classe selecionada: —';
-        els.attendanceClassLabel.textContent = 'Classe: —';
+        els.selectedClassLabel.textContent = '';
+        if (els.actionsClassLabel) els.actionsClassLabel.textContent = '';
+        els.attendanceClassLabel.textContent = '';
         els.editClassLabel.textContent = 'Classe: —';
         els.webhookInput.value = state.webhookUrl || '';
         if (els.photoApiInput) els.photoApiInput.value = state.photoApiUrl || '';
@@ -2547,9 +2545,9 @@
       if (els.actionAttendanceDateInput) els.actionAttendanceDateInput.value = selectedDateKey();
       if (els.attendanceDateInput) els.attendanceDateInput.value = selectedDateKey();
       updateDateDisplays();
-      els.selectedClassLabel.textContent = `Classe selecionada: ${cls.name}`;
-      if (els.actionsClassLabel) els.actionsClassLabel.textContent = `Classe selecionada: ${cls.name}`;
-      els.attendanceClassLabel.textContent = `Classe: ${cls.name}`;
+      els.selectedClassLabel.textContent = cls.name;
+      if (els.actionsClassLabel) els.actionsClassLabel.textContent = cls.name;
+      els.attendanceClassLabel.textContent = cls.name;
       els.editClassLabel.textContent = `Classe: ${cls.name}`;
       els.webhookInput.value = state.webhookUrl || '';
       if (els.photoApiInput) els.photoApiInput.value = state.photoApiUrl || '';
