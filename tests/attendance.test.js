@@ -2,6 +2,10 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const test = require('node:test');
+const appSource = fs.readFileSync(require('node:path').join(__dirname, '..', 'index.html'), 'utf8');
+const appStatusFunction = appSource.match(/^    function normalizeAttendanceStatus\(status\) \{[\s\S]*?^    \}/m)?.[0];
+if (!appStatusFunction) throw new Error('Could not locate app attendance status normalizer');
+const normalizeAppAttendanceStatus = vm.runInNewContext(`(${appStatusFunction})`);
 
 class MockRange {
   constructor(sheet, row, column, rowCount, columnCount) {
@@ -378,7 +382,7 @@ test('migra a tabela antiga, mantém células vazias e reaplica as cores', () =>
   assert.equal(sheet.valueAt(3, 3), '');
   assert.equal(sheet.valueAt(4, 3), 'A');
   assert.equal(sheet.fontColorAt(3, 2), '#437a22');
-  assert.equal(sheet.fontColorAt(4, 3), '#d19900');
+  assert.equal(sheet.fontColorAt(4, 3), '#000000');
   assert.equal(sheet.rules.length, 0);
 });
 
@@ -464,8 +468,46 @@ test('a mesma data atualiza a coluna existente sem criar duplicados', () => {
   const sheet = spreadsheet.getSheetByName('Gami');
   assert.equal(sheet.getLastColumn(), 2);
   assert.equal(sheet.valueAt(3, 2), 'A');
-  assert.equal(sheet.fontColorAt(3, 2), '#d19900');
+  assert.equal(sheet.fontColorAt(3, 2), '#000000');
   assert.deepEqual(getLockCounts(), { waits: 2, releases: 2 });
+});
+
+test('regista falta e atraso sem cor quando não há justificação e deixa pendentes vazios', () => {
+  const { context, spreadsheet } = createContext();
+  const meta = spreadsheet.insertSheet('__classes__');
+  meta.data = [
+    ['id', 'name', 'membersJson', 'trainingDaysJson', 'seasonStart'],
+    ['gami-id', 'Gami', '["Ana","Bia","Camila"]', '[2,4]', '2026-09-08']
+  ];
+
+  const result = JSON.parse(context.doPost({ postData: { contents: JSON.stringify({
+    action: 'saveAttendance', classId: 'gami-id', className: 'Gami', date: '2026-09-08',
+    members: [
+      { name: 'Ana', status: 'absent' },
+      { name: 'Bia', status: 'late' },
+      { name: 'Camila', status: 'pending' }
+    ]
+  }) } }).value);
+  const sheet = spreadsheet.getSheetByName('Gami');
+  const statusByName = Object.fromEntries(sheet.data.slice(2).map(row => [row[0], row[1]]));
+  const colorByName = Object.fromEntries(sheet.data.slice(2).map(row => [row[0], sheet.fontColorAt(sheet.data.indexOf(row) + 1, 2)]));
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(statusByName, { Ana: 'F', Bia: 'A', Camila: '' });
+  assert.deepEqual(colorByName, { Ana: '#000000', Bia: '#000000', Camila: '#000000' });
+  assert.deepEqual(JSON.parse(JSON.stringify(context.getAttendanceState({ classId: 'gami-id', date: '2026-09-08' }).members.map(member => member.status))), [
+    'absent', 'late', 'pending'
+  ]);
+});
+
+test('a app reconhece estados de falta e atraso com e sem justificação', () => {
+  assert.deepEqual([
+    'absent', 'absent_justified', 'absent_not_justified',
+    'late', 'late_told', 'late_not_told', '—'
+  ].map(normalizeAppAttendanceStatus), [
+    'absent', 'absent_justified', 'absent_not_justified',
+    'late', 'late_told', 'late_not_told', 'pending'
+  ]);
 });
 
 test('usa a cor do texto para recuperar a justificação', () => {
@@ -583,6 +625,32 @@ test('remover membro elimina a linha completa sem deslocar presenças', () => {
   assert.equal(sheet.valueAt(3, 2), '*');
 });
 
+test('remover membro pode manter a linha histórica no Sheets', () => {
+  const { context, spreadsheet } = createContext();
+  const meta = spreadsheet.insertSheet('__classes__');
+  meta.data = [
+    ['id', 'name', 'membersJson', 'trainingDaysJson', 'seasonStart'],
+    ['gami-id', 'Gami', '["Bia","Zoe"]', '[2,4]', '2026-09-08']
+  ];
+  const sheet = spreadsheet.insertSheet('Gami');
+  sheet.data = [
+    ['Membro', '2026-09-08'],
+    ['Bia', 'A'],
+    ['Zoe', '*']
+  ];
+
+  const result = JSON.parse(context.doPost({ postData: { contents: JSON.stringify({
+    action: 'removeMember', classId: 'gami-id', memberName: 'Bia', deleteHistory: false
+  }) } }).value);
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(result.class.members)), ['Zoe']);
+  assert.equal(sheet.getLastRow(), 4);
+  assert.equal(sheet.valueAt(3, 1), 'Bia');
+  assert.equal(sheet.valueAt(3, 2), 'A');
+  assert.equal(sheet.valueAt(4, 1), 'Zoe');
+});
+
 test('renomear uma turma não substitui membros existentes', () => {
   const { context, spreadsheet } = createContext();
   const meta = spreadsheet.insertSheet('__classes__');
@@ -638,6 +706,92 @@ test('renomear um membro preserva as presenças históricas e a fotografia', () 
   assert.equal(sheet.valueAt(4, 1), 'Bia');
   assert.equal(sheet.valueAt(4, 2), 'F');
   assert.equal(result.class.memberProfiles[0].photoKey, 'photos/ana.jpg');
+});
+
+test('renomear membro mescla uma linha nova vazia sem perder presenças nem cores', () => {
+  const { context, spreadsheet } = createContext();
+  const profiles = [
+    { id: 'member-ana', name: 'Ana', photoKey: 'photos/ana.jpg', photoVersion: 123 },
+    { id: 'member-bea', name: 'Bea', photoKey: '', photoVersion: 0 }
+  ];
+  spreadsheet.insertSheet('__classes__').data = [
+    ['id', 'name', 'membersJson', 'trainingDaysJson', 'seasonStart', 'memberProfilesJson'],
+    ['gami-id', 'Gami', '["Ana","Bea"]', '[2,4]', '2026-09-08', JSON.stringify(profiles)]
+  ];
+  const sheet = spreadsheet.insertSheet('Gami');
+  sheet.data = [
+    ['Membro', 'setembro', 'setembro'],
+    ['', '2026-09-08', '2026-09-10'],
+    ['Ana', '*', 'F'],
+    ['Ana Costa', '', ''],
+    ['Bea', 'F', '*']
+  ];
+  sheet.setFontColorAt(3, 2, '#437a22');
+  sheet.setFontColorAt(3, 3, '#d19900');
+
+  const result = JSON.parse(context.doPost({ postData: { contents: JSON.stringify({
+    action: 'saveClass',
+    class: {
+      id: 'gami-id',
+      name: 'Gami',
+      members: ['Ana Costa', 'Bea'],
+      memberProfiles: [
+        { ...profiles[0], name: 'Ana Costa' },
+        profiles[1]
+      ]
+    }
+  }) } }).value);
+
+  assert.equal(result.ok, true);
+  assert.equal(sheet.getLastRow(), 4);
+  assert.equal(sheet.valueAt(3, 1), 'Ana Costa');
+  assert.equal(sheet.valueAt(3, 2), '*');
+  assert.equal(sheet.valueAt(3, 3), 'F');
+  assert.equal(sheet.fontColorAt(3, 2), '#437a22');
+  assert.equal(sheet.fontColorAt(3, 3), '#d19900');
+  assert.equal(sheet.valueAt(4, 1), 'Bea');
+});
+
+test('renomear membro interrompe sem alterar dados quando as linhas têm presenças conflitantes', () => {
+  const { context, spreadsheet } = createContext();
+  const profiles = [
+    { id: 'member-ana', name: 'Ana', photoKey: '', photoVersion: 0 },
+    { id: 'member-bea', name: 'Bea', photoKey: '', photoVersion: 0 }
+  ];
+  const meta = spreadsheet.insertSheet('__classes__');
+  meta.data = [
+    ['id', 'name', 'membersJson', 'trainingDaysJson', 'seasonStart', 'memberProfilesJson'],
+    ['gami-id', 'Gami', '["Ana","Bea"]', '[2,4]', '2026-09-08', JSON.stringify(profiles)]
+  ];
+  const sheet = spreadsheet.insertSheet('Gami');
+  sheet.data = [
+    ['Membro', 'setembro'],
+    ['', '2026-09-08'],
+    ['Ana', '*'],
+    ['Ana Costa', 'F'],
+    ['Bea', 'F']
+  ];
+
+  const result = JSON.parse(context.doPost({ postData: { contents: JSON.stringify({
+    action: 'saveClass',
+    class: {
+      id: 'gami-id',
+      name: 'Gami',
+      members: ['Ana Costa', 'Bea'],
+      memberProfiles: [
+        { ...profiles[0], name: 'Ana Costa' },
+        profiles[1]
+      ]
+    }
+  }) } }).value);
+
+  assert.equal(result.ok, false);
+  assert.match(result.error, /presenças diferentes/);
+  assert.equal(meta.valueAt(2, 3), '["Ana","Bea"]');
+  assert.equal(sheet.valueAt(3, 1), 'Ana');
+  assert.equal(sheet.valueAt(3, 2), '*');
+  assert.equal(sheet.valueAt(4, 1), 'Ana Costa');
+  assert.equal(sheet.valueAt(4, 2), 'F');
 });
 
 test('remover uma turma remove também a sua folha', () => {

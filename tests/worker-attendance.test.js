@@ -6,10 +6,10 @@ const test = require('node:test');
 
 const workerSource = fs.readFileSync(path.join(__dirname, '..', 'attendance-data-worker.js'), 'utf8')
   .replace('export default {', 'globalThis.__worker = {') +
-  '\nglobalThis.__attendanceTest = { recentAttendanceFromD1, hasRecordedAttendance };';
+  '\nglobalThis.__attendanceTest = { recentAttendanceFromD1, hasRecordedAttendance, removeAttendanceMemberStatements };';
 const workerContext = vm.createContext({ console });
 vm.runInContext(workerSource, workerContext);
-const { recentAttendanceFromD1, hasRecordedAttendance } = workerContext.__attendanceTest;
+const { recentAttendanceFromD1, hasRecordedAttendance, removeAttendanceMemberStatements } = workerContext.__attendanceTest;
 
 test('uma sessão só com estados pendentes não conta como presença preenchida', () => {
   assert.equal(hasRecordedAttendance([
@@ -51,4 +51,40 @@ test('o resumo usa estados de presença reais e não um registo vazio no D1', as
     { date: '2026-10-08', filled: false },
     { date: '2026-10-06', filled: true }
   ]);
+});
+
+test('a eliminação do histórico remove apenas as presenças do membro em D1', async () => {
+  const prepared = [];
+  const db = {
+    prepare(sql) {
+      return {
+        sql,
+        values: [],
+        bind(...values) { this.values = values; return this; },
+        async all() {
+          return { results: [
+            { date_key: '2026-10-08', members_json: JSON.stringify([
+              { name: 'Ana', status: 'attended' },
+              { name: 'Bea', status: 'absent_justified' }
+            ]) },
+            { date_key: '2026-10-06', members_json: JSON.stringify([{ name: 'Ana', status: 'late_told' }]) }
+          ] };
+        }
+      };
+    }
+  };
+  const originalPrepare = db.prepare.bind(db);
+  db.prepare = sql => {
+    const statement = originalPrepare(sql);
+    const originalBind = statement.bind;
+    statement.bind = (...values) => { originalBind.apply(statement, values); if (sql.startsWith('UPDATE attendance_core')) prepared.push(statement); return statement; };
+    return statement;
+  };
+
+  await removeAttendanceMemberStatements({ DB: db }, 'minigami-id', 'Ana');
+
+  assert.equal(prepared.length, 2);
+  assert.deepEqual(JSON.parse(prepared[0].values[0]), [{ name: 'Bea', status: 'absent_justified' }]);
+  assert.deepEqual(JSON.parse(prepared[1].values[0]), []);
+  assert.equal(prepared[0].values[2], 'minigami-id');
 });

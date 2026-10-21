@@ -1497,10 +1497,11 @@
   <div class="confirm-dialog-backdrop" id="confirmMemberRemovalDialog" hidden aria-hidden="true">
     <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirmMemberRemovalTitle" aria-describedby="confirmMemberRemovalMessage">
       <h3 id="confirmMemberRemovalTitle">Remover membro?</h3>
-      <p id="confirmMemberRemovalMessage">Esta ação não pode ser anulada.</p>
+      <p id="confirmMemberRemovalMessage">Podes manter ou apagar também o histórico de presenças deste membro.</p>
       <div class="confirm-dialog-actions">
         <button class="ghost-btn" type="button" id="cancelMemberRemovalBtn">Cancelar</button>
-        <button class="danger-btn" type="button" id="confirmMemberRemovalBtn">Remover membro</button>
+        <button class="secondary-btn" type="button" id="confirmMemberRemovalKeepBtn">Remover e manter histórico</button>
+        <button class="danger-btn" type="button" id="confirmMemberRemovalDeleteBtn">Remover e apagar histórico</button>
       </div>
     </div>
   </div>
@@ -2463,6 +2464,18 @@
       if (els.screens.date?.classList.contains('active')) loadRecentTrainingStatus();
     }
 
+    function continueToDateStep() {
+      if (!currentClass()) return;
+      if (!state.dateStepTouched) {
+        state.selectedDate = todayKey();
+        state.dateStepTouched = true;
+      }
+      if (els.actionAttendanceDateInput) els.actionAttendanceDateInput.value = selectedDateKey();
+      if (els.attendanceDateInput) els.attendanceDateInput.value = selectedDateKey();
+      persistState();
+      switchScreen('date');
+    }
+
     function renderTopSummary() {
       const cls = currentClass();
       if (!cls) {
@@ -2644,8 +2657,9 @@
       const saveBtn = document.getElementById('saveSingleAttendanceBtn');
       if (saveBtn) {
         saveBtn.hidden = false;
-        saveBtn.style.visibility = (isLast && state.singleLastCompleted) ? 'visible' : 'hidden';
-        saveBtn.style.pointerEvents = (isLast && state.singleLastCompleted) ? 'auto' : 'none';
+        const canSaveLastMember = isLast && (state.singleLastCompleted || status !== 'pending');
+        saveBtn.style.visibility = canSaveLastMember ? 'visible' : 'hidden';
+        saveBtn.style.pointerEvents = canSaveLastMember ? 'auto' : 'none';
       }
     }
 
@@ -2833,11 +2847,21 @@
     function statusClass(status) { return baseStatus(status) || 'pending'; }
     function normalizeAttendanceStatus(status) {
       const value = String(status || '').toLowerCase();
+      if (['late', 'late_told', 'late_not_told', 'absent', 'absent_justified', 'absent_not_justified'].includes(value)) return value;
       if (value === '*' || value === 'attended' || value === 'presente') return 'attended';
-      if ((value.includes('late') || value.includes('atrasado')) && (value.includes('told') || value.includes('disse') || value.includes('justificou'))) return value.includes('not') || value.includes('did not') || value.includes('não') ? 'late_not_told' : 'late_told';
+      if (value.includes('late') || value.includes('atrasado')) {
+        if (value.includes('not') || value.includes('did not') || value.includes('não') || value.includes('nao')) return 'late_not_told';
+        if (value.includes('told') || value.includes('disse') || value.includes('justificou')) return 'late_told';
+        return 'late';
+      }
       if (value === 'a' || value === 'late' || value === 'atrasado') return 'late';
-      if ((value.includes('not attended') || value.includes('falta')) && value.includes('justified') || value.includes('justificada')) return value.includes('not justified') || value.includes('não justificada') ? 'absent_not_justified' : 'absent_justified';
+      if (value.includes('not attended') || value.includes('absent') || value.includes('falta')) {
+        if (value.includes('not justified') || value.includes('não justificada') || value.includes('nao justificada') || value.includes('not_justified')) return 'absent_not_justified';
+        if (value.includes('justified') || value.includes('justificada')) return 'absent_justified';
+        return 'absent';
+      }
       if (value === 'f' || value === 'not attended' || value === 'absent' || value === 'falta') return 'absent';
+      if (value === '-' || value === '—' || value === 'pending' || !value) return 'pending';
       return 'pending';
     }
     function detailButtons(name, status, single = false) {
@@ -3064,13 +3088,13 @@
       if (els.memberPhotoPreview) els.memberPhotoPreview.hidden = true;
     }
 
-    function removeMember(name) {
+    function removeMember(name, deleteHistory = false) {
       const cls = currentClass();
       if (!cls) return;
       if (state.removingMemberNames[name]) return;
       state.removingMemberNames[name] = true;
       renderEditList();
-      queueClassMutation({ action: 'removeMember', classId: cls.id, memberName: name })
+      queueClassMutation({ action: 'removeMember', classId: cls.id, memberName: name, deleteHistory })
         .then(requireApiSuccess)
         .then(result => {
           clearAttendanceDirtyForMember(cls.id, name);
@@ -3078,8 +3102,9 @@
           deleteMemberPhoto(cls.id, result.removedMember).catch(() => {
             showNotice('Membro removido, mas a fotografia não pôde ser apagada.');
           });
+          showNotice(deleteHistory ? 'Membro e histórico removidos.' : 'Membro removido; histórico preservado.', 'success', 2200);
         })
-        .catch(() => {})
+        .catch(error => showNotice(`Não foi possível remover o membro: ${error.message || 'tenta novamente.'}`))
         .finally(() => {
           delete state.removingMemberNames[name];
           renderEditList();
@@ -3186,14 +3211,14 @@
     function showMemberRemovalDialog(name, trigger) {
       const dialog = document.getElementById('confirmMemberRemovalDialog');
       const message = document.getElementById('confirmMemberRemovalMessage');
-      const confirmButton = document.getElementById('confirmMemberRemovalBtn');
+      const keepButton = document.getElementById('confirmMemberRemovalKeepBtn');
       if (!name || !dialog) return;
       pendingMemberRemovalName = name;
       pendingMemberRemovalTrigger = trigger || null;
-      if (message) message.textContent = `Tem a certeza de que quer remover o membro «${name}»? Esta ação não pode ser anulada.`;
+      if (message) message.textContent = `«${name}» deixará de pertencer à classe. Podes manter as presenças anteriores ou apagá-las definitivamente da app e do Sheets.`;
       dialog.hidden = false;
       dialog.setAttribute('aria-hidden', 'false');
-      confirmButton?.focus();
+      keepButton?.focus();
     }
 
     function closeMemberRemovalDialog(restoreFocus = true) {
@@ -3208,10 +3233,10 @@
       if (restoreFocus) trigger?.focus();
     }
 
-    function confirmMemberRemoval() {
+    function confirmMemberRemoval(deleteHistory) {
       const name = pendingMemberRemovalName;
       closeMemberRemovalDialog(false);
-      if (name) removeMember(name);
+      if (name) removeMember(name, deleteHistory);
     }
 
     function confirmClassRemoval() {
@@ -3720,11 +3745,7 @@
       document.getElementById('toggleAppPinBtn').addEventListener('click', toggleAppPin);
       document.getElementById('nativeShareBtn').addEventListener('click', shareApp);
       document.getElementById('goToDateBtn').addEventListener('click', () => {
-        if (!state.dateStepTouched) {
-          state.selectedDate = todayKey();
-          state.dateStepTouched = true;
-        }
-        switchScreen('date');
+        continueToDateStep();
       });
       document.getElementById('goToActionsBtn').addEventListener('click', () => switchScreen('actions'));
       document.getElementById('editClassesTopBtn').addEventListener('click', () => switchScreen('classes'));
@@ -3795,9 +3816,16 @@
         pulseInteraction(event.currentTarget);
         selectClass(event.target.value);
       });
+      els.classSelect.addEventListener('dblclick', () => continueToDateStep());
       els.classButtonList.addEventListener('click', event => {
         const button = event.target.closest('[data-class-id]');
         if (button) selectClass(button.dataset.classId);
+      });
+      els.classButtonList.addEventListener('dblclick', event => {
+        const button = event.target.closest('[data-class-id]');
+        if (!button) return;
+        selectClass(button.dataset.classId);
+        continueToDateStep();
       });
 
       const syncAttendanceDate = event => {
@@ -3983,7 +4011,8 @@
         if (event.target.id === 'confirmClassRemovalDialog') closeClassRemovalDialog();
       });
       document.getElementById('cancelMemberRemovalBtn').addEventListener('click', () => closeMemberRemovalDialog());
-      document.getElementById('confirmMemberRemovalBtn').addEventListener('click', confirmMemberRemoval);
+      document.getElementById('confirmMemberRemovalKeepBtn').addEventListener('click', () => confirmMemberRemoval(false));
+      document.getElementById('confirmMemberRemovalDeleteBtn').addEventListener('click', () => confirmMemberRemoval(true));
       document.getElementById('confirmMemberRemovalDialog').addEventListener('click', event => {
         if (event.target.id === 'confirmMemberRemovalDialog') closeMemberRemovalDialog();
       });

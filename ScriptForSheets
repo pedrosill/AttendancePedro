@@ -13,16 +13,17 @@ var STATUS_MAP = {
   absent: 'F',
   absent_justified: 'F',
   absent_not_justified: 'F',
-  pending: 'F'
+  pending: ''
 };
 var TEXT_COLORS = {
   attended: '#437a22',
-  late: '#d19900',
+  late: '#000000',
   late_told: '#d19900',
   late_not_told: '#a13544',
-  absent: '#a13544',
+  absent: '#000000',
   absent_justified: '#d19900',
-  absent_not_justified: '#a13544'
+  absent_not_justified: '#a13544',
+  pending: '#000000'
 };
 
 function doGet(e) {
@@ -388,7 +389,7 @@ function removeMember(data) {
   var sheet = ss.getSheetByName(sanitizeSheetName(cls.name));
   if (sheet) {
     ensureAttendanceHeader(sheet);
-    removeMemberRows(sheet, memberName);
+    if (data.deleteHistory !== false) removeMemberRows(sheet, memberName);
   }
   return { ok: true, class: cls, removedMember: removedMember || null };
 }
@@ -451,7 +452,7 @@ function saveAttendance(data) {
   var colors = memberRows.map(function(memberRow) {
     var name = String(memberRow[0] || '').trim();
     var semanticStatus = statusByName[name] || 'pending';
-    return [TEXT_COLORS[semanticStatus] || TEXT_COLORS.absent];
+    return [TEXT_COLORS[semanticStatus] || TEXT_COLORS.pending];
   });
   if (values.length) {
     sheet.getRange(3, dateColumn, values.length, 1).setValues(values);
@@ -908,19 +909,73 @@ function removeMemberRows(sheet, memberName) {
 function renameMemberRow(sheet, oldName, newName) {
   var oldKey = String(oldName || '').trim().toLowerCase();
   var newKey = String(newName || '').trim().toLowerCase();
-  if (!oldKey || !newKey || oldKey === newKey) return false;
-  for (var row = 3; row <= sheet.getLastRow(); row++) {
-    var current = String(sheet.getRange(row, 1).getValue() || '').trim().toLowerCase();
-    if (current === newKey) return false;
+  var cleanNewName = String(newName || '').trim();
+  if (!oldKey || !newKey) return false;
+
+  var lastRow = sheet.getLastRow();
+  var lastColumn = Math.max(sheet.getLastColumn(), 1);
+  if (lastRow < 3) return false;
+  var rows = sheet.getRange(3, 1, lastRow - 2, lastColumn).getValues();
+  var colors = lastColumn > 1
+    ? sheet.getRange(3, 2, lastRow - 2, lastColumn - 1).getFontColors()
+    : rows.map(function() { return []; });
+  var oldRows = [];
+  var newRows = [];
+
+  rows.forEach(function(values, index) {
+    var key = String(values[0] || '').trim().toLowerCase();
+    if (key === oldKey) oldRows.push(index);
+    if (key === newKey) newRows.push(index);
+  });
+
+  if (!oldRows.length) return newRows.length > 0;
+
+  if (oldKey === newKey) {
+    oldRows.forEach(function(index) { sheet.getRange(index + 3, 1).setValue(cleanNewName); });
+    sortMemberRowsByName(sheet);
+    return true;
   }
-  for (var targetRow = 3; targetRow <= sheet.getLastRow(); targetRow++) {
-    var member = String(sheet.getRange(targetRow, 1).getValue() || '').trim().toLowerCase();
-    if (member === oldKey) {
-      sheet.getRange(targetRow, 1).setValue(String(newName || '').trim());
-      return true;
+
+  var candidateRows = oldRows.concat(newRows);
+  var survivorIndex = newRows.length ? newRows[0] : oldRows[0];
+  var mergedValues = new Array(Math.max(lastColumn - 1, 0)).fill('');
+  var mergedColors = new Array(Math.max(lastColumn - 1, 0)).fill('');
+
+  for (var column = 1; column < lastColumn; column++) {
+    var found = false;
+    var chosenValue = '';
+    var chosenColor = '';
+    candidateRows.forEach(function(index) {
+      var value = rows[index][column];
+      if (value === '' || value === null || value === undefined) return;
+      var color = colors[index][column - 1] || '';
+      if (found && (value !== chosenValue || color !== chosenColor)) {
+        var dateLabel = String(sheet.getRange(2, column + 1).getValue() || column + 1);
+        throw new Error('Não foi possível renomear ' + oldName + ': existem presenças diferentes para ' + dateLabel + '. Corrige esse conflito antes de repetir.');
+      }
+      found = true;
+      chosenValue = value;
+      chosenColor = color;
+    });
+    if (found) {
+      mergedValues[column - 1] = chosenValue;
+      mergedColors[column - 1] = chosenColor;
     }
   }
-  return false;
+
+  var survivorRow = survivorIndex + 3;
+  sheet.getRange(survivorRow, 1).setValue(cleanNewName);
+  if (lastColumn > 1) {
+    sheet.getRange(survivorRow, 2, 1, lastColumn - 1).setValues([mergedValues]);
+    sheet.getRange(survivorRow, 2, 1, lastColumn - 1).setFontColors([mergedColors]);
+  }
+
+  candidateRows.filter(function(index) { return index !== survivorIndex; })
+    .map(function(index) { return index + 3; })
+    .sort(function(a, b) { return b - a; })
+    .forEach(function(row) { sheet.deleteRow(row); });
+  sortMemberRowsByName(sheet);
+  return true;
 }
 
 function deduplicateDateColumns(sheet) {
@@ -1027,7 +1082,7 @@ function applyAttendanceFormatting(sheet) {
 
 function normalizeSemanticStatus(status) {
   var value = String(status || '').toLowerCase().trim();
-  if (!value) return 'pending';
+  if (!value || value === '-' || value === '—' || value === 'pending') return 'pending';
   if (value === '*' || value === 'attended' || value === 'presente') return 'attended';
   if (value === 'a') return 'late';
   if (value === 'f') return 'absent';
@@ -1040,13 +1095,13 @@ function normalizeSemanticStatus(status) {
   if (value === 'not attended - justified' || value === 'falta — justificada') return 'absent_justified';
   if (value === 'not attended - not justified' || value === 'falta — não justificada') return 'absent_not_justified';
   if (value === 'late' || value === 'atrasado') return 'late';
-  if (value === 'absent' || value === 'not attended' || value === 'falta' || value === 'pending') return 'absent';
-  return 'absent';
+  if (value === 'absent' || value === 'not attended' || value === 'falta') return 'absent';
+  return 'pending';
 }
 
 function normalizeStatus(status) {
   var semanticStatus = normalizeSemanticStatus(status);
-  return STATUS_MAP[semanticStatus] || STATUS_MAP.absent;
+  return Object.prototype.hasOwnProperty.call(STATUS_MAP, semanticStatus) ? STATUS_MAP[semanticStatus] : '';
 }
 
 function statusFromSheetCell(value, fontColor) {

@@ -254,11 +254,11 @@ async function writeCoreState(env, value) {
   await env.DB.batch(statements);
 }
 
-async function writeClassCore(env, value) {
+async function writeClassCore(env, value, additionalStatements = []) {
   const cls = normaliseClass(value);
   const currentState = await readCoreState(env);
   const current = findClass(currentState, cls.id);
-  if (current && stateFingerprint({ classes: [current] }) === stateFingerprint({ classes: [cls] })) return false;
+  if (current && stateFingerprint({ classes: [current] }) === stateFingerprint({ classes: [cls] }) && !additionalStatements.length) return false;
   const statements = [env.DB.prepare(`INSERT INTO classes_core (id, name, name_key, training_days_json, season_start, version, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET name = excluded.name, name_key = excluded.name_key,
@@ -274,6 +274,7 @@ async function writeClassCore(env, value) {
       photo_version = excluded.photo_version, updated_at = excluded.updated_at`)
       .bind(profile.id, cls.id, profile.name, classNameKey(profile.name), profile.photoKey || '', Number(profile.photoVersion || 0), now()));
   }
+  statements.push(...additionalStatements);
   await env.DB.batch(statements);
 }
 
@@ -474,6 +475,23 @@ async function renameAttendanceMember(env, classId, oldName, newName) {
   if (statements.length) await env.DB.batch(statements);
 }
 
+async function removeAttendanceMemberStatements(env, classId, memberName) {
+  const rows = await env.DB.prepare('SELECT date_key, members_json FROM attendance_core WHERE class_id = ?')
+    .bind(classId).all();
+  const memberKey = String(memberName || '').trim().toLocaleLowerCase('pt-PT');
+  const statements = [];
+  if (!memberKey) return statements;
+  for (const row of rows.results || []) {
+    const members = JSON.parse(row.members_json || '[]');
+    const remaining = members.filter(member => String(member.name || '').trim().toLocaleLowerCase('pt-PT') !== memberKey);
+    if (remaining.length !== members.length) {
+      statements.push(env.DB.prepare('UPDATE attendance_core SET members_json = ?, updated_at = ? WHERE class_id = ? AND date_key = ?')
+        .bind(JSON.stringify(remaining), now(), classId, row.date_key));
+    }
+  }
+  return statements;
+}
+
 async function readValue(env, key) {
   const row = await env.DB.prepare('SELECT value FROM kv WHERE key = ?').bind(key).first();
   return row ? JSON.parse(row.value) : null;
@@ -610,6 +628,7 @@ function applyClassMutation(state, payload) {
     cls.memberProfiles = cls.memberProfiles.filter(profile => profile.name.toLocaleLowerCase('pt-PT') !== removedName.toLocaleLowerCase('pt-PT'));
     result.class = cls;
     result.removedMember = removedMember || null;
+    result.deleteHistory = payload.deleteHistory !== false;
     return { state: next, result };
   }
 
@@ -1007,9 +1026,13 @@ async function handlePost(request, env, ctx) {
 
     const mutation = applyClassMutation(current, payload);
     if (!mutation.result.ok) return jsonResponse(mutation.result, 400, request, env);
-    if (stateFingerprint(current) === stateFingerprint(mutation.state)) {
+    const deleteMemberHistory = action === 'removeMember' && mutation.result.deleteHistory;
+    if (stateFingerprint(current) === stateFingerprint(mutation.state) && !deleteMemberHistory) {
       return jsonResponse({ ...mutation.result, unchanged: true }, 200, request, env);
     }
+    const memberHistoryStatements = deleteMemberHistory
+      ? await removeAttendanceMemberStatements(env, classId, mutation.result.removedMember?.name || payload.memberName || payload.name)
+      : [];
     if (action === 'saveClass') {
       const previousClass = findClass(current, classId);
       const updatedClass = findClass(mutation.state, classId);
@@ -1028,7 +1051,7 @@ async function handlePost(request, env, ctx) {
       await deleteClassCore(env, classId);
       await writeValue(env, STATE_KEY, normaliseState(mutation.state));
     } else {
-      await writeClassCore(env, mutation.result.class);
+      await writeClassCore(env, mutation.result.class, memberHistoryStatements);
       await writeValue(env, STATE_KEY, normaliseState(mutation.state));
     }
     await queueSheetsWrite(env, payload);
