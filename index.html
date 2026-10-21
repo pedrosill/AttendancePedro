@@ -144,6 +144,11 @@
       font-size: var(--text-base);
       line-height: 1.5;
     }
+    html.page-scroll-locked,
+    html.page-scroll-locked body {
+      overflow: hidden;
+      overscroll-behavior-y: none;
+    }
     .auth-gate {
       min-height: 100dvh;
       display: grid;
@@ -1695,12 +1700,14 @@
       els.appNotice.textContent = message;
       els.appNotice.className = `app-notice ${type}`;
       els.appNotice.hidden = false;
+      schedulePageScrollUpdate();
       if (duration > 0) noticeTimer = setTimeout(() => clearNotice(), duration);
     }
     function clearNotice() {
       if (noticeTimer) clearTimeout(noticeTimer);
       noticeTimer = null;
       if (els.appNotice) els.appNotice.hidden = true;
+      schedulePageScrollUpdate();
     }
     function pulseInteraction(node) {
       if (!node || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
@@ -1886,6 +1893,48 @@
       root.dataset.viewport = width >= 1080 ? 'desktop' : width >= 640 ? 'tablet' : 'mobile';
       root.style.setProperty('--viewport-width', `${width}px`);
       root.style.setProperty('--viewport-height', `${height}px`);
+      schedulePageScrollUpdate();
+    }
+    let pageScrollFrame = 0;
+    function schedulePageScrollUpdate() {
+      if (pageScrollFrame) cancelAnimationFrame(pageScrollFrame);
+      pageScrollFrame = requestAnimationFrame(() => {
+        pageScrollFrame = 0;
+        updatePageScrollMode();
+      });
+    }
+    function updatePageScrollMode() {
+      const root = document.documentElement;
+      const main = els.main;
+      const activeScreen = main?.querySelector('.screen.active');
+      if (!main || main.hidden || !activeScreen || (els.appNotice && !els.appNotice.hidden)) {
+        root.classList.remove('page-scroll-locked');
+        return;
+      }
+      const screenStyle = getComputedStyle(activeScreen);
+      const minHeight = Number.parseFloat(screenStyle.minHeight) || 0;
+      const visualHeight = window.visualViewport?.height || window.innerHeight;
+      const layoutHeight = window.innerHeight || document.documentElement.clientHeight;
+      const viewportReduced = visualHeight < layoutHeight - 120;
+      const fitsViewport = activeScreen.offsetHeight <= minHeight + 2 && !viewportReduced;
+      root.classList.toggle('page-scroll-locked', fitsViewport);
+      if (fitsViewport && window.scrollY > 0) window.scrollTo(0, 0);
+    }
+    function setupPageScrollObserver() {
+      if (!('ResizeObserver' in window)) return;
+      const observer = new ResizeObserver(schedulePageScrollUpdate);
+      Object.values(els.screens).forEach(screen => {
+        if (screen) observer.observe(screen);
+      });
+    }
+    function preventLockedPageTouchScroll(event) {
+      if (!document.documentElement.classList.contains('page-scroll-locked')) return;
+      for (let node = event.target; node && node !== document.body; node = node.parentElement) {
+        const style = getComputedStyle(node);
+        const scrollable = /(auto|scroll)/.test(`${style.overflowY} ${style.overflowX}`);
+        if (scrollable && (node.scrollHeight > node.clientHeight + 1 || node.scrollWidth > node.clientWidth + 1)) return;
+      }
+      event.preventDefault();
     }
     function sortMembers(members) {
       return [...members].sort((a, b) => a.localeCompare(b, 'pt-PT', { sensitivity: 'base' }));
@@ -2053,6 +2102,7 @@
     }
 
     function showAuthGate(message = '') {
+      document.documentElement.classList.remove('page-scroll-locked');
       if (els.main) els.main.hidden = true;
       if (els.authGate) els.authGate.hidden = false;
       if (els.authMessage) els.authMessage.textContent = message;
@@ -2063,6 +2113,7 @@
       if (els.authGate) els.authGate.hidden = true;
       if (els.main) els.main.hidden = false;
       if (els.authMessage) els.authMessage.textContent = '';
+      schedulePageScrollUpdate();
     }
 
     function clearAuth(message = 'A sessão terminou. Introduz novamente o PIN.') {
@@ -2794,6 +2845,7 @@
     }
 
     function switchScreen(key) {
+      if (window.scrollY > 0) window.scrollTo(0, 0);
       if (key !== 'settings') classRemovalMode = false;
       if (key !== 'settings' && els.appPinValue && !els.appPinValue.hidden) {
         els.appPinValue.hidden = true;
@@ -2832,6 +2884,7 @@
       if (key === 'records') loadAttendanceHistory();
       if (key === 'date') loadRecentTrainingStatus();
       renderTopSummary();
+      schedulePageScrollUpdate();
     }
 
     function baseStatus(status) {
@@ -4048,6 +4101,9 @@
       updateResponsiveLayout();
       window.addEventListener('resize', updateResponsiveLayout, { passive: true });
       window.addEventListener('orientationchange', updateResponsiveLayout, { passive: true });
+      window.visualViewport?.addEventListener('resize', schedulePageScrollUpdate, { passive: true });
+      setupPageScrollObserver();
+      document.addEventListener('touchmove', preventLockedPageTouchScroll, { passive: false });
       const prefs = loadState();
       state.selectedClassId = prefs.selectedClassId || '';
       state.webhookUrl = prefs.webhookUrl || DEFAULT_BACKEND_URL;
