@@ -283,6 +283,7 @@
       gap: var(--space-2);
       width: 100%;
     }
+    #screen-class .class-button-list { width: min(100%, 600px); align-self: center; }
     .class-choice {
       --interaction-accent: var(--item-accent, var(--color-primary));
       min-width: 0;
@@ -1054,32 +1055,30 @@
         min-height: 48px;
         border-radius: var(--radius-md);
       }
-      .settings-choice-grid {
+      #screen-settings {
+        width: min(90vw, 720px);
+      }
+      #screen-settings > :not(.screen-header) {
+        width: 100%;
         max-width: 520px;
       }
-      #screen-settings {
-        width: min(90vw, 800px);
-      }
       #screen-settings .settings-choice-grid {
-        grid-template-columns: repeat(2, minmax(0, 220px));
-        justify-content: start;
+        width: 100%;
+        max-width: none;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
-      #screen-settings .settings-choice {
-        width: 220px;
-      }
+      #screen-settings .settings-choice,
+      #screen-settings > .primary-btn,
       #screen-settings > .secondary-btn {
-        width: 240px;
-        align-self: flex-start;
+        width: 100%;
       }
-      #screen-settings .toolbar {
-        width: auto;
-      }
-      #screen-settings .toolbar > .secondary-btn {
-        flex: 0 0 auto;
-        width: 180px;
-      }
+      #screen-settings .toolbar,
       #screen-settings .share-actions {
-        width: min(100%, 420px);
+        width: 100%;
+      }
+      #screen-settings .toolbar > * {
+        width: 100%;
+        flex: 1 1 0;
       }
       .footer-actions {
         max-width: 520px;
@@ -1195,8 +1194,7 @@
       </div>
 
       <div class="field">
-        <label for="classSelect">Classe</label>
-        <select id="classSelect"></select>
+        <select id="classSelect" aria-label="Escolher classe"></select>
         <div id="classButtonList" class="class-button-list" hidden aria-label="Escolher classe"></div>
       </div>
 
