@@ -225,6 +225,16 @@
       flex-direction: column;
       gap: var(--space-5);
     }
+    #screen-class {
+      background:
+        radial-gradient(ellipse 84% 42% at 50% 68%, color-mix(in srgb, var(--class-accent, var(--color-primary)) 8%, transparent), transparent 100%),
+        var(--color-surface);
+    }
+    .theme-dark #screen-class {
+      background:
+        radial-gradient(ellipse 84% 42% at 50% 68%, color-mix(in srgb, var(--class-accent, var(--color-primary)) 5%, transparent), transparent 100%),
+        var(--color-surface);
+    }
     .screen.active {
       display: flex;
       width: 90vw;
@@ -262,7 +272,7 @@
     .screen-header p { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
     .screen-header .class-context { color: var(--class-accent, var(--color-text-muted)); font-weight: 700; line-height: 1.25; }
     .field { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; width: 100%; }
-    #screen-class .field { margin-top: 0; }
+    #screen-class .field { margin-top: var(--space-3); }
     label { font-weight: 700; font-size: var(--text-sm); }
     .color-row { display: flex; align-items: center; gap: var(--space-2); }
     .class-color-preview {
@@ -405,6 +415,13 @@
     .primary-btn:active, .secondary-btn:active, .ghost-btn:active, .status-btn:active, .card-action:active, .small-action:active { transform: scale(0.98); }
     .primary-btn { background: var(--color-primary); color: var(--color-text-inverse); }
     .primary-btn:hover { background: var(--class-accent-hover, var(--color-primary-hover)); }
+    .screen.selected-class:not(#screen-settings):not(#screen-records) .primary-btn {
+      background: var(--class-accent, var(--color-primary));
+      color: var(--class-accent-contrast, #fff);
+    }
+    .screen.selected-class:not(#screen-settings):not(#screen-records) .primary-btn:hover {
+      background: var(--class-accent-hover, var(--color-primary-hover));
+    }
     .secondary-btn { background: var(--color-surface-2); border-color: rgba(40,37,29,.1); }
     .ghost-btn, .small-action { background: transparent; border-color: rgba(40,37,29,.1); color: var(--color-text-muted); }
     .small-action { min-height: 44px; }
@@ -542,6 +559,7 @@
       flex-direction: column;
       gap: var(--space-3);
     }
+    .member-list-heading { margin: 0; font-size: var(--text-sm); }
     #screen-attendance {
       overflow: visible;
     }
@@ -922,19 +940,27 @@
       background: color-mix(in srgb, var(--item-accent, var(--class-accent, var(--color-primary))) 10%, var(--color-surface-2));
     }
     .class-editor-card:active { transform: scale(0.99); }
-    .class-editor-card-main { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
-    .class-editor-card-main > div { min-width: 0; }
+    .class-editor-card-main { display: flex; align-items: center; gap: var(--space-2); }
+    .class-editor-card-copy { min-width: 0; }
+    .class-editor-card-title { display: block; overflow-wrap: anywhere; }
     .class-editor-card-hint { margin: var(--space-1) 0 0; color: var(--color-text-muted); font-size: var(--text-sm); }
     .class-editor-card-arrow { flex: 0 0 auto; color: var(--item-accent, var(--class-accent, var(--color-primary))); font-size: 2rem; line-height: 1; transition: transform var(--transition-interactive), color var(--transition-interactive); }
     .class-editor-card:hover .class-editor-card-arrow { transform: translateX(4px); }
     .class-editor-card-open {
-      width: 100%;
+      display: flex;
+      flex: 1 1 auto;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      min-width: 0;
+      width: auto;
       padding: 0;
       border: 0;
       background: transparent;
       color: inherit;
       text-align: left;
     }
+    .class-editor-rename { flex: 0 0 auto; white-space: nowrap; }
     .class-training-config { border-top: 1px solid var(--color-border); padding-top: var(--space-3); }
     .class-training-config summary { cursor: pointer; font-weight: 700; color: var(--item-accent, var(--color-primary)); }
     .class-training-form { display: grid; gap: var(--space-3); padding-top: var(--space-3); }
@@ -1455,8 +1481,8 @@
       </div>
 
       <div class="stack">
-        <label for="editMemberList">Membros atuais</label>
-        <div id="editMemberList" class="member-list" aria-live="polite"></div>
+        <h3 class="member-list-heading" id="editMemberListLabel">Membros atuais</h3>
+        <div id="editMemberList" class="member-list" aria-labelledby="editMemberListLabel" aria-live="polite"></div>
       </div>
 
     </section>
@@ -2755,16 +2781,17 @@
         row.style.setProperty('--item-delay', `${Math.min(index, 8) * 35}ms`);
         row.innerHTML = `
           <div class="stack">
-            <button class="class-editor-card-open" type="button" data-edit-members-class="${escapeAttr(item.id)}" aria-label="Abrir membros da classe ${escapeAttr(item.name)}">
-              <div class="class-editor-card-main">
-                <div>
-                  <h3 class="member-name" data-rename-trigger="${escapeAttr(item.id)}" title="Duplo clique para alterar o nome">${escapeHtml(item.name)}</h3>
-                  <p class="class-editor-card-hint">Gerir membros</p>
-                </div>
+            <div class="class-editor-card-main">
+              <button class="class-editor-card-open" type="button" data-edit-members-class="${escapeAttr(item.id)}" aria-label="Abrir membros da classe ${escapeAttr(item.name)}">
+                <span class="class-editor-card-copy">
+                  <span class="member-name class-editor-card-title">${escapeHtml(item.name)}</span>
+                  <span class="class-editor-card-hint">Gerir membros</span>
+                </span>
                 <span class="class-editor-card-arrow" aria-hidden="true">›</span>
-              </div>
-            </button>
-            <div class="field" data-rename-wrapper="${item.id}" hidden>
+              </button>
+              <button class="small-action class-editor-rename" type="button" data-toggle-rename-class="${escapeAttr(item.id)}" aria-expanded="false" aria-controls="rename-panel-${escapeAttr(item.id)}">Alterar nome</button>
+            </div>
+            <div class="field" id="rename-panel-${escapeAttr(item.id)}" data-rename-wrapper="${escapeAttr(item.id)}" hidden>
               <label for="rename-${item.id}">Alterar nome</label>
               <input id="rename-${item.id}" class="text-input" type="text" value="${escapeAttr(item.name)}" data-rename-class="${item.id}" />
             </div>
@@ -2951,10 +2978,26 @@
       if (status !== 'late' && status !== 'absent') await goToSingleNextOrSave();
     }
 
+    function relativeLuminance(color) {
+      const channels = color.match(/[\da-f]{2}/gi)?.map(channel => Number.parseInt(channel, 16) / 255) || [];
+      if (channels.length !== 3) return 0;
+      const [red, green, blue] = channels.map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+      return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+    }
+
+    function contrastingAccentText(color) {
+      const backgroundLuminance = relativeLuminance(color);
+      const darkTextLuminance = relativeLuminance('#171614');
+      const whiteContrast = 1.05 / (backgroundLuminance + 0.05);
+      const darkContrast = (backgroundLuminance + 0.05) / (darkTextLuminance + 0.05);
+      return whiteContrast >= darkContrast ? '#ffffff' : '#171614';
+    }
+
     function applyClassAccent(colorKey) {
       document.documentElement.style.setProperty('--class-accent', colorKey);
       document.documentElement.style.setProperty('--class-accent-soft', hexToRgba(colorKey, 0.12));
       document.documentElement.style.setProperty('--class-accent-hover', hexToRgba(colorKey, 0.9));
+      document.documentElement.style.setProperty('--class-accent-contrast', contrastingAccentText(colorKey));
       const active = document.querySelector('.screen.active');
       if (active) active.classList.toggle('selected-class', active.id !== 'screen-class');
     }
@@ -3326,6 +3369,8 @@
       if (!wrapper) return;
       const isHidden = wrapper.hidden;
       wrapper.hidden = !isHidden;
+      document.querySelector(`[data-toggle-rename-class="${CSS.escape(id)}"]`)
+        ?.setAttribute('aria-expanded', String(isHidden));
       if (isHidden) {
         const input = wrapper.querySelector('[data-rename-class]');
         if (input) input.focus();
@@ -4005,8 +4050,6 @@
       });
 
       els.classListEditor.addEventListener('click', event => {
-        const renameTrigger = event.target.closest('[data-rename-trigger]');
-        if (renameTrigger) return;
         if (event.target.closest('[data-rename-wrapper]')) return;
         const editBtn = event.target.closest('[data-edit-members-class]');
         if (editBtn) {
@@ -4027,11 +4070,6 @@
         event.preventDefault();
         saveTrainingConfig(form);
       });
-      els.classListEditor.addEventListener('dblclick', event => {
-        const name = event.target.closest('[data-rename-trigger]');
-        if (name) toggleClassRename(name.dataset.renameTrigger);
-      });
-
       document.getElementById('settingsClassList').addEventListener('click', event => {
         const removeBtn = event.target.closest('[data-remove-class]');
         if (removeBtn) showClassRemovalDialog(removeBtn.dataset.removeClass, removeBtn);
