@@ -272,7 +272,9 @@
     .screen-header p { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
     .screen-header .class-context { color: var(--class-accent, var(--color-text-muted)); font-weight: 700; line-height: 1.25; }
     .field { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; width: 100%; }
-    #screen-class .field { margin-top: var(--space-3); }
+    .class-selection-group { display: flex; flex: 1; flex-direction: column; justify-content: center; gap: var(--space-4); min-height: 0; }
+    #screen-class .field { margin-top: 0; }
+    #screen-user .user-choice-list { display: flex; flex-direction: column; justify-content: center; flex: 1; margin-inline: auto; }
     label { font-weight: 700; font-size: var(--text-sm); }
     .color-row { display: flex; align-items: center; gap: var(--space-2); }
     .class-color-preview {
@@ -1249,23 +1251,25 @@
         <p id="activeUserLabel" class="class-context"></p>
       </div>
 
-      <div class="field">
-        <select id="classSelect" aria-label="Escolher classe"></select>
-        <div id="classButtonList" class="class-button-list" hidden aria-label="Escolher classe"></div>
-      </div>
-
-      <div class="loading-banner" id="loadingClassesText">
-        <div>
-            <strong>A carregar classes</strong>
-          <span>A obter classes e membros...</span>
+      <div class="class-selection-group">
+        <div class="field">
+          <select id="classSelect" aria-label="Escolher classe"></select>
+          <div id="classButtonList" class="class-button-list" hidden aria-label="Escolher classe"></div>
         </div>
-      </div>
-      <p class="inline-note" id="noAssignedClassesMessage" hidden>Não tens classes atribuídas. Pede ao Pedro para atualizar as atribuições nas Definições.</p>
 
-      <div class="summary-grid" aria-label="Current class quick stats">
-        <div class="summary-card" aria-live="polite">
-          <strong id="membersCount">0</strong>
-          <span>membros</span>
+        <div class="loading-banner" id="loadingClassesText">
+          <div>
+            <strong>A carregar classes</strong>
+            <span>A obter classes e membros...</span>
+          </div>
+        </div>
+        <p class="inline-note" id="noAssignedClassesMessage" hidden>Não tens classes atribuídas. Pede ao Pedro para atualizar as atribuições nas Definições.</p>
+
+        <div class="summary-grid" aria-label="Current class quick stats">
+          <div class="summary-card" aria-live="polite">
+            <strong id="membersCount">0</strong>
+            <span>membros</span>
+          </div>
         </div>
       </div>
 
