@@ -6,10 +6,20 @@ const test = require('node:test');
 
 const workerSource = fs.readFileSync(path.join(__dirname, '..', 'attendance-data-worker.js'), 'utf8')
   .replace('export default {', 'globalThis.__worker = {') +
-  '\nglobalThis.__attendanceTest = { recentAttendanceFromD1, hasRecordedAttendance, removeAttendanceMemberStatements };';
+  '\nglobalThis.__attendanceTest = { recentAttendanceFromD1, hasRecordedAttendance, removeAttendanceMemberStatements, userNameKey, userIdBase };';
 const workerContext = vm.createContext({ console });
 vm.runInContext(workerSource, workerContext);
-const { recentAttendanceFromD1, hasRecordedAttendance, removeAttendanceMemberStatements } = workerContext.__attendanceTest;
+const { recentAttendanceFromD1, hasRecordedAttendance, removeAttendanceMemberStatements, userNameKey, userIdBase } = workerContext.__attendanceTest;
+
+test('os identificadores de utilizador preservam nomes legíveis e removem acentos', () => {
+  assert.equal(userIdBase('M.ª João'), 'm-joao');
+  assert.equal(userIdBase('Rita G.'), 'rita-g');
+  assert.equal(userIdBase('!!!'), 'utilizador');
+});
+
+test('nomes duplicados são comparados sem diferenças de espaços ou maiúsculas', () => {
+  assert.equal(userNameKey('  M.ª   João '), userNameKey('m.ª joão'));
+});
 
 test('uma sessão só com estados pendentes não conta como presença preenchida', () => {
   assert.equal(hasRecordedAttendance([

@@ -2126,6 +2126,26 @@
       section.hidden = state.selectedUserId !== 'pedro';
       editor.innerHTML = '';
       if (section.hidden) return;
+      const newUserClasses = state.classes.map(cls => `
+        <label class="user-assignment-class">
+          <input type="checkbox" name="classId" value="${escapeAttr(cls.id)}" />
+          <span>${escapeHtml(cls.name)}</span>
+        </label>`).join('');
+      const newUserCard = document.createElement('fieldset');
+      newUserCard.className = 'user-assignment-card';
+      newUserCard.innerHTML = `<legend>Adicionar utilizador</legend>
+        <form data-create-user>
+          <div class="field">
+            <label for="newUserName">Nome</label>
+            <input class="text-input" id="newUserName" name="displayName" type="text" maxlength="60" autocomplete="off" required />
+          </div>
+          <div class="user-assignment-classes" aria-label="Classes atribuídas">
+            ${newUserClasses || '<span class="tiny muted">Adiciona uma classe antes de criar utilizadores.</span>'}
+          </div>
+          <button class="primary-btn" type="submit" ${state.classes.length ? '' : 'disabled'}>Adicionar utilizador</button>
+          <p class="tiny" data-create-user-status role="status" aria-live="polite"></p>
+        </form>`;
+      editor.appendChild(newUserCard);
       state.users.forEach(user => {
         const fieldset = document.createElement('fieldset');
         fieldset.className = 'user-assignment-card';
@@ -2143,6 +2163,36 @@
           </form>`;
         editor.appendChild(fieldset);
       });
+    }
+
+    async function createUserFromForm(form) {
+      const status = form.querySelector('[data-create-user-status]');
+      const button = form.querySelector('[type="submit"]');
+      const name = form.elements.displayName.value.trim().replace(/\s+/g, ' ');
+      const classIds = [...form.querySelectorAll('input[name="classId"]:checked')].map(input => input.value);
+      if (state.selectedUserId !== 'pedro') return;
+      if (!name) {
+        if (status) status.textContent = 'Escreve o nome do utilizador.';
+        form.elements.displayName.focus();
+        return;
+      }
+      if (button) { button.disabled = true; button.textContent = 'A adicionar…'; }
+      if (status) status.textContent = '';
+      try {
+        const result = requireApiSuccess(await apiPost({ action: 'createUser', adminUserId: state.selectedUserId, name, classIds }), 'Não foi possível adicionar o utilizador');
+        state.users = Array.isArray(result.users) ? result.users : state.users;
+        renderUserChoiceList();
+        renderUserAssignmentEditor();
+        const refreshedForm = document.querySelector('[data-create-user]');
+        const refreshedInput = refreshedForm?.elements.displayName;
+        const refreshedStatus = refreshedForm?.querySelector('[data-create-user-status]');
+        if (refreshedStatus) refreshedStatus.textContent = 'Utilizador adicionado.';
+        refreshedInput?.focus();
+      } catch (error) {
+        if (status) status.textContent = error.message || 'Não foi possível adicionar o utilizador.';
+      } finally {
+        if (button?.isConnected) { button.disabled = false; button.textContent = 'Adicionar utilizador'; }
+      }
     }
 
     function selectUser(userId) {
@@ -2166,7 +2216,7 @@
       if (button) { button.disabled = true; button.textContent = 'A guardar...'; }
       if (status) status.textContent = '';
       try {
-        const result = requireApiSuccess(await apiPost({ action: 'saveUserAssignments', userId, classIds }), 'Não foi possível guardar as atribuições');
+        const result = requireApiSuccess(await apiPost({ action: 'saveUserAssignments', adminUserId: state.selectedUserId, userId, classIds }), 'Não foi possível guardar as atribuições');
         state.users = Array.isArray(result.users) ? result.users : state.users;
         if (!availableClasses().some(item => item.id === state.selectedClassId)) state.selectedClassId = currentUser()?.classIds?.[0] || '';
         persistState();
@@ -4007,6 +4057,12 @@
         if (button) selectUser(button.dataset.userId);
       });
       document.getElementById('userAssignmentEditor').addEventListener('submit', event => {
+        const createForm = event.target.closest('[data-create-user]');
+        if (createForm) {
+          event.preventDefault();
+          createUserFromForm(createForm);
+          return;
+        }
         const form = event.target.closest('[data-user-assignments]');
         if (!form) return;
         event.preventDefault();

@@ -48,7 +48,7 @@ jobs:
           node --check static-worker.js
 
       - name: Run tests
-        run: node --test tests/attendance.test.js
+        run: node --test tests/attendance.test.js tests/worker-attendance.test.js
 
   deploy:
     name: Deploy production

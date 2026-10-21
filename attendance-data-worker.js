@@ -600,6 +600,15 @@ async function readUserProfiles(env) {
   }));
 }
 
+function userNameKey(value) {
+  return String(value || '').normalize('NFC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('pt-PT');
+}
+
+function userIdBase(value) {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('pt-PT').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'utilizador';
+}
+
 function findClass(state, classId) {
   return state.classes.find(item => item.id === classId) || null;
 }
@@ -1021,16 +1030,57 @@ async function handlePost(request, env, ctx) {
     if (!env.APP_PIN) return jsonResponse({ ok: false, error: 'APP_PIN não configurado' }, 503, request, env);
     return jsonResponse({ ok: true, pin: String(env.APP_PIN) }, 200, request, env);
   }
+  if (action === 'createUser') {
+    if (String(payload.adminUserId || '') !== 'pedro') {
+      return jsonResponse({ ok: false, error: 'Só o administrador pode adicionar utilizadores' }, 403, request, env);
+    }
+    const name = String(payload.name || '').trim().replace(/\s+/g, ' ');
+    const classIds = Array.isArray(payload.classIds) ? [...new Set(payload.classIds.map(value => String(value)))] : null;
+    if (!name || name.length > 60 || !classIds) {
+      return jsonResponse({ ok: false, error: 'Nome ou classes inválidos' }, 400, request, env);
+    }
+    const lock = await acquireMutationLock(env, 'state');
+    try {
+      const state = await getOrBootstrapState(env);
+      await ensureDefaultUserAssignments(env);
+      const knownClassIds = new Set((state?.classes || []).map(item => item.id));
+      if (classIds.some(classId => !knownClassIds.has(classId))) {
+        return jsonResponse({ ok: false, error: 'Uma das classes selecionadas já não existe' }, 400, request, env);
+      }
+      const existingResult = await env.DB.prepare('SELECT id, display_name, sort_order FROM app_users ORDER BY sort_order').all();
+      const existing = existingResult.results || [];
+      if (existing.some(user => userNameKey(user.display_name) === userNameKey(name))) {
+        return jsonResponse({ ok: false, error: 'Já existe um utilizador com esse nome' }, 409, request, env);
+      }
+      const usedIds = new Set(existing.map(user => user.id));
+      const baseId = userIdBase(name);
+      let userId = baseId;
+      for (let suffix = 2; usedIds.has(userId); suffix += 1) userId = `${baseId}-${suffix}`;
+      const sortOrder = Math.max(0, ...existing.map(user => Number(user.sort_order) || 0)) + 1;
+      await env.DB.batch([
+        env.DB.prepare('INSERT INTO app_users (id, display_name, role, sort_order) VALUES (?, ?, ?, ?)').bind(userId, name, 'user', sortOrder),
+        ...classIds.map(classId => env.DB.prepare('INSERT INTO user_class_assignments (user_id, class_id) VALUES (?, ?)').bind(userId, classId))
+      ]);
+      return jsonResponse({ ok: true, users: await readUserProfiles(env) }, 200, request, env);
+    } finally {
+      await releaseMutationLock(env, lock);
+    }
+  }
   if (action === 'saveUserAssignments') {
+    if (String(payload.adminUserId || '') !== 'pedro') {
+      return jsonResponse({ ok: false, error: 'Só o administrador pode alterar atribuições' }, 403, request, env);
+    }
     const userId = String(payload.userId || '');
     const classIds = Array.isArray(payload.classIds) ? [...new Set(payload.classIds.map(value => String(value)))] : null;
-    if (!classIds || !['pedro', 'maria-joao', 'rita-g'].includes(userId)) {
+    if (!classIds || !userId) {
       return jsonResponse({ ok: false, error: 'Atribuições inválidas' }, 400, request, env);
     }
     const lock = await acquireMutationLock(env, 'state');
     try {
       const state = await getOrBootstrapState(env);
       await ensureDefaultUserAssignments(env);
+      const userExists = await env.DB.prepare('SELECT id FROM app_users WHERE id = ?').bind(userId).first();
+      if (!userExists) return jsonResponse({ ok: false, error: 'Esse utilizador já não existe' }, 404, request, env);
       const knownClassIds = new Set((state?.classes || []).map(item => item.id));
       if (classIds.some(classId => !knownClassIds.has(classId))) {
         return jsonResponse({ ok: false, error: 'Uma das classes selecionadas já não existe' }, 400, request, env);
