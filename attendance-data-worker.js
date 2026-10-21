@@ -561,6 +561,45 @@ async function getOrBootstrapState(env) {
   return cached || importStateFromSheets(env, true);
 }
 
+const DEFAULT_USER_CLASS_ASSIGNMENTS = {
+  pedro: ['gami', 'minigami'],
+  'maria-joao': ['grupo juvenil', 'minigami'],
+  'rita-g': ['gami', 'minigami']
+};
+
+async function ensureDefaultUserAssignments(env) {
+  const config = await env.DB.prepare('SELECT defaults_initialized FROM user_class_config WHERE id = 1').first();
+  if (Number(config?.defaults_initialized || 0) === 1) return;
+  const statements = [];
+  for (const [userId, classNames] of Object.entries(DEFAULT_USER_CLASS_ASSIGNMENTS)) {
+    for (const className of classNames) {
+      statements.push(env.DB.prepare(`INSERT OR IGNORE INTO user_class_assignments (user_id, class_id)
+        SELECT ?, id FROM classes_core WHERE name_key = ?`).bind(userId, className));
+    }
+  }
+  statements.push(env.DB.prepare(`INSERT INTO user_class_config (id, defaults_initialized)
+    VALUES (1, 1) ON CONFLICT(id) DO UPDATE SET defaults_initialized = 1`));
+  await env.DB.batch(statements);
+}
+
+async function readUserProfiles(env) {
+  const [users, assignments] = await Promise.all([
+    env.DB.prepare('SELECT id, display_name, role, sort_order FROM app_users ORDER BY sort_order').all(),
+    env.DB.prepare('SELECT user_id, class_id FROM user_class_assignments ORDER BY user_id, class_id').all()
+  ]);
+  const classIdsByUser = new Map();
+  for (const row of assignments.results || []) {
+    if (!classIdsByUser.has(row.user_id)) classIdsByUser.set(row.user_id, []);
+    classIdsByUser.get(row.user_id).push(row.class_id);
+  }
+  return (users.results || []).map(user => ({
+    id: user.id,
+    name: user.display_name,
+    role: user.role,
+    classIds: classIdsByUser.get(user.id) || []
+  }));
+}
+
 function findClass(state, classId) {
   return state.classes.find(item => item.id === classId) || null;
 }
@@ -910,6 +949,8 @@ async function handleGet(request, env, ctx) {
   }
   if (action === 'bootstrap') {
     const state = await getOrBootstrapState(env);
+    await ensureDefaultUserAssignments(env);
+    const users = await readUserProfiles(env);
     const classId = url.searchParams.get('classId') || '';
     const date = url.searchParams.get('date') || '';
     const cls = findClass(state, classId);
@@ -923,14 +964,14 @@ async function handleGet(request, env, ctx) {
       if (!recent.historyReady) ctx.waitUntil(syncClassAttendanceHistory(env, classId).catch(error => console.error('Attendance history import failed:', error)));
     }
     ctx.waitUntil(scheduleFlush(env));
-    return jsonResponse({ ...state, attendance, recent, sync: await readSyncStatus(env) }, 200, request, env);
+    return jsonResponse({ ...state, users, attendance, recent, sync: await readSyncStatus(env) }, 200, request, env);
   }
   if (action === 'state') {
     const state = await getOrBootstrapState(env);
+    await ensureDefaultUserAssignments(env);
     ctx.waitUntil(scheduleFlush(env));
     return jsonResponse(state, 200, request, env);
   }
-
   const classId = url.searchParams.get('classId') || '';
   const date = url.searchParams.get('date') || '';
   if (action === 'recentAttendance') {
@@ -980,6 +1021,29 @@ async function handlePost(request, env, ctx) {
     if (!env.APP_PIN) return jsonResponse({ ok: false, error: 'APP_PIN não configurado' }, 503, request, env);
     return jsonResponse({ ok: true, pin: String(env.APP_PIN) }, 200, request, env);
   }
+  if (action === 'saveUserAssignments') {
+    const userId = String(payload.userId || '');
+    const classIds = Array.isArray(payload.classIds) ? [...new Set(payload.classIds.map(value => String(value)))] : null;
+    if (!classIds || !['pedro', 'maria-joao', 'rita-g'].includes(userId)) {
+      return jsonResponse({ ok: false, error: 'Atribuições inválidas' }, 400, request, env);
+    }
+    const lock = await acquireMutationLock(env, 'state');
+    try {
+      const state = await getOrBootstrapState(env);
+      await ensureDefaultUserAssignments(env);
+      const knownClassIds = new Set((state?.classes || []).map(item => item.id));
+      if (classIds.some(classId => !knownClassIds.has(classId))) {
+        return jsonResponse({ ok: false, error: 'Uma das classes selecionadas já não existe' }, 400, request, env);
+      }
+      await env.DB.batch([
+        env.DB.prepare('DELETE FROM user_class_assignments WHERE user_id = ?').bind(userId),
+        ...classIds.map(classId => env.DB.prepare('INSERT INTO user_class_assignments (user_id, class_id) VALUES (?, ?)').bind(userId, classId))
+      ]);
+      return jsonResponse({ ok: true, users: await readUserProfiles(env) }, 200, request, env);
+    } finally {
+      await releaseMutationLock(env, lock);
+    }
+  }
   if (!['saveClasses', 'saveClass', 'addMember', 'removeMember', 'removeClass', 'saveAttendance'].includes(action)) {
     return jsonResponse({ ok: false, error: 'Unknown action' }, 400, request, env);
   }
@@ -995,6 +1059,7 @@ async function handlePost(request, env, ctx) {
   const lock = await acquireMutationLock(env, action === 'saveAttendance' ? `attendance:${classId}:${date}` : 'state');
   try {
     const current = await getOrBootstrapState(env);
+    await ensureDefaultUserAssignments(env);
     if (action === 'saveAttendance') {
       const operationId = String(payload.operationId || id());
       const previousAttendance = await readAttendanceCore(env, classId, date);
@@ -1046,12 +1111,20 @@ async function handlePost(request, env, ctx) {
     }
     if (action === 'saveClasses') await invalidateAllAttendanceCaches(env);
     else await invalidateClassCaches(env, classId);
-    if (action === 'saveClasses') await writeState(env, mutation.state);
+    if (action === 'saveClasses') {
+      await writeState(env, mutation.state);
+      const previousIds = new Set(current.classes.map(item => item.id));
+      const newClassIds = mutation.state.classes.filter(item => !previousIds.has(item.id)).map(item => item.id);
+      if (newClassIds.length) await env.DB.batch(newClassIds.map(newClassId => env.DB.prepare('INSERT OR IGNORE INTO user_class_assignments (user_id, class_id) VALUES (?, ?)').bind('pedro', newClassId)));
+    }
     else if (action === 'removeClass') {
       await deleteClassCore(env, classId);
       await writeValue(env, STATE_KEY, normaliseState(mutation.state));
     } else {
       await writeClassCore(env, mutation.result.class, memberHistoryStatements);
+      if (action === 'saveClass' && !findClass(current, classId)) {
+        await env.DB.prepare('INSERT OR IGNORE INTO user_class_assignments (user_id, class_id) VALUES (?, ?)').bind('pedro', classId).run();
+      }
       await writeValue(env, STATE_KEY, normaliseState(mutation.state));
     }
     await queueSheetsWrite(env, payload);

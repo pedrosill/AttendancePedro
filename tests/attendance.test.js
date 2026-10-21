@@ -6,6 +6,29 @@ const appSource = fs.readFileSync(require('node:path').join(__dirname, '..', 'in
 const appStatusFunction = appSource.match(/^    function normalizeAttendanceStatus\(status\) \{[\s\S]*?^    \}/m)?.[0];
 if (!appStatusFunction) throw new Error('Could not locate app attendance status normalizer');
 const normalizeAppAttendanceStatus = vm.runInNewContext(`(${appStatusFunction})`);
+const appUserFunction = appSource.match(/^    function currentUser\(\) \{[\s\S]*?^    \}/m)?.[0];
+const appAvailableClassesFunction = appSource.match(/^    function availableClasses\(\) \{[\s\S]*?^    \}/m)?.[0];
+if (!appUserFunction || !appAvailableClassesFunction) throw new Error('Could not locate app user class filter');
+
+test('selected profile only sees its assigned classes', () => {
+  const context = vm.createContext({ state: {
+    selectedUserId: 'maria-joao',
+    users: [{ id: 'maria-joao', classIds: ['juvenil', 'mini'] }],
+    classes: [{ id: 'gami' }, { id: 'juvenil' }, { id: 'mini' }]
+  } });
+  const visible = vm.runInContext(`${appUserFunction}\n${appAvailableClassesFunction}\navailableClasses()`, context);
+  assert.deepEqual(Array.from(visible, item => item.id), ['juvenil', 'mini']);
+});
+
+test('profile without assigned classes sees no classes', () => {
+  const context = vm.createContext({ state: {
+    selectedUserId: 'rita-g',
+    users: [{ id: 'rita-g', classIds: [] }],
+    classes: [{ id: 'gami' }]
+  } });
+  const visible = vm.runInContext(`${appUserFunction}\n${appAvailableClassesFunction}\navailableClasses()`, context);
+  assert.equal(visible.length, 0);
+});
 
 class MockRange {
   constructor(sheet, row, column, rowCount, columnCount) {

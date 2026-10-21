@@ -323,6 +323,25 @@
       color: var(--item-accent, var(--color-primary));
       box-shadow: 0 0 0 2px color-mix(in srgb, var(--item-accent, var(--color-primary)) 14%, transparent);
     }
+    .user-choice-list { display: grid; grid-template-columns: 1fr; gap: var(--space-3); width: min(100%, 600px); margin-inline: auto; }
+    .user-choice {
+      min-height: 64px;
+      border: 1px solid rgba(40,37,29,.12);
+      border-radius: var(--radius-lg);
+      background: var(--color-surface-2);
+      color: var(--color-text);
+      font-size: var(--text-base);
+      font-weight: 700;
+      transition: transform var(--transition-interactive), border-color var(--transition-interactive), background var(--transition-interactive);
+    }
+    .user-choice:hover, .user-choice:focus-visible { border-color: var(--color-primary); background: var(--color-primary-highlight); }
+    .user-choice:active { transform: scale(.99); }
+    .user-assignment-list { display: grid; gap: var(--space-3); }
+    .user-assignment-card { border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: var(--space-3); }
+    .user-assignment-card legend { padding-inline: .35rem; font-weight: 700; }
+    .user-assignment-classes { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-block: var(--space-2); }
+    .user-assignment-class { display: inline-flex; align-items: center; gap: .45rem; min-height: 42px; padding: .45rem .65rem; border-radius: var(--radius-md); background: var(--color-surface-2); }
+    .user-assignment-class input { width: 1.1rem; height: 1.1rem; accent-color: var(--color-primary); }
     .settings-choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
     .settings-choice { width: 100%; }
     .settings-choice.active { background: var(--class-accent-soft, var(--color-primary-highlight)); border-color: var(--class-accent, var(--color-primary)); color: var(--class-accent, var(--color-primary)); }
@@ -1199,6 +1218,9 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg>
       </button>
       <div class="topbar-actions">
+        <button class="round-btn" type="button" id="switchUserTopBtn" aria-label="Trocar utilizador" title="Trocar utilizador" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M5 21a7 7 0 0 1 14 0M19 8h3m-1.5-1.5L22 8l-1.5 1.5"></path></svg>
+        </button>
         <button class="round-btn" type="button" id="attendanceHistoryTopBtn" aria-label="Consultar presenças" title="Consultar presenças" hidden>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18M8 14h2m4 0h2m-8 4h2m4 0h2"></path></svg>
         </button>
@@ -1213,9 +1235,18 @@
 
     <div id="appNotice" class="app-notice" role="status" aria-live="polite" hidden></div>
 
+    <section class="screen" id="screen-user" aria-labelledby="user-title">
+      <div class="screen-header">
+        <h1 id="user-title">Quem está a usar a app?</h1>
+        <p>Escolhe o teu perfil para veres as tuas classes.</p>
+      </div>
+      <div id="userChoiceList" class="user-choice-list" role="group" aria-label="Perfis disponíveis"></div>
+    </section>
+
     <section class="screen active" id="screen-class" aria-labelledby="class-title">
       <div class="screen-header">
         <h1 id="class-title">Escolher classe</h1>
+        <p id="activeUserLabel" class="class-context"></p>
       </div>
 
       <div class="field">
@@ -1229,6 +1260,7 @@
           <span>A obter classes e membros...</span>
         </div>
       </div>
+      <p class="inline-note" id="noAssignedClassesMessage" hidden>Não tens classes atribuídas. Pede ao Pedro para atualizar as atribuições nas Definições.</p>
 
       <div class="summary-grid" aria-label="Current class quick stats">
         <div class="summary-card" aria-live="polite">
@@ -1310,6 +1342,12 @@
         <button class="secondary-btn removal-mode-btn" type="button" id="toggleClassRemovalBtn" aria-expanded="false">Remover classes</button>
         <div id="settingsClassList" class="member-list" aria-live="polite" hidden></div>
       </div>
+
+      <section class="stack" id="userAssignmentSettings" aria-labelledby="userAssignmentTitle" hidden>
+        <h3 id="userAssignmentTitle">Classes por utilizador</h3>
+        <p class="tiny muted">As alterações ficam disponíveis em todos os dispositivos.</p>
+        <div id="userAssignmentEditor" class="user-assignment-list"></div>
+      </section>
     </section>
 
     <section class="screen" id="screen-records" aria-labelledby="records-title">
@@ -1572,6 +1610,8 @@
       selectedDate: todayKey(),
       theme: 'light',
       classPickerMode: 'buttons',
+      selectedUserId: '',
+      users: [],
       authToken: '',
       authExpiresAt: 0,
       classes: [],
@@ -1605,6 +1645,8 @@
     let attendanceHistoryOrigin = 'settings';
     const els = {
       main: document.getElementById('main'),
+      userChoiceList: document.getElementById('userChoiceList'),
+      activeUserLabel: document.getElementById('activeUserLabel'),
       authGate: document.getElementById('authGate'),
       authForm: document.getElementById('authForm'),
       authPinInput: document.getElementById('authPinInput'),
@@ -1673,6 +1715,7 @@
       recentTrainingList: document.getElementById('recentTrainingList'),
       appNotice: document.getElementById('appNotice'),
       screens: {
+        user: document.getElementById('screen-user'),
         class: document.getElementById('screen-class'),
         settings: document.getElementById('screen-settings'),
         records: document.getElementById('screen-records'),
@@ -1688,19 +1731,20 @@
     function loadState() {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, photoApiUrl: DEFAULT_PHOTO_API_URL, selectedDate: todayKey(), theme: 'light', classPickerMode: 'buttons', authToken: '', authExpiresAt: 0 };
+        if (!raw) return { selectedClassId: '', selectedUserId: '', webhookUrl: DEFAULT_BACKEND_URL, photoApiUrl: DEFAULT_PHOTO_API_URL, selectedDate: todayKey(), theme: 'light', classPickerMode: 'buttons', authToken: '', authExpiresAt: 0 };
         const parsed = JSON.parse(raw);
         const savedWebhookUrl = isLegacyBackendUrl(parsed.webhookUrl) ? DEFAULT_BACKEND_URL : parsed.webhookUrl;
         const savedPhotoApiUrl = parsed.photoApiUrl === LEGACY_PHOTO_API_URL ? DEFAULT_PHOTO_API_URL : parsed.photoApiUrl;
-        return { selectedClassId: parsed.selectedClassId || '', webhookUrl: savedWebhookUrl || DEFAULT_BACKEND_URL, photoApiUrl: savedPhotoApiUrl || DEFAULT_PHOTO_API_URL, selectedDate: parsed.selectedDate || new Date().toISOString().slice(0, 10), theme: parsed.theme === 'dark' ? 'dark' : 'light', classPickerMode: parsed.classPickerMode === 'dropdown' ? 'dropdown' : 'buttons', authToken: parsed.authToken || '', authExpiresAt: Number(parsed.authExpiresAt || 0) };
+        return { selectedClassId: parsed.selectedClassId || '', selectedUserId: parsed.selectedUserId || '', webhookUrl: savedWebhookUrl || DEFAULT_BACKEND_URL, photoApiUrl: savedPhotoApiUrl || DEFAULT_PHOTO_API_URL, selectedDate: parsed.selectedDate || new Date().toISOString().slice(0, 10), theme: parsed.theme === 'dark' ? 'dark' : 'light', classPickerMode: parsed.classPickerMode === 'dropdown' ? 'dropdown' : 'buttons', authToken: parsed.authToken || '', authExpiresAt: Number(parsed.authExpiresAt || 0) };
       } catch {
-        return { selectedClassId: '', webhookUrl: DEFAULT_BACKEND_URL, photoApiUrl: DEFAULT_PHOTO_API_URL, selectedDate: todayKey(), theme: 'light', classPickerMode: 'buttons', authToken: '', authExpiresAt: 0 };
+        return { selectedClassId: '', selectedUserId: '', webhookUrl: DEFAULT_BACKEND_URL, photoApiUrl: DEFAULT_PHOTO_API_URL, selectedDate: todayKey(), theme: 'light', classPickerMode: 'buttons', authToken: '', authExpiresAt: 0 };
       }
     }
 
     function persistState() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         selectedClassId: state.selectedClassId,
+        selectedUserId: state.selectedUserId,
         webhookUrl: state.webhookUrl,
         photoApiUrl: state.photoApiUrl,
         selectedDate: state.selectedDate,
@@ -2041,9 +2085,98 @@
       if (restoreFocus && trigger?.focus) trigger.focus();
     }
     function currentClass() {
-      const cls = state.classes.find(item => item.id === state.selectedClassId) || state.classes[0] || null;
+      const classes = availableClasses();
+      const cls = classes.find(item => item.id === state.selectedClassId) || classes[0] || null;
       if (cls) cls.members = sortMembers(cls.members || []);
       return cls;
+    }
+
+    function currentUser() {
+      return state.users.find(user => user.id === state.selectedUserId) || null;
+    }
+
+    function availableClasses() {
+      const user = currentUser();
+      if (!user) return [];
+      const allowed = new Set(user.classIds || []);
+      return state.classes.filter(cls => allowed.has(cls.id));
+    }
+
+    function renderUserChoiceList() {
+      if (!els.userChoiceList) return;
+      els.userChoiceList.innerHTML = '';
+      state.users.forEach(user => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'user-choice';
+        button.dataset.userId = user.id;
+        button.textContent = user.name;
+        els.userChoiceList.appendChild(button);
+      });
+    }
+
+    function renderUserAssignmentEditor() {
+      const section = document.getElementById('userAssignmentSettings');
+      const editor = document.getElementById('userAssignmentEditor');
+      if (!section || !editor) return;
+      section.hidden = state.selectedUserId !== 'pedro';
+      editor.innerHTML = '';
+      if (section.hidden) return;
+      state.users.forEach(user => {
+        const fieldset = document.createElement('fieldset');
+        fieldset.className = 'user-assignment-card';
+        const checkedIds = new Set(user.classIds || []);
+        const classesMarkup = state.classes.map(cls => `
+          <label class="user-assignment-class">
+            <input type="checkbox" name="classId" value="${escapeAttr(cls.id)}" ${checkedIds.has(cls.id) ? 'checked' : ''} />
+            <span>${escapeHtml(cls.name)}</span>
+          </label>`).join('');
+        fieldset.innerHTML = `<legend>${escapeHtml(user.name)}</legend>
+          <form data-user-assignments="${escapeAttr(user.id)}">
+            <div class="user-assignment-classes">${classesMarkup || '<span class="tiny muted">Não existem classes.</span>'}</div>
+            <button class="secondary-btn" type="submit">Guardar atribuições</button>
+            <p class="tiny" data-assignment-status aria-live="polite"></p>
+          </form>`;
+        editor.appendChild(fieldset);
+      });
+    }
+
+    function selectUser(userId) {
+      const user = state.users.find(item => item.id === userId);
+      if (!user) return;
+      state.selectedUserId = user.id;
+      const allowed = new Set(user.classIds || []);
+      if (!allowed.has(state.selectedClassId)) state.selectedClassId = user.classIds?.[0] || '';
+      persistState();
+      renderClassOptions();
+      renderUserAssignmentEditor();
+      renderTopSummary();
+      switchScreen('class');
+    }
+
+    async function saveUserAssignments(form) {
+      const userId = form.dataset.userAssignments;
+      const classIds = [...form.querySelectorAll('input[name="classId"]:checked')].map(input => input.value);
+      const button = form.querySelector('[type="submit"]');
+      const status = form.querySelector('[data-assignment-status]');
+      if (button) { button.disabled = true; button.textContent = 'A guardar...'; }
+      if (status) status.textContent = '';
+      try {
+        const result = requireApiSuccess(await apiPost({ action: 'saveUserAssignments', userId, classIds }), 'Não foi possível guardar as atribuições');
+        state.users = Array.isArray(result.users) ? result.users : state.users;
+        if (!availableClasses().some(item => item.id === state.selectedClassId)) state.selectedClassId = currentUser()?.classIds?.[0] || '';
+        persistState();
+        renderUserChoiceList();
+        renderUserAssignmentEditor();
+        renderClassOptions();
+        renderTopSummary();
+        const refreshedStatus = document.querySelector(`[data-user-assignments="${CSS.escape(userId)}"] [data-assignment-status]`);
+        if (refreshedStatus) refreshedStatus.textContent = 'Atribuições guardadas.';
+      } catch (error) {
+        if (status) status.textContent = error.message || 'Não foi possível guardar as atribuições.';
+      } finally {
+        if (button) { button.disabled = false; button.textContent = 'Guardar atribuições'; }
+      }
     }
 
     function currentAttendanceMap() {
@@ -2373,10 +2506,11 @@
     async function loadAttendanceHistory(classId = '') {
       const select = els.recordsClassSelect;
       if (!select) return;
+      const classes = availableClasses();
       const targetClassId = classId || select.value || state.selectedClassId;
-      select.innerHTML = state.classes.map(cls => `<option value="${escapeAttr(cls.id)}">${escapeHtml(cls.name)}</option>`).join('');
-      if (!targetClassId || !state.classes.some(cls => cls.id === targetClassId)) {
-        select.value = state.classes[0]?.id || '';
+      select.innerHTML = classes.map(cls => `<option value="${escapeAttr(cls.id)}">${escapeHtml(cls.name)}</option>`).join('');
+      if (!targetClassId || !classes.some(cls => cls.id === targetClassId)) {
+        select.value = classes[0]?.id || '';
       } else select.value = targetClassId;
       const chosenClassId = select.value;
       if (!chosenClassId) {
@@ -2386,7 +2520,7 @@
       }
       if (attendanceHistoryClassId !== chosenClassId) attendanceHistoryDisplayedCount = 5;
       attendanceHistoryClassId = chosenClassId;
-      const chosenClass = state.classes.find(cls => cls.id === chosenClassId);
+      const chosenClass = classes.find(cls => cls.id === chosenClassId);
       if (chosenClass) els.screens.records.style.setProperty('--class-accent', colorFromString(chosenClass.name));
       const requestId = ++attendanceHistoryRequestId;
       els.attendanceMatrixContainer.innerHTML = '<p class="tiny muted">A carregar os registos...</p>';
@@ -2486,8 +2620,9 @@
     }
 
     function renderClassOptions() {
+      const classes = availableClasses();
       els.classSelect.innerHTML = '';
-      state.classes.forEach(item => {
+      classes.forEach(item => {
         const opt = document.createElement('option');
         opt.value = item.id;
         opt.textContent = item.name;
@@ -2497,13 +2632,18 @@
       renderClassButtons();
       renderSettingsClassList();
       const continueButton = document.getElementById('goToDateBtn');
-      if (continueButton) continueButton.hidden = state.classes.length === 0;
+      if (continueButton) continueButton.hidden = classes.length === 0;
+      const user = currentUser();
+      if (els.activeUserLabel) els.activeUserLabel.textContent = user ? `Perfil: ${user.name}` : '';
+      const emptyMessage = document.getElementById('noAssignedClassesMessage');
+      if (emptyMessage) emptyMessage.hidden = !user || classes.length > 0;
+      renderUserAssignmentEditor();
     }
 
     function renderClassButtons() {
       if (!els.classButtonList) return;
       els.classButtonList.innerHTML = '';
-      state.classes.forEach((item, index) => {
+      availableClasses().forEach((item, index) => {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = `class-choice ${item.id === state.selectedClassId ? 'active' : ''}`;
@@ -2519,6 +2659,7 @@
     }
 
     function selectClass(classId) {
+      if (!availableClasses().some(item => item.id === classId)) return;
       state.selectedClassId = classId;
       persistState();
       if (els.classSelect) els.classSelect.value = classId;
@@ -2544,6 +2685,7 @@
 
     function renderTopSummary() {
       const cls = currentClass();
+      if (els.activeUserLabel) els.activeUserLabel.textContent = currentUser() ? `Perfil: ${currentUser().name}` : '';
       if (!cls) {
         els.membersCount.textContent = '0';
         if (els.actionAttendanceDateInput) els.actionAttendanceDateInput.value = selectedDateKey();
@@ -2733,6 +2875,10 @@
     function renderEditList() {
       const cls = currentClass();
       els.editMemberList.innerHTML = '';
+      if (!cls) {
+        els.editMemberList.innerHTML = '<div class="inline-note"><p style="margin:0;" class="muted">Não tens classes atribuídas para gerir.</p></div>';
+        return;
+      }
       if (!cls.members.length) {
         els.editMemberList.innerHTML = '<div class="inline-note"><p style="margin:0;" class="muted">Ainda não há membros. Adicione o primeiro membro acima.</p></div>';
         return;
@@ -2768,7 +2914,11 @@
         { value: 4, label: 'Qui' }, { value: 5, label: 'Sex' }, { value: 6, label: 'Sáb' },
         { value: 0, label: 'Dom' }
       ];
-      state.classes.forEach((item, index) => {
+      const isAdminProfile = state.selectedUserId === 'pedro';
+      const addClassToolbar = document.querySelector('.add-class-toolbar');
+      if (addClassToolbar) addClassToolbar.hidden = !isAdminProfile;
+      if (els.addClassPanel && !isAdminProfile) els.addClassPanel.hidden = true;
+      availableClasses().forEach((item, index) => {
         const row = document.createElement('article');
         row.className = 'member-card class-editor-card';
         row.style.setProperty('--item-accent', colorFromString(item.name));
@@ -2783,9 +2933,9 @@
                 </span>
                 <span class="class-editor-card-arrow" aria-hidden="true">›</span>
               </button>
-              <button class="small-action class-editor-rename" type="button" data-toggle-rename-class="${escapeAttr(item.id)}" aria-expanded="false" aria-controls="rename-panel-${escapeAttr(item.id)}">Alterar nome</button>
+              ${isAdminProfile ? `<button class="small-action class-editor-rename" type="button" data-toggle-rename-class="${escapeAttr(item.id)}" aria-expanded="false" aria-controls="rename-panel-${escapeAttr(item.id)}">Alterar nome</button>` : ''}
             </div>
-            <div class="field" id="rename-panel-${escapeAttr(item.id)}" data-rename-wrapper="${escapeAttr(item.id)}" hidden>
+            ${isAdminProfile ? `<div class="field" id="rename-panel-${escapeAttr(item.id)}" data-rename-wrapper="${escapeAttr(item.id)}" hidden>
               <label for="rename-${item.id}">Alterar nome</label>
               <input id="rename-${item.id}" class="text-input" type="text" value="${escapeAttr(item.name)}" data-rename-class="${item.id}" />
             </div>
@@ -2805,13 +2955,14 @@
                 <button class="secondary-btn" type="submit">Guardar calendário</button>
                 <p class="training-config-status" data-training-status="${escapeAttr(item.id)}" aria-live="polite"></p>
               </form>
-            </details>
+            </details>` : ''}
           </div>`;
         els.classListEditor.appendChild(row);
       });
     }
 
     async function saveTrainingConfig(form) {
+      if (state.selectedUserId !== 'pedro') return;
       const classId = form.dataset.trainingConfig;
       const cls = state.classes.find(item => item.id === classId);
       if (!cls) return;
@@ -2845,14 +2996,17 @@
       const toggle = document.getElementById('toggleClassRemovalBtn');
       if (!list) return;
       list.innerHTML = '';
-      list.hidden = !classRemovalMode;
+      const isAdminProfile = state.selectedUserId === 'pedro';
       if (toggle) {
+        toggle.hidden = !isAdminProfile;
+        if (!isAdminProfile) classRemovalMode = false;
         toggle.classList.toggle('active', classRemovalMode);
         toggle.setAttribute('aria-expanded', String(classRemovalMode));
         toggle.textContent = classRemovalMode ? 'Concluir remoção' : 'Remover classes';
       }
+      list.hidden = !classRemovalMode;
       if (!classRemovalMode) return;
-      state.classes.forEach((item, index) => {
+      availableClasses().forEach((item, index) => {
         const row = document.createElement('div');
         row.className = 'row-between member-card';
         row.style.setProperty('--item-accent', colorFromString(item.name));
@@ -2877,13 +3031,15 @@
       }
       Object.entries(els.screens).forEach(([name, node]) => node.classList.toggle('active', name === key));
       const backBtn = document.getElementById('backToClassesTopBtn');
-      if (backBtn) backBtn.hidden = key === 'class';
+      if (backBtn) backBtn.hidden = key === 'class' || key === 'user';
       const editBtn = document.getElementById('editClassesTopBtn');
       if (editBtn) editBtn.hidden = key !== 'class';
       const historyBtn = document.getElementById('attendanceHistoryTopBtn');
       if (historyBtn) historyBtn.hidden = key !== 'class';
       const settingsBtn = document.getElementById('settingsTopBtn');
       if (settingsBtn) settingsBtn.hidden = key !== 'class';
+      const switchUserBtn = document.getElementById('switchUserTopBtn');
+      if (switchUserBtn) switchUserBtn.hidden = key !== 'class';
       if (key === 'attendance') renderAttendance();
       if (key === 'attendanceSingle') renderSingleAttendance();
       if (key === 'attendance' || key === 'attendanceSingle') {
@@ -2896,8 +3052,10 @@
       }
       if (key === 'edit') renderEditList();
       if (key === 'classes') renderClassEditor();
+      if (key === 'user') renderUserChoiceList();
       if (key === 'settings') {
         renderSettingsClassList();
+        renderUserAssignmentEditor();
         refreshSyncStatus();
       }
       if (key === 'records') loadAttendanceHistory();
@@ -3243,6 +3401,7 @@
     }
 
     function addClass() {
+      if (state.selectedUserId !== 'pedro') return;
       const value = els.classNameInput.value.trim();
       if (!value) return showNotice('Indica o nome da classe.');
       if (state.classes.some(item => item.name.toLowerCase() === value.toLowerCase())) return showNotice('Esta classe já existe.');
@@ -3253,6 +3412,7 @@
     }
 
     function showClassRemovalDialog(id, trigger) {
+      if (state.selectedUserId !== 'pedro') return;
       const cls = state.classes.find(item => item.id === id);
       const dialog = document.getElementById('confirmClassRemovalDialog');
       const message = document.getElementById('confirmClassRemovalMessage');
@@ -3310,6 +3470,7 @@
     }
 
     function confirmClassRemoval() {
+      if (state.selectedUserId !== 'pedro') return;
       const id = pendingClassRemovalId;
       const cls = state.classes.find(item => item.id === id);
       if (!cls || state.classes.length === 1) {
@@ -3321,7 +3482,10 @@
         .then(requireApiSuccess)
         .then(() => {
           state.classes = state.classes.filter(item => item.id !== id);
-          state.selectedClassId = state.selectedClassId === id ? state.classes[0]?.id || '' : state.selectedClassId;
+          state.users = state.users.map(user => ({ ...user, classIds: (user.classIds || []).filter(classId => classId !== id) }));
+          state.selectedClassId = availableClasses().some(item => item.id === state.selectedClassId)
+            ? state.selectedClassId
+            : currentUser()?.classIds?.[0] || '';
           persistState();
           renderClassOptions();
           renderClassEditor();
@@ -3333,7 +3497,7 @@
     }
 
     function editClassMembers(id) {
-      const cls = state.classes.find(item => item.id === id);
+      const cls = availableClasses().find(item => item.id === id);
       if (!cls) return;
       state.selectedClassId = cls.id;
       persistState();
@@ -3356,7 +3520,7 @@
     }
 
     function saveClassRename(input) {
-      if (!input) return;
+      if (!input || state.selectedUserId !== 'pedro') return;
       const id = input.dataset.renameClass;
       const value = input.value.trim();
       const cls = state.classes.find(item => item.id === id);
@@ -3374,6 +3538,11 @@
       state.classes = exists
         ? state.classes.map(item => item.id === saved.id ? saved : item)
         : state.classes.concat(saved);
+      if (!exists) {
+        state.users = state.users.map(user => user.id === 'pedro'
+          ? { ...user, classIds: [...new Set([...(user.classIds || []), saved.id])] }
+          : user);
+      }
       state.selectedClassId = nextSelectedClassId || state.selectedClassId || saved.id;
       persistState();
       renderClassOptions();
@@ -3671,11 +3840,17 @@
         });
         requireApiSuccess(res, 'O backend devolveu um erro ao carregar as classes');
         state.classes = Array.isArray(res.classes) ? res.classes.map(normalizeClass) : [];
-        if (!state.selectedClassId || !state.classes.some(item => item.id === state.selectedClassId)) {
-          state.selectedClassId = state.classes[0]?.id || '';
+        state.users = Array.isArray(res.users) ? res.users : [];
+        if (!state.users.some(user => user.id === state.selectedUserId)) state.selectedUserId = '';
+        if (!availableClasses().some(item => item.id === state.selectedClassId)) {
+          state.selectedClassId = currentUser()?.classIds?.[0] || '';
         }
+        persistState();
+        renderUserChoiceList();
         renderClassOptions();
+        renderUserAssignmentEditor();
         renderTopSummary();
+        switchScreen(state.selectedUserId ? 'class' : 'user');
         if (res.attendance && state.selectedClassId) applyAttendanceResult(state.selectedClassId, selectedDateKey(), res.attendance);
         if (res.recent?.historyReady && Array.isArray(res.recent.dates) && state.selectedClassId) {
           const recentKey = recentTrainingRequestKey(state.selectedClassId, todayKey());
@@ -3822,6 +3997,17 @@
       document.getElementById('goToActionsBtn').addEventListener('click', () => switchScreen('actions'));
       document.getElementById('editClassesTopBtn').addEventListener('click', () => switchScreen('classes'));
       document.getElementById('settingsTopBtn').addEventListener('click', () => switchScreen('settings'));
+      document.getElementById('switchUserTopBtn').addEventListener('click', () => switchScreen('user'));
+      els.userChoiceList.addEventListener('click', event => {
+        const button = event.target.closest('[data-user-id]');
+        if (button) selectUser(button.dataset.userId);
+      });
+      document.getElementById('userAssignmentEditor').addEventListener('submit', event => {
+        const form = event.target.closest('[data-user-assignments]');
+        if (!form) return;
+        event.preventDefault();
+        saveUserAssignments(form);
+      });
       document.getElementById('pickerDropdownBtn').addEventListener('click', () => setClassPickerMode('dropdown'));
       document.getElementById('pickerButtonsBtn').addEventListener('click', () => setClassPickerMode('buttons'));
       document.getElementById('themeLightBtn').addEventListener('click', () => setTheme('light'));
@@ -4120,6 +4306,7 @@
       document.addEventListener('touchmove', preventLockedPageTouchScroll, { passive: false });
       const prefs = loadState();
       state.selectedClassId = prefs.selectedClassId || '';
+      state.selectedUserId = prefs.selectedUserId || '';
       state.webhookUrl = prefs.webhookUrl || DEFAULT_BACKEND_URL;
       state.photoApiUrl = prefs.photoApiUrl || DEFAULT_PHOTO_API_URL;
       state.selectedDate = prefs.selectedDate || todayKey();
@@ -4139,7 +4326,7 @@
       bindEvents();
       hideAddClassPanel();
       hideAddMemberPanel();
-      switchScreen('class');
+      switchScreen('user');
       if (els.loadingClassesText) els.loadingClassesText.hidden = false;
       if (state.authToken && state.authExpiresAt > Date.now()) {
         hideAuthGate();
