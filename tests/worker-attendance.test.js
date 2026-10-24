@@ -6,10 +6,26 @@ const test = require('node:test');
 
 const workerSource = fs.readFileSync(path.join(__dirname, '..', 'attendance-data-worker.js'), 'utf8')
   .replace('export default {', 'globalThis.__worker = {') +
-  '\nglobalThis.__attendanceTest = { recentAttendanceFromD1, hasRecordedAttendance, removeAttendanceMemberStatements, userNameKey, userIdBase };';
+  '\nglobalThis.__attendanceTest = { recentAttendanceFromD1, hasRecordedAttendance, removeAttendanceMemberStatements, mergeImportedAttendanceMembers, userNameKey, userIdBase };';
 const workerContext = vm.createContext({ console });
 vm.runInContext(workerSource, workerContext);
-const { recentAttendanceFromD1, hasRecordedAttendance, removeAttendanceMemberStatements, userNameKey, userIdBase } = workerContext.__attendanceTest;
+const { recentAttendanceFromD1, hasRecordedAttendance, removeAttendanceMemberStatements, mergeImportedAttendanceMembers, userNameKey, userIdBase } = workerContext.__attendanceTest;
+
+test('a reimportação do Sheets corrige estados pendentes sem substituir estados já guardados', () => {
+  const merged = mergeImportedAttendanceMembers([
+    { name: 'Ana', status: 'pending' },
+    { name: 'Bea', status: 'attended' }
+  ], [
+    { name: ' ana ', status: 'absent_not_justified' },
+    { name: 'Bea', status: 'absent' },
+    { name: 'Carla', status: 'late' }
+  ]);
+  assert.deepEqual(JSON.parse(JSON.stringify(merged)), [
+    { name: 'Ana', status: 'absent_not_justified' },
+    { name: 'Bea', status: 'attended' },
+    { name: 'Carla', status: 'late' }
+  ]);
+});
 
 test('os identificadores de utilizador preservam nomes legíveis e removem acentos', () => {
   assert.equal(userIdBase('M.ª João'), 'm-joao');

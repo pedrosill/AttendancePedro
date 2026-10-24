@@ -678,9 +678,6 @@
     .status-btn[data-status="absent"].active { background: var(--color-error-highlight); color: var(--color-error); border-color: rgba(161,53,68,.3); }
     .status-detail-row .status-btn[data-status="absent_justified"].active,
     .status-detail-row .status-btn[data-status="absent_not_justified"].active { background: var(--color-error-highlight); color: var(--color-error); border-color: rgba(161,53,68,.3); }
-    .status-btn.flash-attended { background: var(--color-success-highlight) !important; color: var(--color-success) !important; border-color: rgba(67,122,34,.24) !important; }
-    .status-btn.flash-late { background: var(--color-warning-highlight) !important; color: #7a5600 !important; border-color: rgba(209,153,0,.3) !important; }
-    .status-btn.flash-absent { background: var(--color-error-highlight) !important; color: var(--color-error) !important; border-color: rgba(161,53,68,.3) !important; }
     .status-detail-row {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -892,6 +889,8 @@
     .history-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
     .history-toolbar h3 { margin: 0; font-size: var(--text-base); }
     .history-count { color: var(--color-text-muted); font-size: var(--text-xs); white-space: nowrap; }
+    .history-toolbar-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); }
+    .history-refresh { min-height: 40px; padding: .55rem .8rem; font-size: var(--text-xs); }
     .history-matrix-scroll { width: 100%; overflow: auto; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); overscroll-behavior-x: contain; }
     .attendance-matrix { width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
     .attendance-matrix th, .attendance-matrix td { height: 44px; padding: .4rem .55rem; border-bottom: 1px solid var(--color-border); border-right: 1px solid var(--color-border); text-align: center; }
@@ -1368,7 +1367,10 @@
       <div class="stack">
         <div class="history-toolbar">
           <h3>Últimos treinos registados</h3>
-          <span id="attendanceHistoryCount" class="history-count" aria-live="polite"></span>
+          <div class="history-toolbar-actions">
+            <span id="attendanceHistoryCount" class="history-count" aria-live="polite"></span>
+            <button class="secondary-btn history-refresh" type="button" id="refreshAttendanceHistoryBtn">Atualizar do Sheets</button>
+          </div>
         </div>
         <div id="attendanceMatrixContainer" class="stack" aria-live="polite"></div>
         <div class="history-legend" aria-label="Legenda das presenças">
@@ -2281,28 +2283,16 @@
       singleMemberTransitioning = true;
       card.setAttribute('aria-busy', 'true');
       card.inert = true;
-      const outX = direction > 0 ? -10 : 10;
-      let updated = false;
-      let outgoingAnimation;
+      const inX = direction > 0 ? 6 : -6;
       let incomingAnimation;
       try {
-        outgoingAnimation = card.animate(
-          [{ opacity: 1, transform: 'translateX(0)' }, { opacity: 0, transform: `translateX(${outX}px)` }],
-          { duration: 85, easing: 'ease-in', fill: 'forwards' }
-        );
-        await outgoingAnimation.finished;
-        outgoingAnimation.cancel();
         updateMember();
-        updated = true;
         incomingAnimation = card.animate(
-          [{ opacity: 0, transform: `translateX(${-outX}px)` }, { opacity: 1, transform: 'translateX(0)' }],
-          { duration: 145, easing: 'ease-out' }
+          [{ transform: `translateX(${inX}px)` }, { transform: 'translateX(0)' }],
+          { duration: 125, easing: 'cubic-bezier(.2,.7,.2,1)' }
         );
         await incomingAnimation.finished;
-      } catch {
-        if (!updated) updateMember();
-      } finally {
-        outgoingAnimation?.cancel();
+      } catch {} finally {
         incomingAnimation?.cancel();
         card.inert = false;
         card.removeAttribute('aria-busy');
@@ -2531,6 +2521,10 @@
       return 'pending';
     }
 
+    function attendanceMemberKey(value) {
+      return String(value || '').normalize('NFC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('pt-PT');
+    }
+
     function attendanceStatusColor(status) {
       if (status === 'attended') return 'attended';
       if (['late_told', 'absent_justified'].includes(status)) return 'justified';
@@ -2573,7 +2567,8 @@
         }
       });
       const cell = (memberName, session) => {
-        const member = session.members.find(item => item.name === memberName);
+        const memberKey = attendanceMemberKey(memberName);
+        const member = session.members.find(item => attendanceMemberKey(item.name) === memberKey);
         const status = String(member?.status || 'pending');
         const group = attendanceStatusGroup(status);
         const mark = group === 'attended' ? '*' : group === 'late' ? 'A' : group === 'absent' ? 'F' : '—';
@@ -2642,6 +2637,24 @@
       } catch (error) {
         if (requestId !== attendanceHistoryRequestId) return;
         els.attendanceMatrixContainer.innerHTML = `<p class="history-empty">${escapeHtml(error.message || 'Não foi possível carregar o histórico.')}</p><button class="secondary-btn" type="button" data-history-retry>Tentar novamente</button>`;
+      }
+    }
+
+    async function refreshAttendanceHistory() {
+      const button = document.getElementById('refreshAttendanceHistoryBtn');
+      const classId = attendanceHistoryClassId || els.recordsClassSelect.value;
+      if (!button || !classId || button.disabled) return;
+      button.disabled = true;
+      button.textContent = 'A atualizar…';
+      try {
+        requireApiSuccess(await apiPost({ action: 'refreshAttendanceHistory', classId }), 'Não foi possível atualizar o histórico');
+        await loadAttendanceHistory(classId);
+        showNotice('Histórico atualizado a partir do Google Sheets.', 'success', 3500);
+      } catch (error) {
+        showNotice(error.message || 'Não foi possível atualizar o histórico.', 'error');
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Atualizar do Sheets';
       }
     }
 
@@ -3221,17 +3234,12 @@
     }
     async function setSingleCurrentStatus(status, sourceButton = null) {
       if (singleStatusHandling || singleMemberTransitioning) return;
-      const feedbackStatus = status.startsWith('late') ? 'late' : status.startsWith('absent') ? 'absent' : 'attended';
       sourceButton ||= document.querySelector(`#screen-attendance-single [data-status="${status}"]`);
       singleStatusHandling = true;
       const card = document.querySelector('#screen-attendance-single .single-attendance-card');
       card?.setAttribute('aria-busy', 'true');
-      if (sourceButton) sourceButton.classList.add('active', `flash-${feedbackStatus}`);
+      sourceButton?.classList.add('active');
       try {
-        if (!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-          await new Promise(resolve => setTimeout(resolve, 110));
-        }
-        sourceButton?.classList.remove(`flash-${feedbackStatus}`);
         setSingleMemberStatus(status);
       } finally {
         card?.removeAttribute('aria-busy');
@@ -4087,6 +4095,7 @@
         switchScreen('records');
       });
       els.recordsClassSelect.addEventListener('change', event => loadAttendanceHistory(event.currentTarget.value));
+      document.getElementById('refreshAttendanceHistoryBtn').addEventListener('click', refreshAttendanceHistory);
       els.databaseDiagnosticsBtn.addEventListener('click', toggleDatabaseDiagnostics);
       els.attendanceMatrixContainer.addEventListener('click', event => {
         if (event.target.closest('[data-history-retry]')) {

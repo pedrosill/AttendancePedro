@@ -378,9 +378,20 @@ async function syncClassAttendanceHistory(env, classId) {
           operationId: `sheets-import:${classId}:${record.date}`
         });
         if (!/^\d{4}-\d{2}-\d{2}$/.test(attendance.date || '') || !Array.isArray(attendance.members)) continue;
-        statements.push(env.DB.prepare(`INSERT OR IGNORE INTO attendance_core (class_id, date_key, class_name, members_json, operation_id, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?)`)
-          .bind(classId, attendance.date, attendance.className, JSON.stringify(attendance.members), attendance.operationId, attemptedAt));
+        const existing = await env.DB.prepare('SELECT members_json FROM attendance_core WHERE class_id = ? AND date_key = ?')
+          .bind(classId, attendance.date).first();
+        const mergedMembers = mergeImportedAttendanceMembers(
+          existing ? JSON.parse(existing.members_json || '[]') : [],
+          attendance.members
+        );
+        statements.push(env.DB.prepare(`INSERT INTO attendance_core (class_id, date_key, class_name, members_json, operation_id, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(class_id, date_key) DO UPDATE SET
+            members_json = excluded.members_json,
+            class_name = CASE WHEN attendance_core.class_name = '' THEN excluded.class_name ELSE attendance_core.class_name END,
+            updated_at = excluded.updated_at
+          WHERE attendance_core.operation_id LIKE 'sheets-import:%' OR attendance_core.members_json <> excluded.members_json`)
+          .bind(classId, attendance.date, attendance.className, JSON.stringify(mergedMembers), attendance.operationId, attemptedAt));
         statements.push(env.DB.prepare('INSERT OR IGNORE INTO attendance_dates (class_id, date_key, created_at) VALUES (?, ?, ?)')
           .bind(classId, attendance.date, attemptedAt));
       }
@@ -397,6 +408,24 @@ async function syncClassAttendanceHistory(env, classId) {
   })().finally(() => { activeHistorySyncs.delete(classId); });
   activeHistorySyncs.set(classId, promise);
   return promise;
+}
+
+function mergeImportedAttendanceMembers(existingMembers, importedMembers) {
+  const byName = new Map();
+  for (const member of existingMembers || []) {
+    const key = userNameKey(member.name);
+    if (key) byName.set(key, { ...member, status: normaliseAttendanceStatus(member.status) });
+  }
+  for (const member of importedMembers || []) {
+    const key = userNameKey(member.name);
+    if (!key) continue;
+    const imported = { ...member, status: normaliseAttendanceStatus(member.status) };
+    const existing = byName.get(key);
+    if (!existing || existing.status === 'pending' && imported.status !== 'pending') {
+      byName.set(key, { ...imported, name: existing?.name || imported.name });
+    }
+  }
+  return [...byName.values()];
 }
 
 async function syncNextAttendanceHistory(env) {
@@ -1029,6 +1058,23 @@ async function handlePost(request, env, ctx) {
   if (action === 'getAppPin') {
     if (!env.APP_PIN) return jsonResponse({ ok: false, error: 'APP_PIN não configurado' }, 503, request, env);
     return jsonResponse({ ok: true, pin: String(env.APP_PIN) }, 200, request, env);
+  }
+  if (action === 'refreshAttendanceHistory') {
+    const classId = String(payload.classId || '').trim();
+    const state = await readState(env);
+    if (!classId || !findClass(state, classId)) {
+      return jsonResponse({ ok: false, error: 'Classe não encontrada.' }, 404, request, env);
+    }
+    const refreshedAt = now();
+    await env.DB.prepare(`INSERT INTO attendance_history_sync (class_id, complete, last_attempt_at, last_error, updated_at)
+      VALUES (?, 0, 0, '', ?)
+      ON CONFLICT(class_id) DO UPDATE SET complete = 0, last_attempt_at = 0, last_error = '', updated_at = excluded.updated_at`)
+      .bind(classId, refreshedAt).run();
+    await syncClassAttendanceHistory(env, classId);
+    const history = await readHistorySyncStatus(env, classId);
+    if (history?.last_error) return jsonResponse({ ok: false, error: history.last_error }, 502, request, env);
+    if (Number(history?.complete || 0) !== 1) return jsonResponse({ ok: false, error: 'A atualização do histórico ainda está em curso. Tenta novamente.' }, 503, request, env);
+    return jsonResponse({ ok: true }, 200, request, env);
   }
   if (action === 'createUser') {
     if (String(payload.adminUserId || '') !== 'pedro') {
