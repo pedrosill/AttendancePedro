@@ -108,10 +108,6 @@
       from { opacity: 0; transform: translateY(-5px); }
       to { opacity: 1; transform: translateY(0); }
     }
-    @keyframes detail-exit {
-      from { opacity: 1; max-height: 90px; transform: translateY(0); }
-      to { opacity: 0; max-height: 0; transform: translateY(-5px); }
-    }
     @keyframes tap-feedback {
       0% { box-shadow: 0 0 0 0 transparent; }
       45% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--interaction-accent, var(--class-accent, var(--color-primary))) 18%, transparent); }
@@ -129,10 +125,6 @@
     @keyframes removing-pulse {
       0%, 100% { border-color: color-mix(in srgb, var(--color-error) 25%, var(--color-border)); }
       50% { border-color: color-mix(in srgb, var(--color-error) 70%, var(--color-border)); background: var(--color-error-highlight); }
-    }
-    @keyframes photo-swap {
-      from { opacity: 0.35; transform: scale(0.94); }
-      to { opacity: 1; transform: scale(1); }
     }
     *, *::before, *::after { box-sizing: border-box; }
     html { -webkit-text-size-adjust: none; text-size-adjust: none; }
@@ -244,10 +236,6 @@
       padding-top: var(--space-5);
       animation: screen-enter var(--transition-screen) both;
     }
-    .screen.active > * { animation: content-enter var(--transition-enter) both; }
-    .screen.active > *:nth-child(2) { animation-delay: 35ms; }
-    .screen.active > *:nth-child(3) { animation-delay: 70ms; }
-    .screen.active > *:nth-child(4) { animation-delay: 105ms; }
     .screen.active > .footer-actions { margin-top: auto; }
     .screen.selected-class {
       border-color: color-mix(in srgb, var(--class-accent) 28%, rgba(40,37,29,.08));
@@ -595,7 +583,6 @@
       background: var(--color-surface-offset);
       box-shadow: var(--shadow-sm);
     }
-    .member-avatar.photo-swap { animation: photo-swap 260ms var(--transition-interactive) both; }
     .member-avatar-trigger {
       display: inline-flex;
       flex: 0 0 auto;
@@ -689,8 +676,6 @@
     .status-btn[data-status="attended"].active { background: var(--color-success-highlight); color: var(--color-success); border-color: rgba(67,122,34,.24); }
     .status-btn[data-status="late"].active { background: var(--color-warning-highlight); color: #7a5600; border-color: rgba(209,153,0,.3); }
     .status-btn[data-status="absent"].active { background: var(--color-error-highlight); color: var(--color-error); border-color: rgba(161,53,68,.3); }
-    .status-detail-row .status-btn[data-status="late_told"].active,
-    .status-detail-row .status-btn[data-status="late_not_told"].active { background: var(--color-warning-highlight); color: #7a5600; border-color: rgba(209,153,0,.3); }
     .status-detail-row .status-btn[data-status="absent_justified"].active,
     .status-detail-row .status-btn[data-status="absent_not_justified"].active { background: var(--color-error-highlight); color: var(--color-error); border-color: rgba(161,53,68,.3); }
     .status-btn.flash-attended { background: var(--color-success-highlight) !important; color: var(--color-success) !important; border-color: rgba(67,122,34,.24) !important; }
@@ -701,8 +686,8 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: var(--space-2);
     }
-    .status-detail-row:not(.is-placeholder) { animation: detail-enter 220ms var(--transition-interactive) both; }
-    .status-detail-row.detail-exit { overflow: hidden; animation: detail-exit 180ms var(--transition-interactive) both; pointer-events: none; }
+    .status-detail-row:not(.is-placeholder) { animation: detail-enter 160ms ease-out both; }
+    .status-detail-row.detail-exit { animation: detail-enter 120ms ease-in reverse both; pointer-events: none; }
     .status-detail-row.is-placeholder {
       visibility: hidden;
       pointer-events: none;
@@ -774,6 +759,21 @@
       font-size: var(--text-sm);
       text-align: center;
     }
+    .single-progress {
+      display: block;
+      width: min(100%, 300px);
+      height: 6px;
+      margin: 0.1rem auto var(--space-2);
+      overflow: hidden;
+      appearance: none;
+      border: 0;
+      border-radius: var(--radius-full);
+      background: var(--color-surface-offset);
+      accent-color: var(--class-accent, var(--color-primary));
+    }
+    .single-progress::-webkit-progress-bar { border-radius: inherit; background: var(--color-surface-offset); }
+    .single-progress::-webkit-progress-value { border-radius: inherit; background: var(--class-accent, var(--color-primary)); transition: width 180ms ease-out; }
+    .single-progress::-moz-progress-bar { border-radius: inherit; background: var(--class-accent, var(--color-primary)); }
     .member-name-large {
       margin: 0;
       font-size: clamp(2rem, 7vw, 3rem);
@@ -1468,6 +1468,7 @@
         </button>
         <h3 class="member-name-large" id="singleMemberName">-</h3>
         <p class="member-progress" id="singleMemberProgress">1 de 1</p>
+        <progress class="single-progress" id="singleAttendanceProgress" max="1" value="0" aria-label="Progresso da presença"></progress>
         <div class="status-row">
           <button class="status-btn" data-status="attended" type="button" id="singleAttendedBtn">Presente</button>
           <button class="status-btn" data-status="late" type="button" id="singleLateBtn">Atrasado</button>
@@ -1621,12 +1622,13 @@
       classes: [],
       attendanceByDate: {},
       singleAttendanceIndex: 0,
-      singleLastCompleted: false,
       removingMemberNames: {},
       dateStepTouched: false,
       savingAttendance: false
     };
     let classMutationQueue = Promise.resolve();
+    let singleMemberTransitioning = false;
+    let singleStatusHandling = false;
     let recentTrainingRequestId = 0;
     let recentTrainingRevision = 0;
     let attendanceRevision = 0;
@@ -1646,7 +1648,6 @@
     let attendanceHistoryRequestId = 0;
     let attendanceHistoryClassId = '';
     let attendanceHistoryDisplayedCount = 5;
-    let attendanceHistoryOrigin = 'settings';
     const els = {
       main: document.getElementById('main'),
       userChoiceList: document.getElementById('userChoiceList'),
@@ -1670,6 +1671,7 @@
       absentCount: document.getElementById('absentCount'),
       memberList: document.getElementById('memberList'),
       singleMemberProgress: document.getElementById('singleMemberProgress'),
+      singleAttendanceProgress: document.getElementById('singleAttendanceProgress'),
       singleMemberName: document.getElementById('singleMemberName'),
       singleAttendanceDateInfo: document.getElementById('singleAttendanceDateInfo'),
       actionAttendanceDateDisplay: document.getElementById('actionAttendanceDateDisplay'),
@@ -2264,18 +2266,49 @@
       if (!name) return;
       markAttendanceDirty(name);
       currentSingleAttendanceMap()[name] = status;
-      const cls = currentClass();
-      state.singleLastCompleted = !!cls && currentSingleMemberIndex() === cls.members.length - 1 && status !== 'late' && status !== 'absent';
-      flashSingleStatus(status);
       renderSingleAttendance();
     }
 
-    function flashSingleStatus(status) {
-      const btn = document.getElementById(`single${status.charAt(0).toUpperCase()}${status.slice(1)}Btn`);
-      if (!btn) return;
-      const flashClass = `flash-${status}`;
-      btn.classList.add(flashClass);
-      setTimeout(() => btn.classList.remove(flashClass), 220);
+    async function transitionSingleMember(direction, updateMember) {
+      if (singleMemberTransitioning) return;
+      const card = document.querySelector('#screen-attendance-single .single-attendance-card');
+      const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      if (!card || reduceMotion || typeof card.animate !== 'function') {
+        updateMember();
+        return;
+      }
+
+      singleMemberTransitioning = true;
+      card.setAttribute('aria-busy', 'true');
+      card.inert = true;
+      const outX = direction > 0 ? -10 : 10;
+      let updated = false;
+      let outgoingAnimation;
+      let incomingAnimation;
+      try {
+        outgoingAnimation = card.animate(
+          [{ opacity: 1, transform: 'translateX(0)' }, { opacity: 0, transform: `translateX(${outX}px)` }],
+          { duration: 85, easing: 'ease-in', fill: 'forwards' }
+        );
+        await outgoingAnimation.finished;
+        outgoingAnimation.cancel();
+        updateMember();
+        updated = true;
+        incomingAnimation = card.animate(
+          [{ opacity: 0, transform: `translateX(${-outX}px)` }, { opacity: 1, transform: 'translateX(0)' }],
+          { duration: 145, easing: 'ease-out' }
+        );
+        await incomingAnimation.finished;
+      } catch {
+        if (!updated) updateMember();
+      } finally {
+        outgoingAnimation?.cancel();
+        incomingAnimation?.cancel();
+        card.inert = false;
+        card.removeAttribute('aria-busy');
+        singleMemberTransitioning = false;
+        renderSingleAttendance();
+      }
     }
 
     function ensureRosterStatuses() {
@@ -2481,10 +2514,10 @@
     function attendanceStatusDescription(status) {
       return ({
         attended: 'Presente',
-        late: 'Atrasado',
+        late: 'Atrasado · sem justificação',
         late_told: 'Atrasado · justificou',
         late_not_told: 'Atrasado · não justificou',
-        absent: 'Falta',
+        absent: 'Falta · sem justificação',
         absent_justified: 'Falta · justificada',
         absent_not_justified: 'Falta · não justificada',
         pending: 'Por preencher'
@@ -2496,6 +2529,13 @@
       if (status.startsWith('late')) return 'late';
       if (status.startsWith('absent')) return 'absent';
       return 'pending';
+    }
+
+    function attendanceStatusColor(status) {
+      if (status === 'attended') return 'attended';
+      if (['late_told', 'absent_justified'].includes(status)) return 'justified';
+      if (['late', 'late_not_told', 'absent', 'absent_not_justified'].includes(status)) return 'unjustified';
+      return status === 'pending' ? 'pending' : 'unknown';
     }
 
     function renderAttendanceHistory(records) {
@@ -2537,10 +2577,7 @@
         const status = String(member?.status || 'pending');
         const group = attendanceStatusGroup(status);
         const mark = group === 'attended' ? '*' : group === 'late' ? 'A' : group === 'absent' ? 'F' : '—';
-        const colorClass = status === 'attended' ? 'attended'
-          : ['late_told', 'absent_justified'].includes(status) ? 'justified'
-            : ['late_not_told', 'absent_not_justified'].includes(status) ? 'unjustified'
-              : group === 'pending' ? 'pending' : 'unknown';
+        const colorClass = attendanceStatusColor(status);
         const label = `${memberName}: ${attendanceStatusDescription(status)}, ${displaySingleDate(session.date)}`;
         return `<td><span class="matrix-mark ${colorClass}" aria-label="${escapeAttr(label)}" title="${escapeAttr(label)}">${mark}</span></td>`;
       };
@@ -2876,6 +2913,7 @@
       if (!cls || !cls.members.length) {
         if (els.singleAttendanceDateInfo) els.singleAttendanceDateInfo.textContent = `Data: ${displayAttendanceDate(selectedDateKey())}`;
         if (els.singleMemberProgress) els.singleMemberProgress.textContent = '0 de 0';
+        if (els.singleAttendanceProgress) { els.singleAttendanceProgress.max = 1; els.singleAttendanceProgress.value = 0; }
         if (els.singleMemberName) els.singleMemberName.textContent = 'Sem membros';
         if (els.singleMemberAvatar) els.singleMemberAvatar.src = defaultAvatarPath('sem-membros');
         return;
@@ -2888,39 +2926,46 @@
       const isLast = index === cls.members.length - 1;
       if (els.singleMemberAvatar) {
         const nextPhotoUrl = memberPhotoUrl(cls, name);
-        if (els.singleMemberAvatar.getAttribute('src') !== nextPhotoUrl) {
-          els.singleMemberAvatar.classList.remove('photo-swap');
-          void els.singleMemberAvatar.offsetWidth;
-          els.singleMemberAvatar.classList.add('photo-swap');
-          els.singleMemberAvatar.src = nextPhotoUrl;
-        }
+        if (els.singleMemberAvatar.getAttribute('src') !== nextPhotoUrl) els.singleMemberAvatar.src = nextPhotoUrl;
         els.singleMemberAvatar.alt = `Retrato de ${name}`;
       }
       if (els.singleAttendanceDateInfo) els.singleAttendanceDateInfo.textContent = `Data: ${displayAttendanceDate(selectedDateKey())}`;
       if (els.singleMemberProgress) els.singleMemberProgress.textContent = `${index + 1} de ${cls.members.length}`;
-      if (els.singleMemberName) els.singleMemberName.textContent = (isLast && state.singleLastCompleted) ? 'Concluído' : name;
+      if (els.singleAttendanceProgress) {
+        els.singleAttendanceProgress.max = cls.members.length;
+        els.singleAttendanceProgress.value = index + 1;
+        els.singleAttendanceProgress.setAttribute('aria-valuetext', `${index + 1} de ${cls.members.length}`);
+      }
       const status = map[name] || 'pending';
-      const completed = isLast && state.singleLastCompleted;
+      const completed = isLast && status !== 'pending' && status !== 'absent';
+      if (els.singleMemberName) els.singleMemberName.textContent = completed ? 'Concluído' : name;
       const statusRow = document.querySelector('#screen-attendance-single .status-row');
       if (statusRow) {
         statusRow.hidden = false;
         statusRow.style.visibility = completed ? 'hidden' : 'visible';
         statusRow.style.pointerEvents = completed ? 'none' : 'auto';
       }
-      document.getElementById('singleAttendedBtn')?.classList.toggle('active', status === 'attended');
-      document.getElementById('singleLateBtn')?.classList.toggle('active', status === 'late' || status.startsWith('late_'));
-      document.getElementById('singleAbsentBtn')?.classList.toggle('active', status === 'absent' || status.startsWith('absent_'));
+      const attendedBtn = document.getElementById('singleAttendedBtn');
+      const lateBtn = document.getElementById('singleLateBtn');
+      const absentBtn = document.getElementById('singleAbsentBtn');
+      attendedBtn?.classList.toggle('active', status === 'attended');
+      lateBtn?.classList.toggle('active', status === 'late' || status.startsWith('late_'));
+      absentBtn?.classList.toggle('active', status === 'absent' || status.startsWith('absent_'));
+      attendedBtn?.setAttribute('aria-pressed', String(status === 'attended'));
+      lateBtn?.setAttribute('aria-pressed', String(status === 'late' || status.startsWith('late_')));
+      absentBtn?.setAttribute('aria-pressed', String(status === 'absent' || status.startsWith('absent_')));
       const detailRow = document.querySelector('#screen-attendance-single .status-detail-row');
       if (detailRow) {
         detailRow.outerHTML = detailButtons('', status, true);
         document.querySelector('#screen-attendance-single .status-detail-row')?.classList.toggle('completed', completed);
       }
-      document.getElementById('singlePrevBtn').disabled = index === 0;
+      document.getElementById('singlePrevBtn').disabled = index === 0 || singleMemberTransitioning;
       document.getElementById('singleNextBtn').hidden = index === cls.members.length - 1;
+      document.getElementById('singleNextBtn').disabled = singleMemberTransitioning;
       const saveBtn = document.getElementById('saveSingleAttendanceBtn');
       if (saveBtn) {
         saveBtn.hidden = false;
-        const canSaveLastMember = isLast && (state.singleLastCompleted || status !== 'pending');
+        const canSaveLastMember = completed;
         saveBtn.style.visibility = canSaveLastMember ? 'visible' : 'hidden';
         saveBtn.style.pointerEvents = canSaveLastMember ? 'auto' : 'none';
       }
@@ -3071,7 +3116,14 @@
       });
     }
 
-    function switchScreen(key) {
+    function switchScreen(key, { historyMode = 'push' } = {}) {
+      const previousKey = Object.entries(els.screens).find(([, node]) => node.classList.contains('active'))?.[0] || '';
+      if (!els.screens[key]) return;
+      if (historyMode === 'push' && previousKey && previousKey !== key) {
+        window.history.pushState({ ...window.history.state, __attendanceAppScreen: key }, '');
+      } else if (historyMode === 'replace' || (historyMode === 'push' && !previousKey)) {
+        window.history.replaceState({ ...window.history.state, __attendanceAppScreen: key }, '');
+      }
       if (window.scrollY > 0) window.scrollTo(0, 0);
       if (key !== 'settings') classRemovalMode = false;
       if (key !== 'settings' && els.appPinValue && !els.appPinValue.hidden) {
@@ -3148,22 +3200,16 @@
     }
     function detailButtons(name, status, single = false) {
       const nameAttr = single ? '' : `data-name="${escapeAttr(name)}"`;
-      if (status === 'late' || status.startsWith('late_')) {
-        return `<div class="status-detail-row" data-detail-row="late">
-          <button class="status-btn ${status === 'late_told' ? 'active' : ''}" ${nameAttr} data-status="late_told" type="button">Disse o motivo</button>
-          <button class="status-btn ${status === 'late_not_told' ? 'active' : ''}" ${nameAttr} data-status="late_not_told" type="button">Não disse o motivo</button>
-        </div>`;
-      }
       if (status === 'absent' || status.startsWith('absent_')) {
         return `<div class="status-detail-row" data-detail-row="absent">
-          <button class="status-btn ${status === 'absent_justified' ? 'active' : ''}" ${nameAttr} data-status="absent_justified" type="button">Justificada</button>
-          <button class="status-btn ${status === 'absent_not_justified' ? 'active' : ''}" ${nameAttr} data-status="absent_not_justified" type="button">Não justificada</button>
+          <button class="status-btn ${status === 'absent_justified' ? 'active' : ''}" aria-pressed="${status === 'absent_justified'}" ${nameAttr} data-status="absent_justified" type="button">Justificada</button>
+          <button class="status-btn ${status === 'absent_not_justified' ? 'active' : ''}" aria-pressed="${status === 'absent_not_justified'}" ${nameAttr} data-status="absent_not_justified" type="button">Não justificada</button>
         </div>`;
       }
       if (single) {
         return `<div class="status-detail-row is-placeholder" aria-hidden="true">
-          <button class="status-btn" type="button">Disse o motivo</button>
-          <button class="status-btn" type="button">Não disse o motivo</button>
+          <button class="status-btn" type="button">Justificada</button>
+          <button class="status-btn" type="button">Não justificada</button>
         </div>`;
       }
       return '';
@@ -3174,14 +3220,24 @@
       updateAttendanceRow(name);
     }
     async function setSingleCurrentStatus(status, sourceButton = null) {
-      if (sourceButton) {
-        const feedbackClass = status.startsWith('late') ? 'flash-late' : 'flash-absent';
-        sourceButton.classList.add('active', feedbackClass);
-        await new Promise(resolve => setTimeout(resolve, 220));
-        sourceButton.classList.remove('active', feedbackClass);
+      if (singleStatusHandling || singleMemberTransitioning) return;
+      const feedbackStatus = status.startsWith('late') ? 'late' : status.startsWith('absent') ? 'absent' : 'attended';
+      sourceButton ||= document.querySelector(`#screen-attendance-single [data-status="${status}"]`);
+      singleStatusHandling = true;
+      const card = document.querySelector('#screen-attendance-single .single-attendance-card');
+      card?.setAttribute('aria-busy', 'true');
+      if (sourceButton) sourceButton.classList.add('active', `flash-${feedbackStatus}`);
+      try {
+        if (!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+          await new Promise(resolve => setTimeout(resolve, 110));
+        }
+        sourceButton?.classList.remove(`flash-${feedbackStatus}`);
+        setSingleMemberStatus(status);
+      } finally {
+        card?.removeAttribute('aria-busy');
+        singleStatusHandling = false;
       }
-      setSingleMemberStatus(status);
-      if (status !== 'late' && status !== 'absent') await goToSingleNextOrSave();
+      if (status !== 'absent') await goToSingleNextOrSave();
     }
 
     function applyClassAccent(colorKey) {
@@ -3700,7 +3756,7 @@
         recentTrainingCacheAt.clear();
         applyAttendanceResult(cls.id, savedDateKey, res.attendance || { members: payload.members });
         clearAttendanceDirty(cls.id, savedDateKey);
-        switchScreen('class');
+        switchScreen('class', { historyMode: 'replace' });
         showNotice('Presenças guardadas.', 'success', 1800);
         refreshSyncStatus();
       } catch (error) {
@@ -3727,21 +3783,22 @@
       }
     }
 
-    function goToSinglePrevious() {
-      if (state.singleAttendanceIndex > 0) {
+    async function goToSinglePrevious() {
+      if (singleMemberTransitioning || singleStatusHandling || state.singleAttendanceIndex <= 0) return;
+      await transitionSingleMember(-1, () => {
         state.singleAttendanceIndex -= 1;
-        state.singleLastCompleted = false;
         renderSingleAttendance();
-      }
+      });
     }
 
     async function goToSingleNextOrSave() {
       const cls = currentClass();
-      if (!cls) return;
+      if (!cls || singleMemberTransitioning || singleStatusHandling) return;
       if (state.singleAttendanceIndex < cls.members.length - 1) {
-        state.singleAttendanceIndex += 1;
-        state.singleLastCompleted = false;
-        renderSingleAttendance();
+        await transitionSingleMember(1, () => {
+          state.singleAttendanceIndex += 1;
+          renderSingleAttendance();
+        });
         return;
       }
     }
@@ -3904,7 +3961,7 @@
         renderClassOptions();
         renderUserAssignmentEditor();
         renderTopSummary();
-        switchScreen(state.selectedUserId ? 'class' : 'user');
+        switchScreen(state.selectedUserId ? 'class' : 'user', { historyMode: 'replace' });
         if (res.attendance && state.selectedClassId) applyAttendanceResult(state.selectedClassId, selectedDateKey(), res.attendance);
         if (res.recent?.historyReady && Array.isArray(res.recent.dates) && state.selectedClassId) {
           const recentKey = recentTrainingRequestKey(state.selectedClassId, todayKey());
@@ -4024,11 +4081,9 @@
         window.open('https://docs.google.com/spreadsheets/d/1k7tv6lmwYWUhn4D5rMy5oMvIBhYzaOIdsc5V4ivnJ6U/edit?usp=sharing', '_blank', 'noopener,noreferrer');
       });
       document.getElementById('openAttendanceHistoryBtn').addEventListener('click', () => {
-        attendanceHistoryOrigin = 'settings';
         switchScreen('records');
       });
       document.getElementById('attendanceHistoryTopBtn').addEventListener('click', () => {
-        attendanceHistoryOrigin = 'class';
         switchScreen('records');
       });
       els.recordsClassSelect.addEventListener('change', event => loadAttendanceHistory(event.currentTarget.value));
@@ -4083,7 +4138,6 @@
       document.getElementById('openAttendanceBtn').addEventListener('click', () => switchScreen('attendance'));
       document.getElementById('openAttendanceSingleBtn').addEventListener('click', () => {
         state.singleAttendanceIndex = 0;
-        state.singleLastCompleted = false;
         switchScreen('attendanceSingle');
       });
       document.getElementById('toggleAddMemberBtn').addEventListener('click', showAddMemberPanel);
@@ -4117,18 +4171,10 @@
         const btn = event.target.closest('.status-detail-row .status-btn');
         if (btn) setSingleCurrentStatus(btn.dataset.status, btn);
       });
-      document.getElementById('backToClassesTopBtn').addEventListener('click', () => {
-        const activeId = document.querySelector('.screen.active')?.id;
-        if (activeId === 'screen-settings') return switchScreen('class');
-        if (activeId === 'screen-records') return switchScreen(attendanceHistoryOrigin);
-        if (activeId === 'screen-date') return switchScreen('class');
-        if (activeId === 'screen-actions') return switchScreen('date');
-        if (activeId === 'screen-edit') return switchScreen('classes');
-        if (activeId === 'screen-attendance' || activeId === 'screen-attendance-single') {
-          state.singleLastCompleted = false;
-          return switchScreen('actions');
-        }
-        if (activeId === 'screen-classes') return switchScreen('class');
+      document.getElementById('backToClassesTopBtn').addEventListener('click', () => window.history.back());
+      window.addEventListener('popstate', event => {
+        const key = event.state?.__attendanceAppScreen;
+        if (key && els.screens[key]) switchScreen(key, { historyMode: 'pop' });
       });
       els.classSelect.addEventListener('change', event => {
         pulseInteraction(event.currentTarget);
@@ -4386,7 +4432,7 @@
       bindEvents();
       hideAddClassPanel();
       hideAddMemberPanel();
-      switchScreen('user');
+      switchScreen('user', { historyMode: 'replace' });
       if (els.loadingClassesText) els.loadingClassesText.hidden = false;
       if (state.authToken && state.authExpiresAt > Date.now()) {
         hideAuthGate();
