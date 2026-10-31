@@ -887,7 +887,7 @@ async function databaseDiagnostics(env, classId) {
   };
 }
 
-async function attendanceOverview(env, classId, requestedCount = 40) {
+async function attendanceOverview(env, classId, requestedCount = 20, beforeDate = '') {
   const state = await readState(env);
   if (!state) return { ok: false, error: 'Shared state not available' };
   const cls = findClass(state, classId);
@@ -896,32 +896,60 @@ async function attendanceOverview(env, classId, requestedCount = 40) {
   if (Number(history?.complete || 0) !== 1) {
     return { ok: true, class: { id: cls.id, name: cls.name }, historyReady: false, historyError: history?.last_error || '', records: [] };
   }
-  const limit = Math.max(1, Math.min(Number(requestedCount) || 40, 80));
-  const [dateRows, attendanceRows] = await Promise.all([
-    env.DB.prepare('SELECT date_key, created_at FROM attendance_dates WHERE class_id = ? ORDER BY date_key DESC LIMIT ?')
-      .bind(classId, limit).all(),
-    env.DB.prepare('SELECT date_key, operation_id, updated_at, members_json FROM attendance_core WHERE class_id = ? ORDER BY date_key DESC LIMIT ?')
-      .bind(classId, limit).all()
-  ]);
-  const recordsByDate = new Map();
-  for (const row of dateRows.results || []) {
-    recordsByDate.set(row.date_key, { date: row.date_key, dateIndex: true, dateIndexCreatedAt: row.created_at, attendanceRecord: false, members: [] });
-  }
-  for (const row of attendanceRows.results || []) {
+  const limit = Math.max(1, Math.min(Number(requestedCount) || 20, 40));
+  const cursor = /^\d{4}-\d{2}-\d{2}$/.test(String(beforeDate || '')) ? String(beforeDate) : '';
+  const dateQuery = cursor
+    ? env.DB.prepare(`WITH dates AS (
+        SELECT date_key FROM attendance_dates WHERE class_id = ? AND date_key < ?
+        UNION SELECT date_key FROM attendance_core WHERE class_id = ? AND date_key < ?
+      ) SELECT dates.date_key, attendance_dates.created_at AS date_created_at,
+        attendance_core.operation_id, attendance_core.updated_at, attendance_core.members_json
+      FROM dates
+      LEFT JOIN attendance_dates ON attendance_dates.class_id = ? AND attendance_dates.date_key = dates.date_key
+      LEFT JOIN attendance_core ON attendance_core.class_id = ? AND attendance_core.date_key = dates.date_key
+      ORDER BY dates.date_key DESC LIMIT ?`).bind(classId, cursor, classId, cursor, classId, classId, limit + 1)
+    : env.DB.prepare(`WITH dates AS (
+        SELECT date_key FROM attendance_dates WHERE class_id = ?
+        UNION SELECT date_key FROM attendance_core WHERE class_id = ?
+      ) SELECT dates.date_key, attendance_dates.created_at AS date_created_at,
+        attendance_core.operation_id, attendance_core.updated_at, attendance_core.members_json
+      FROM dates
+      LEFT JOIN attendance_dates ON attendance_dates.class_id = ? AND attendance_dates.date_key = dates.date_key
+      LEFT JOIN attendance_core ON attendance_core.class_id = ? AND attendance_core.date_key = dates.date_key
+      ORDER BY dates.date_key DESC LIMIT ?`).bind(classId, classId, classId, classId, limit + 1);
+  const dateRows = await dateQuery.all();
+  const allRecords = (dateRows.results || []).map(row => {
     const members = JSON.parse(row.members_json || '[]');
-    const entry = recordsByDate.get(row.date_key) || { date: row.date_key, dateIndex: false, dateIndexCreatedAt: null };
-    entry.attendanceRecord = true;
-    entry.hasAttendance = hasRecordedAttendance(members);
-    entry.operationId = row.operation_id || '';
-    entry.updatedAt = row.updated_at;
-    entry.members = members.map(member => ({
-      name: String(member.name || ''),
-      status: normaliseAttendanceStatus(member.status)
-    }));
-    recordsByDate.set(row.date_key, entry);
-  }
-  const records = [...recordsByDate.values()].sort((a, b) => b.date.localeCompare(a.date)).slice(0, limit);
-  return { ok: true, class: { id: cls.id, name: cls.name }, historyReady: true, records };
+    const entry = {
+      date: row.date_key,
+      dateIndex: row.date_created_at != null,
+      dateIndexCreatedAt: row.date_created_at || null,
+      attendanceRecord: row.members_json != null,
+      hasAttendance: false,
+      members: []
+    };
+    if (row.members_json != null) {
+      entry.attendanceRecord = true;
+      entry.hasAttendance = hasRecordedAttendance(members);
+      entry.operationId = row.operation_id || '';
+      entry.updatedAt = row.updated_at;
+      entry.members = members.map(member => ({
+        name: String(member.name || ''),
+        status: normaliseAttendanceStatus(member.status)
+      }));
+    }
+    return entry;
+  });
+  const hasMore = allRecords.length > limit;
+  const records = allRecords.slice(0, limit);
+  return {
+    ok: true,
+    class: { id: cls.id, name: cls.name },
+    historyReady: true,
+    records,
+    hasMore,
+    nextBeforeDate: records.at(-1)?.date || null
+  };
 }
 
 function wait(milliseconds) {
@@ -981,7 +1009,7 @@ async function handleGet(request, env, ctx) {
   if (action === 'attendanceOverview') {
     const classId = url.searchParams.get('classId') || '';
     if (!classId) return jsonResponse({ ok: false, error: 'Missing classId' }, 400, request, env);
-    const result = await attendanceOverview(env, classId, url.searchParams.get('count') || '40');
+    const result = await attendanceOverview(env, classId, url.searchParams.get('count') || '20', url.searchParams.get('before') || '');
     if (!result.historyReady) ctx.waitUntil(syncClassAttendanceHistory(env, classId).catch(error => console.error('Attendance history import failed:', classId, error)));
     return jsonResponse(result, result.ok ? 200 : 404, request, env);
   }
