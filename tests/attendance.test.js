@@ -9,6 +9,35 @@ const normalizeAppAttendanceStatus = vm.runInNewContext(`(${appStatusFunction})`
 const appUserFunction = appSource.match(/^    function currentUser\(\) \{[\s\S]*?^    \}/m)?.[0];
 const appAvailableClassesFunction = appSource.match(/^    function availableClasses\(\) \{[\s\S]*?^    \}/m)?.[0];
 if (!appUserFunction || !appAvailableClassesFunction) throw new Error('Could not locate app user class filter');
+const appAttendanceNotesFunction = appSource.match(/^    function normalizeAttendanceNotes\(value\) \{[\s\S]*?^    \}/m)?.[0];
+const appAttendanceWeekdayFunction = appSource.match(/^    function attendanceWeekday\(dateKey\) \{[\s\S]*?^    \}/m)?.[0];
+const appRecurringNotesFunction = appSource.match(/^    function recurringNotesForDate\(profile, dateKey\) \{[\s\S]*?^    \}/m)?.[0];
+if (!appAttendanceNotesFunction || !appAttendanceWeekdayFunction || !appRecurringNotesFunction) throw new Error('Could not locate recurring attendance note helpers');
+const attendanceNoteContext = vm.createContext({});
+vm.runInContext(`${appAttendanceNotesFunction}\n${appAttendanceWeekdayFunction}\n${appRecurringNotesFunction}\nglobalThis.__helpers = { normalizeAttendanceNotes, attendanceWeekday, recurringNotesForDate };`, attendanceNoteContext);
+const { normalizeAttendanceNotes: attendanceNoteHelpers, attendanceWeekday: weekdayFunction, recurringNotesForDate: recurringFunction } = attendanceNoteContext.__helpers;
+
+test('informação recorrente só aparece nos dias definidos para a data da presença', () => {
+  const profile = { attendanceNotes: [
+    { id: 'monday', text: 'Sai mais cedo', days: [1] },
+    { id: 'thursday', text: 'Tem treino escolar', days: [4] }
+  ] };
+  assert.equal(weekdayFunction('2026-11-23'), 1);
+  assert.deepEqual(Array.from(recurringFunction(profile, '2026-11-23'), note => note.text), ['Sai mais cedo']);
+  assert.deepEqual(Array.from(recurringFunction(profile, '2026-11-26'), note => note.text), ['Tem treino escolar']);
+  assert.deepEqual(Array.from(recurringFunction(profile, 'invalid-date')), []);
+});
+
+test('a normalização remove entradas vazias e dias inválidos sem perder entradas válidas', () => {
+  const normalized = attendanceNoteHelpers([
+    { id: 'valid', text: '  Sai cedo  ', days: [1, 1, 7] },
+    { id: 'empty', text: '  ', days: [1] },
+    { id: 'no-days', text: 'Só à segunda', days: [] }
+  ]);
+  assert.deepEqual(JSON.parse(JSON.stringify(normalized)), [
+    { id: 'valid', text: 'Sai cedo', days: [1] }
+  ]);
+});
 
 test('selected profile only sees its assigned classes', () => {
   const context = vm.createContext({ state: {
@@ -363,8 +392,44 @@ test('adicionar membro preserva os metadados da fotografia', () => {
   assert.equal(result.ok, true);
   assert.deepEqual(JSON.parse(JSON.stringify(result.class.members)), ['Ana', 'Bia']);
   assert.deepEqual(JSON.parse(JSON.stringify(result.class.memberProfiles.find(member => member.id === 'bia-id'))), {
-    id: 'bia-id', name: 'Bia', photoKey: 'photos/gami-id/bia-id.webp', photoVersion: 4
+    id: 'bia-id', name: 'Bia', photoKey: 'photos/gami-id/bia-id.webp', photoVersion: 4, attendanceNotes: []
   });
+});
+
+test('a informação recorrente do membro sobrevive ao saveClass e à leitura das Sheets', () => {
+  const { context, spreadsheet } = createContext();
+  const notes = [
+    { id: 'school-monday', text: 'Sai mais cedo por causa da escola', days: [1] },
+    { id: 'treatment-thursday', text: 'Fisioterapia antes do treino', days: [4] }
+  ];
+  spreadsheet.insertSheet('__classes__').data = [
+    ['id', 'name', 'membersJson', 'trainingDaysJson', 'seasonStart', 'memberProfilesJson'],
+    ['gami-id', 'Gami', '["Ana"]', '[1,4]', '2026-09-01', JSON.stringify([
+      { id: 'ana-id', name: 'Ana', photoKey: 'photos/ana.webp', photoVersion: 5, attendanceNotes: notes }
+    ])]
+  ];
+
+  const saved = JSON.parse(context.doPost({ postData: { contents: JSON.stringify({
+    action: 'saveClass',
+    class: { id: 'gami-id', name: 'Gami', memberProfiles: [
+      { id: 'ana-id', name: 'Ana', photoKey: 'photos/ana.webp', photoVersion: 5, attendanceNotes: notes }
+    ] }
+  }) } }).value);
+  const loaded = context.getSharedState().classes[0].memberProfiles[0];
+
+  assert.equal(saved.ok, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(saved.class.memberProfiles[0].attendanceNotes)), notes);
+  assert.deepEqual(JSON.parse(JSON.stringify(loaded.attendanceNotes)), notes);
+  const storedProfiles = JSON.parse(spreadsheet.getSheetByName('__classes__').valueAt(2, 6));
+  assert.deepEqual(JSON.parse(JSON.stringify(storedProfiles[0].attendanceNotes)), notes);
+
+  const legacySave = JSON.parse(context.doPost({ postData: { contents: JSON.stringify({
+    action: 'saveClass',
+    class: { id: 'gami-id', name: 'Gami', memberProfiles: [
+      { id: 'ana-id', name: 'Ana', photoKey: 'photos/ana.webp', photoVersion: 5 }
+    ] }
+  }) } }).value);
+  assert.deepEqual(JSON.parse(JSON.stringify(legacySave.class.memberProfiles[0].attendanceNotes)), notes);
 });
 
 test('a cache de turmas é invalidada depois de uma alteração', () => {

@@ -103,8 +103,38 @@ function normaliseProfile(profile, name) {
     id: String(source.id || id()),
     name: String(name || source.name || '').trim(),
     photoKey: String(source.photoKey || '').trim(),
-    photoVersion: Number(source.photoVersion || 0) || 0
+    photoVersion: Number(source.photoVersion || 0) || 0,
+    attendanceNotes: normaliseAttendanceNotes(source.attendanceNotes)
   };
+}
+
+function normaliseAttendanceNotes(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map((note, index) => {
+    const source = note && typeof note === 'object' ? note : {};
+    const days = [...new Set((Array.isArray(source.days) ? source.days : [])
+      .map(Number).filter(day => Number.isInteger(day) && day >= 0 && day <= 6))];
+    return {
+      id: String(source.id || `legacy-note-${index + 1}`),
+      text: String(source.text || '').trim().slice(0, 240),
+      days
+    };
+  }).filter(note => note.text && note.days.length);
+}
+
+function preserveMemberAttendanceNotes(profiles, previousProfiles) {
+  const previous = Array.isArray(previousProfiles) ? previousProfiles : [];
+  return (Array.isArray(profiles) ? profiles : []).map(profile => {
+    const source = profile && typeof profile === 'object' ? profile : {};
+    const prior = previous.find(item => item.id === source.id) || previous.find(item => item.name.toLocaleLowerCase('pt-PT') === String(source.name || '').toLocaleLowerCase('pt-PT'));
+    return {
+      ...(prior || {}),
+      ...source,
+      attendanceNotes: Object.prototype.hasOwnProperty.call(source, 'attendanceNotes')
+        ? source.attendanceNotes
+        : prior?.attendanceNotes || []
+    };
+  });
 }
 
 function uniqueNames(names) {
@@ -168,7 +198,8 @@ function stateFingerprint(value) {
           id: profile.id,
           name: profile.name,
           photoKey: profile.photoKey,
-          photoVersion: profile.photoVersion
+          photoVersion: profile.photoVersion,
+          attendanceNotes: profile.attendanceNotes
         }))
       }))
       .sort((left, right) => left.id.localeCompare(right.id))
@@ -197,7 +228,7 @@ async function hasCoreState(env) {
 async function readCoreState(env) {
   const [classRows, memberRows] = await Promise.all([
     env.DB.prepare('SELECT id, name, training_days_json, season_start, version FROM classes_core ORDER BY name_key').all(),
-    env.DB.prepare('SELECT id, class_id, name, photo_key, photo_version FROM members_core ORDER BY class_id, name_key').all()
+    env.DB.prepare('SELECT id, class_id, name, photo_key, photo_version, attendance_notes_json FROM members_core ORDER BY class_id, name_key').all()
   ]);
   const membersByClass = new Map();
   for (const row of memberRows.results || []) {
@@ -206,7 +237,8 @@ async function readCoreState(env) {
       id: row.id,
       name: row.name,
       photoKey: row.photo_key,
-      photoVersion: Number(row.photo_version || 0)
+      photoVersion: Number(row.photo_version || 0),
+      attendanceNotes: JSON.parse(row.attendance_notes_json || '[]')
     });
   }
   const profilesByClass = new Map();
@@ -243,12 +275,13 @@ async function writeCoreState(env, value) {
       version = classes_core.version + 1, updated_at = excluded.updated_at`)
       .bind(cls.id, cls.name, classNameKey(cls.name), JSON.stringify(cls.trainingDays || []), cls.seasonStart || '', Number(cls.version || 1), now()));
     for (const profile of cls.memberProfiles || []) {
-      statements.push(env.DB.prepare(`INSERT INTO members_core (id, class_id, name, name_key, photo_key, photo_version, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+      statements.push(env.DB.prepare(`INSERT INTO members_core (id, class_id, name, name_key, photo_key, photo_version, attendance_notes_json, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET class_id = excluded.class_id, name = excluded.name,
         name_key = excluded.name_key, photo_key = excluded.photo_key,
-        photo_version = excluded.photo_version, updated_at = excluded.updated_at`)
-        .bind(profile.id, cls.id, profile.name, classNameKey(profile.name), profile.photoKey || '', Number(profile.photoVersion || 0), now()));
+        photo_version = excluded.photo_version, attendance_notes_json = excluded.attendance_notes_json,
+        updated_at = excluded.updated_at`)
+        .bind(profile.id, cls.id, profile.name, classNameKey(profile.name), profile.photoKey || '', Number(profile.photoVersion || 0), JSON.stringify(profile.attendanceNotes || []), now()));
     }
   }
   await env.DB.batch(statements);
@@ -267,12 +300,13 @@ async function writeClassCore(env, value, additionalStatements = []) {
     .bind(cls.id, cls.name, classNameKey(cls.name), JSON.stringify(cls.trainingDays || []), cls.seasonStart || '', Number(cls.version || 1), now()),
   env.DB.prepare('DELETE FROM members_core WHERE class_id = ?').bind(cls.id)];
   for (const profile of cls.memberProfiles || []) {
-    statements.push(env.DB.prepare(`INSERT INTO members_core (id, class_id, name, name_key, photo_key, photo_version, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+    statements.push(env.DB.prepare(`INSERT INTO members_core (id, class_id, name, name_key, photo_key, photo_version, attendance_notes_json, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET class_id = excluded.class_id, name = excluded.name,
       name_key = excluded.name_key, photo_key = excluded.photo_key,
-      photo_version = excluded.photo_version, updated_at = excluded.updated_at`)
-      .bind(profile.id, cls.id, profile.name, classNameKey(profile.name), profile.photoKey || '', Number(profile.photoVersion || 0), now()));
+      photo_version = excluded.photo_version, attendance_notes_json = excluded.attendance_notes_json,
+      updated_at = excluded.updated_at`)
+      .bind(profile.id, cls.id, profile.name, classNameKey(profile.name), profile.photoKey || '', Number(profile.photoVersion || 0), JSON.stringify(profile.attendanceNotes || []), now()));
   }
   statements.push(...additionalStatements);
   await env.DB.batch(statements);
@@ -656,7 +690,16 @@ function applyClassMutation(state, payload) {
   const action = String(payload.action || '');
 
   if (action === 'saveClasses') {
-    next.classes = (Array.isArray(payload.classes) ? payload.classes : []).map(normaliseClass).filter(item => item.name);
+    next.classes = (Array.isArray(payload.classes) ? payload.classes : []).map(item => {
+      const prior = findClass(next, String(item?.id || ''));
+      return normaliseClass({
+        ...(prior || {}),
+        ...item,
+        memberProfiles: Array.isArray(item?.memberProfiles)
+          ? preserveMemberAttendanceNotes(item.memberProfiles, prior?.memberProfiles)
+          : prior?.memberProfiles
+      });
+    }).filter(item => item.name);
     result.classes = next.classes;
     return { state: next, result };
   }
@@ -670,7 +713,9 @@ function applyClassMutation(state, payload) {
       ...input,
       id: classId || input.id || id(),
       members: Array.isArray(input.members) ? input.members : current?.members,
-      memberProfiles: Array.isArray(input.memberProfiles) ? input.memberProfiles : current?.memberProfiles
+      memberProfiles: Array.isArray(input.memberProfiles)
+        ? preserveMemberAttendanceNotes(input.memberProfiles, current?.memberProfiles)
+        : current?.memberProfiles
     });
     const index = next.classes.findIndex(item => item.id === record.id);
     if (index === -1) next.classes.push(record);

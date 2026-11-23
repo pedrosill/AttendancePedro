@@ -6,10 +6,36 @@ const test = require('node:test');
 
 const workerSource = fs.readFileSync(path.join(__dirname, '..', 'attendance-data-worker.js'), 'utf8')
   .replace('export default {', 'globalThis.__worker = {') +
-  '\nglobalThis.__attendanceTest = { recentAttendanceFromD1, attendanceOverview, hasRecordedAttendance, removeAttendanceMemberStatements, mergeImportedAttendanceMembers, userNameKey, userIdBase };';
+  '\nglobalThis.__attendanceTest = { recentAttendanceFromD1, attendanceOverview, hasRecordedAttendance, removeAttendanceMemberStatements, mergeImportedAttendanceMembers, userNameKey, userIdBase, normaliseProfile, stateFingerprint, preserveMemberAttendanceNotes };';
 const workerContext = vm.createContext({ console });
 vm.runInContext(workerSource, workerContext);
-const { recentAttendanceFromD1, attendanceOverview, hasRecordedAttendance, removeAttendanceMemberStatements, mergeImportedAttendanceMembers, userNameKey, userIdBase } = workerContext.__attendanceTest;
+const { recentAttendanceFromD1, attendanceOverview, hasRecordedAttendance, removeAttendanceMemberStatements, mergeImportedAttendanceMembers, userNameKey, userIdBase, normaliseProfile, stateFingerprint, preserveMemberAttendanceNotes } = workerContext.__attendanceTest;
+
+test('o worker preserva informação recorrente e considera alterações no fingerprint da turma', () => {
+  const notes = [{ id: 'note-monday', text: 'Sai mais cedo', days: [1, 1, 8] }];
+  const profile = normaliseProfile({ id: 'ana-id', attendanceNotes: notes }, 'Ana');
+  assert.deepEqual(JSON.parse(JSON.stringify(profile.attendanceNotes)), [
+    { id: 'note-monday', text: 'Sai mais cedo', days: [1] }
+  ]);
+  const before = stateFingerprint({ classes: [{ id: 'gami', name: 'Gami', members: ['Ana'], memberProfiles: [{ id: 'ana-id', name: 'Ana' }] }] });
+  const after = stateFingerprint({ classes: [{ id: 'gami', name: 'Gami', members: ['Ana'], memberProfiles: [profile] }] });
+  assert.notEqual(before, after);
+  assert.deepEqual(JSON.parse(JSON.stringify(normaliseProfile({ id: 'legacy-id' }, 'Legacy').attendanceNotes)), []);
+});
+
+test('uma atualização de perfil antiga sem o campo recorrente não apaga os lembretes', () => {
+  const notes = [{ id: 'note-1', text: 'Sai cedo', days: [1] }];
+  const updated = preserveMemberAttendanceNotes(
+    [{ id: 'ana-id', name: 'Ana Costa', photoKey: 'photos/ana.webp' }],
+    [{ id: 'ana-id', name: 'Ana', attendanceNotes: notes }]
+  );
+  assert.deepEqual(JSON.parse(JSON.stringify(updated[0].attendanceNotes)), notes);
+  const cleared = preserveMemberAttendanceNotes(
+    [{ id: 'ana-id', name: 'Ana Costa', attendanceNotes: [] }],
+    [{ id: 'ana-id', name: 'Ana', attendanceNotes: notes }]
+  );
+  assert.deepEqual(JSON.parse(JSON.stringify(cleared[0].attendanceNotes)), []);
+});
 
 test('a reimportação do Sheets corrige estados pendentes sem substituir estados já guardados', () => {
   const merged = mergeImportedAttendanceMembers([

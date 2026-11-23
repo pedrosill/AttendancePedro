@@ -80,7 +80,9 @@ A folha `__classes__` contém:
 
 `id | name | membersJson | trainingDaysJson | seasonStart | memberProfilesJson`
 
-`membersJson` preserva a lista de nomes usada nas folhas de presenças. `memberProfilesJson` contém objetos com `id`, `name`, `photoKey` e `photoVersion`. As turmas antigas são migradas automaticamente, recebendo IDs estáveis sem alterar as respetivas folhas ou presenças.
+`membersJson` preserva a lista de nomes usada nas folhas de presenças. `memberProfilesJson` contém objetos com `id`, `name`, `photoKey`, `photoVersion` e `attendanceNotes` (entradas recorrentes com texto e dias da semana). As turmas antigas são migradas automaticamente, recebendo IDs estáveis sem alterar as respetivas folhas ou presenças.
+
+As informações recorrentes de cada membro aparecem no registo rápido apenas quando o dia da presença selecionada corresponde aos dias definidos na informação. São lembretes e não alteram automaticamente o estado da presença.
 
 Cada turma tem uma folha com o mesmo nome. O formato de presenças é:
 

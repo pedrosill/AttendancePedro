@@ -870,6 +870,15 @@ function normalizeMemberProfiles(value, memberNames, fallbackProfiles) {
   var source = Array.isArray(value) ? value : [];
   var fallback = Array.isArray(fallbackProfiles) ? fallbackProfiles : [];
   var byName = {};
+  var fallbackByName = {};
+  var fallbackById = {};
+  fallback.forEach(function(member) {
+    if (!member || typeof member !== 'object') return;
+    var name = String(member.name || '').trim();
+    if (name) fallbackByName[name.toLowerCase()] = member;
+    var memberId = String(member.id || '').trim();
+    if (memberId) fallbackById[memberId] = member;
+  });
   fallback.concat(source).forEach(function(member) {
     if (!member || typeof member !== 'object') return;
     var name = String(member.name || '').trim();
@@ -878,13 +887,36 @@ function normalizeMemberProfiles(value, memberNames, fallbackProfiles) {
   });
   return uniqueNames(memberNames).map(function(name) {
     var sourceMember = byName[name.toLowerCase()] || {};
+    var priorMember = fallbackById[String(sourceMember.id || '').trim()] || fallbackByName[name.toLowerCase()] || {};
+    var attendanceNotes = Object.prototype.hasOwnProperty.call(sourceMember, 'attendanceNotes')
+      ? sourceMember.attendanceNotes
+      : priorMember.attendanceNotes;
     return {
       id: String(sourceMember.id || Utilities.getUuid()).trim(),
       name: name,
       photoKey: String(sourceMember.photoKey || '').trim(),
-      photoVersion: Number(sourceMember.photoVersion || 0) || 0
+      photoVersion: Number(sourceMember.photoVersion || 0) || 0,
+      attendanceNotes: normalizeAttendanceNotes(attendanceNotes)
     };
   });
+}
+
+function normalizeAttendanceNotes(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map(function(note, index) {
+    var source = note && typeof note === 'object' ? note : {};
+    var seenDays = {};
+    var days = (Array.isArray(source.days) ? source.days : []).map(Number).filter(function(day) {
+      if (!Number.isInteger(day) || day < 0 || day > 6 || seenDays[day]) return false;
+      seenDays[day] = true;
+      return true;
+    });
+    return {
+      id: String(source.id || 'legacy-note-' + (index + 1)).trim(),
+      text: String(source.text || '').trim().slice(0, 240),
+      days: days
+    };
+  }).filter(function(note) { return note.text && note.days.length; });
 }
 
 function findMemberProfile(profiles, memberId, memberName) {
