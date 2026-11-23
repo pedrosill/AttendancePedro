@@ -628,7 +628,7 @@
       max-height: min(760px, calc(100dvh - var(--space-5) - var(--space-5)));
       overflow-y: auto;
       overscroll-behavior: contain;
-      padding: var(--space-5);
+      padding: 3.75rem var(--space-5) var(--space-5);
       border: 1px solid rgba(40, 37, 29, 0.12);
       border-radius: var(--radius-xl);
       background: var(--color-surface);
@@ -639,21 +639,65 @@
       transition: transform 180ms cubic-bezier(.2, .9, .25, 1.15);
     }
     .photo-dialog-backdrop.is-open .photo-dialog { transform: scale(1); }
+    .photo-dialog-close {
+      position: absolute;
+      top: var(--space-3);
+      right: var(--space-3);
+      display: grid;
+      place-items: center;
+      width: 44px;
+      min-height: 44px;
+      padding: 0;
+      border-radius: var(--radius-full);
+      background: var(--color-surface-2);
+      color: var(--color-text);
+      font-size: 1.6rem;
+      line-height: 1;
+    }
+    .photo-dialog-close:hover,
+    .photo-dialog-name-edit:hover { background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface)); border-color: color-mix(in srgb, var(--color-primary) 36%, var(--color-border)); color: var(--color-text); }
+    .photo-dialog-photo-wrap { position: relative; width: fit-content; max-width: 100%; margin: 0 auto var(--space-3); }
     .photo-dialog-image {
       display: block;
-      width: min(72vw, 300px);
-      height: min(72vw, 300px);
+      width: clamp(112px, 34vw, 168px);
+      height: clamp(112px, 34vw, 168px);
       aspect-ratio: 1;
-      margin: var(--space-2) auto var(--space-4);
+      margin: 0 auto;
       border-radius: var(--radius-xl);
       object-fit: cover;
       border: 3px solid color-mix(in srgb, var(--class-accent, var(--color-primary)) 32%, var(--color-surface));
     }
-    .photo-dialog-name { margin: 0 0 var(--space-4); font-size: var(--text-lg); font-weight: 800; }
+    .photo-dialog-photo-edit {
+      position: absolute;
+      right: var(--space-2);
+      bottom: var(--space-2);
+      min-height: 40px;
+      padding-inline: var(--space-3);
+      border: 1px solid color-mix(in srgb, var(--color-text) 12%, transparent);
+      border-radius: var(--radius-full);
+      background: var(--color-surface);
+      color: var(--color-text);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, .14);
+      font-size: var(--text-xs);
+      font-weight: 700;
+    }
+    .photo-dialog-photo-edit:hover { border-color: var(--color-primary); background: var(--color-primary-highlight); }
+    .photo-dialog-name-row { display: flex; align-items: center; justify-content: center; gap: var(--space-2); margin: 0 0 var(--space-3); }
+    .photo-dialog-name { min-width: 0; margin: 0; font-size: var(--text-lg); font-weight: 800; overflow-wrap: anywhere; text-wrap: balance; }
+    .photo-dialog-name-edit {
+      flex: 0 0 44px;
+      width: 44px;
+      min-height: 44px;
+      padding: 0;
+      border-radius: var(--radius-full);
+      font-size: 1.1rem;
+    }
     .photo-dialog-actions { display: grid; gap: var(--space-2); }
     .photo-dialog-attendance-notes { display: grid; gap: var(--space-3); margin-top: var(--space-2); padding-top: var(--space-3); border-top: 1px solid var(--color-border); text-align: left; }
     .photo-dialog-attendance-notes h3 { margin: 0; font-size: var(--text-base); }
     .photo-dialog-attendance-notes > p { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); }
+    .attendance-note-empty { margin: 0; padding: var(--space-3); border: 1px dashed var(--color-border); border-radius: var(--radius-lg); color: var(--color-text-muted); font-size: var(--text-sm); text-align: center; }
+    .attendance-note-empty[hidden] { display: none; }
     .attendance-note-editor-list { display: grid; gap: var(--space-3); }
     .attendance-note-editor { display: grid; gap: var(--space-2); min-width: 0; padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface-2); }
     .attendance-note-editor .text-input { min-height: 76px; padding-block: var(--space-2); resize: vertical; }
@@ -672,6 +716,11 @@
     .single-member-notes li::marker { color: var(--class-accent, var(--color-primary)); }
     .photo-edit-options { display: grid; gap: var(--space-2); padding-left: var(--space-3); border-left: 2px solid var(--class-accent, var(--color-primary)); }
     .photo-dialog-rename { display: grid; gap: var(--space-2); text-align: left; }
+    @media (prefers-reduced-motion: reduce) {
+      .photo-dialog-backdrop,
+      .photo-dialog,
+      .member-avatar-trigger { transition: none; }
+    }
     .member-name { margin: 0; font-size: var(--text-base); font-weight: 700; letter-spacing: -0.01em; }
     .member-meta { margin: 0.2rem 0 0; color: var(--color-text-muted); font-size: var(--text-sm); }
     .status-tag {
@@ -1791,29 +1840,35 @@
 
   <div class="photo-dialog-backdrop" id="memberPhotoDialog" hidden aria-hidden="true">
     <div class="photo-dialog" id="memberPhotoDialogPanel" role="dialog" aria-modal="true" aria-labelledby="memberPhotoDialogName" tabindex="-1">
-      <img class="photo-dialog-image" id="memberPhotoDialogImage" src="assets/avatars/example-1.png" alt="" />
-      <h2 class="photo-dialog-name" id="memberPhotoDialogName"></h2>
+      <button class="photo-dialog-close" type="button" id="closeMemberPhotoDialogBtn" aria-label="Fechar perfil do membro">×</button>
+      <div class="photo-dialog-photo-wrap">
+        <img class="photo-dialog-image" id="memberPhotoDialogImage" src="assets/avatars/example-1.png" width="168" height="168" alt="" />
+        <button class="photo-dialog-photo-edit" type="button" id="toggleDialogPhotoActionsBtn" aria-expanded="false" aria-controls="dialogPhotoEditOptions">Editar foto</button>
+      </div>
+      <div class="photo-dialog-name-row">
+        <h2 class="photo-dialog-name" id="memberPhotoDialogName"></h2>
+        <button class="ghost-btn photo-dialog-name-edit" type="button" id="toggleDialogMemberRenameBtn" aria-label="Alterar nome" title="Alterar nome"><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg></button>
+      </div>
+      <div class="photo-dialog-rename" id="dialogMemberRenamePanel" hidden>
+        <label for="dialogMemberNameInput">Nome do membro</label>
+        <input id="dialogMemberNameInput" class="text-input" type="text" name="memberName" autocomplete="off" />
+        <div class="toolbar">
+          <button class="primary-btn" type="button" id="saveDialogMemberNameBtn">Guardar nome</button>
+          <button class="ghost-btn" type="button" id="cancelDialogMemberNameBtn">Cancelar</button>
+        </div>
+      </div>
       <div class="photo-dialog-actions" id="memberPhotoDialogActions" hidden>
-        <button class="primary-btn" type="button" id="toggleDialogPhotoActionsBtn" aria-expanded="false" aria-controls="dialogPhotoEditOptions">Editar fotografia</button>
         <div class="photo-edit-options" id="dialogPhotoEditOptions" hidden>
           <button class="primary-btn" type="button" id="chooseDialogMemberPhotoBtn">Alterar fotografia</button>
           <button class="ghost-btn" type="button" id="clearDialogMemberPhotoBtn" hidden>Remover fotografia</button>
         </div>
-        <button class="ghost-btn" type="button" id="toggleDialogMemberRenameBtn">Alterar nome</button>
-        <div class="photo-dialog-rename" id="dialogMemberRenamePanel" hidden>
-          <label for="dialogMemberNameInput">Nome do membro</label>
-          <input id="dialogMemberNameInput" class="text-input" type="text" />
-          <div class="toolbar">
-            <button class="primary-btn" type="button" id="saveDialogMemberNameBtn">Guardar nome</button>
-            <button class="ghost-btn" type="button" id="cancelDialogMemberNameBtn">Cancelar</button>
-          </div>
-        </div>
         <section class="photo-dialog-attendance-notes" aria-labelledby="dialogAttendanceNotesTitle">
-          <h3 id="dialogAttendanceNotesTitle">Informação recorrente</h3>
-          <p>Adiciona lembretes recorrentes; cada um aparece apenas nos dias escolhidos.</p>
+          <h3 id="dialogAttendanceNotesTitle">Notas recorrentes</h3>
+          <p>As notas só aparecem na presença nos dias escolhidos.</p>
           <div class="attendance-note-editor-list" id="dialogAttendanceNoteList"></div>
-          <button class="secondary-btn" type="button" id="addDialogAttendanceNoteBtn">Adicionar lembrete</button>
-          <button class="primary-btn" type="button" id="saveDialogAttendanceNotesBtn">Guardar lembretes</button>
+          <p class="attendance-note-empty" id="dialogAttendanceNotesEmpty">Sem notas para este membro.</p>
+          <button class="secondary-btn" type="button" id="addDialogAttendanceNoteBtn">+ Adicionar nota</button>
+          <button class="primary-btn" type="button" id="saveDialogAttendanceNotesBtn" hidden>Guardar alterações</button>
           <p class="attendance-note-editor-status" id="dialogAttendanceNotesStatus" role="status" aria-live="polite"></p>
         </section>
         <input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp" id="dialogMemberPhotoInput" />
@@ -1949,6 +2004,7 @@
       singleMemberAvatarTrigger: document.getElementById('singleMemberAvatarTrigger'),
       memberPhotoDialog: document.getElementById('memberPhotoDialog'),
       memberPhotoDialogPanel: document.getElementById('memberPhotoDialogPanel'),
+      closeMemberPhotoDialogBtn: document.getElementById('closeMemberPhotoDialogBtn'),
       memberPhotoDialogImage: document.getElementById('memberPhotoDialogImage'),
       memberPhotoDialogName: document.getElementById('memberPhotoDialogName'),
       memberPhotoDialogActions: document.getElementById('memberPhotoDialogActions'),
@@ -2341,6 +2397,10 @@
         days: [...row.querySelectorAll('input[name="attendanceNoteDay"]:checked')].map(input => Number(input.value))
       }));
     }
+    function updateAttendanceNoteSaveState() {
+      const button = document.getElementById('saveDialogAttendanceNotesBtn');
+      if (button) button.hidden = !hasUnsavedAttendanceNoteChanges();
+    }
     function renderAttendanceNoteEditor(notes) {
       const list = document.getElementById('dialogAttendanceNoteList');
       if (!list) return;
@@ -2348,7 +2408,7 @@
       list.innerHTML = items.map((note, index) => `
         <fieldset class="attendance-note-editor" data-attendance-note="${escapeAttr(note.id || `note-${index}`)}">
           <legend class="sr-only">Informação recorrente ${index + 1}</legend>
-          <label for="attendance-note-text-${index}">Informação</label>
+          <label for="attendance-note-text-${index}">Nota ${index + 1}</label>
           <textarea class="text-input" id="attendance-note-text-${index}" name="attendanceNoteText" maxlength="240" autocomplete="off" placeholder="Ex.: Sai mais cedo à segunda-feira…">${escapeHtml(note.text || '')}</textarea>
           <fieldset class="attendance-note-day-selection">
             <legend>Mostrar neste dia:</legend>
@@ -2356,9 +2416,12 @@
               ${attendanceNoteWeekdays.map(day => `<label class="attendance-note-day"><input type="checkbox" name="attendanceNoteDay" value="${day.value}" aria-label="${['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'][day.value]}" ${(note.days || []).includes(day.value) ? 'checked' : ''} /><span>${day.label}</span></label>`).join('')}
             </div>
           </fieldset>
-          <button class="ghost-btn" type="button" data-remove-attendance-note="${escapeAttr(note.id || `note-${index}`)}" aria-label="Remover lembrete ${index + 1}">Remover lembrete</button>
+          <button class="ghost-btn" type="button" data-remove-attendance-note="${escapeAttr(note.id || `note-${index}`)}" aria-label="Remover nota ${index + 1}">Remover nota</button>
         </fieldset>`).join('');
+      const empty = document.getElementById('dialogAttendanceNotesEmpty');
+      if (empty) empty.hidden = items.length > 0;
       document.getElementById('dialogAttendanceNotesStatus').textContent = '';
+      updateAttendanceNoteSaveState();
     }
     function hasUnsavedAttendanceNoteChanges() {
       if (!activePhotoDialog) return false;
@@ -2383,6 +2446,8 @@
       };
       const editable = els.screens.edit.classList.contains('active');
       els.memberPhotoDialogActions.hidden = !editable;
+      if (els.toggleDialogPhotoActionsBtn) els.toggleDialogPhotoActionsBtn.hidden = !editable;
+      if (els.toggleDialogMemberRenameBtn) els.toggleDialogMemberRenameBtn.hidden = !editable;
       if (els.dialogPhotoEditOptions) els.dialogPhotoEditOptions.hidden = true;
       els.toggleDialogPhotoActionsBtn?.setAttribute('aria-expanded', 'false');
       if (els.dialogMemberRenamePanel) els.dialogMemberRenamePanel.hidden = true;
@@ -2397,7 +2462,7 @@
       const dialog = els.memberPhotoDialog;
       if (!dialog || dialog.hidden) return;
       if (!skipUnsavedCheck && hasUnsavedAttendanceNoteChanges() &&
-          !window.confirm('Os lembretes têm alterações por guardar. Queres fechar sem guardar?')) return;
+          !window.confirm('Existem notas por guardar. Queres sair sem guardar?')) return;
       const trigger = activePhotoDialog?.trigger;
       dialog.classList.remove('is-open');
       dialog.setAttribute('aria-hidden', 'true');
@@ -4805,6 +4870,7 @@
       els.memberPhotoDialog?.addEventListener('click', event => {
         if (event.target === els.memberPhotoDialog) closeMemberPhotoDialog();
       });
+      els.closeMemberPhotoDialogBtn?.addEventListener('click', () => closeMemberPhotoDialog());
       els.toggleDialogPhotoActionsBtn?.addEventListener('click', () => {
         if (!els.dialogPhotoEditOptions) return;
         els.dialogPhotoEditOptions.hidden = !els.dialogPhotoEditOptions.hidden;
@@ -4847,10 +4913,15 @@
         const fields = document.querySelectorAll('#dialogAttendanceNoteList textarea');
         fields[fields.length - 1]?.focus();
       });
-      document.getElementById('dialogAttendanceNoteList')?.addEventListener('click', event => {
+      const attendanceNoteList = document.getElementById('dialogAttendanceNoteList');
+      ['input', 'change'].forEach(type => attendanceNoteList?.addEventListener(type, () => {
+        document.getElementById('dialogAttendanceNotesStatus').textContent = '';
+        updateAttendanceNoteSaveState();
+      }));
+      attendanceNoteList?.addEventListener('click', event => {
         const button = event.target.closest('[data-remove-attendance-note]');
         if (!button) return;
-        if (!window.confirm('Queres remover este lembrete?')) return;
+        if (!window.confirm('Queres remover esta nota?')) return;
         const rowIndex = [...button.closest('[data-attendance-note]').parentElement.children].indexOf(button.closest('[data-attendance-note]'));
         const notes = readAttendanceNoteDrafts().filter(note => note.id !== button.dataset.removeAttendanceNote);
         renderAttendanceNoteEditor(notes);
@@ -4863,7 +4934,7 @@
         const incomplete = drafts.find(note => Boolean(note.text.trim()) !== Boolean(note.days.length));
         const status = document.getElementById('dialogAttendanceNotesStatus');
         if (incomplete) {
-          status.textContent = 'Preenche o lembrete e escolhe pelo menos um dia.';
+          status.textContent = 'Preenche a nota e escolhe pelo menos um dia.';
           const row = document.querySelector(`#dialogAttendanceNoteList [data-attendance-note="${CSS.escape(incomplete.id)}"]`);
           (incomplete.text.trim() ? row?.querySelector('input[name="attendanceNoteDay"]') : row?.querySelector('textarea'))?.focus();
           return;
@@ -4879,13 +4950,13 @@
         try {
           await saveMemberProfiles(cls, cls.memberProfiles.map(item => item.id === profile.id ? { ...item, attendanceNotes: notes } : item));
           renderAttendanceNoteEditor(notes);
-          status.textContent = 'Informação guardada.';
-          showNotice('Informação recorrente guardada.', 'success', 1800);
+          status.textContent = 'Notas guardadas.';
+          showNotice('Notas recorrentes guardadas.', 'success', 1800);
         } catch (error) {
           status.textContent = error.message || 'Não foi possível guardar a informação.';
         } finally {
           button.disabled = false;
-          button.textContent = 'Guardar lembretes';
+          button.textContent = 'Guardar alterações';
         }
       });
       els.dialogMemberPhotoInput?.addEventListener('change', async () => {
@@ -4950,6 +5021,27 @@
         const dialog = document.getElementById('confirmClassRemovalDialog');
         if (event.key === 'Escape' && els.memberPhotoDialog && !els.memberPhotoDialog.hidden) {
           closeMemberPhotoDialog();
+          return;
+        }
+        if (event.key === 'Tab' && els.memberPhotoDialog && !els.memberPhotoDialog.hidden) {
+          const panel = els.memberPhotoDialogPanel;
+          const focusable = [...panel.querySelectorAll('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+            .filter(element => !element.closest('[hidden]') && element.getClientRects().length > 0);
+          if (!focusable.length) {
+            event.preventDefault();
+            panel.focus();
+            return;
+          }
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          const outsidePanel = !panel.contains(document.activeElement);
+          if (event.shiftKey && (document.activeElement === first || document.activeElement === panel || outsidePanel)) {
+            event.preventDefault();
+            last.focus();
+          } else if (!event.shiftKey && (document.activeElement === last || outsidePanel)) {
+            event.preventDefault();
+            first.focus();
+          }
           return;
         }
         if (event.key === 'Escape' && dialog && !dialog.hidden) closeClassRemovalDialog();
