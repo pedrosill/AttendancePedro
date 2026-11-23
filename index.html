@@ -998,6 +998,22 @@
     .toolbar.add-member-toolbar { justify-content: center; }
     .toolbar.add-member-toolbar > * { flex: 0 0 auto; }
     .add-member-toolbar .round-btn { min-width: 68px; min-height: 68px; width: 68px; height: 68px; font-size: 2.25rem; line-height: 1; font-weight: 500; }
+    .manage-class-header { display: flex; flex-direction: row; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
+    .manage-class-heading { min-width: 0; }
+    .manage-class-heading h2 { margin: 0; text-wrap: balance; }
+    .manage-class-heading p { margin: var(--space-1) 0 0; overflow-wrap: anywhere; }
+    .manage-class-actions { display: flex; flex: 0 0 auto; align-items: center; gap: var(--space-2); }
+    .manage-class-actions .round-btn { width: 48px; height: 48px; min-width: 48px; min-height: 48px; }
+    .manage-class-actions .round-btn svg { width: 21px; height: 21px; }
+    .classes-page-header { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: var(--space-3); }
+    .classes-page-header h2 { margin: 0; }
+    .classes-page-header .add-class-toolbar { width: auto; margin: 0; }
+    .manage-class-settings { display: grid; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface-2); }
+    .manage-class-settings .class-training-config { border: 0; padding: 0; }
+    .manage-class-settings .class-training-form { padding-top: var(--space-3); }
+    .manage-class-rename { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+    .manage-class-rename > span { min-width: 0; overflow-wrap: anywhere; }
+    .manage-class-settings .weekday-option span { min-width: 44px; min-height: 44px; }
     .toolbar .small-action { flex: 0 0 auto; }
     #screen-class .class-button-list { grid-template-columns: 1fr; }
     #screen-class .summary-grid { margin-top: 0; }
@@ -1252,6 +1268,9 @@
       .topbar { gap: var(--space-2); }
       .round-btn { flex: 0 0 auto; }
       .class-actions { gap: var(--space-1); }
+      .manage-class-header { gap: var(--space-2); }
+      .manage-class-actions { gap: var(--space-1); }
+      .manage-class-actions .round-btn { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
       .class-actions .small-action { padding: 0 0.6rem; font-size: var(--text-xs); }
       #screen-edit .screen-header { margin-top: 0; }
       #screen-edit .member-card .small-action { padding-inline: 0.55rem; font-size: var(--text-xs); }
@@ -1620,15 +1639,50 @@
     </section>
 
     <section class="screen" id="screen-edit" aria-labelledby="edit-title">
-      <div class="screen-header">
-        <h2 id="edit-title">Editar membros</h2>
-        <p id="editClassLabel">Classe: —</p>
+      <div class="screen-header manage-class-header">
+        <div class="manage-class-heading">
+          <h2 id="edit-title">Gerir classe</h2>
+          <p id="editClassLabel">Classe: —</p>
+        </div>
+        <div class="manage-class-actions" id="manageClassActions">
+          <button class="round-btn" type="button" id="toggleAddMemberBtn" aria-label="Adicionar membro" title="Adicionar membro">+</button>
+          <button class="round-btn" type="button" id="toggleManageClassSettingsBtn" aria-label="Configurações da classe" title="Configurações da classe" aria-expanded="false" aria-controls="manageClassSettingsPanel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18M8 14h2m4 0h2m-8 4h2m4 0h2"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="manage-class-settings" id="manageClassSettingsPanel" hidden>
+        <div class="manage-class-rename">
+          <span><strong>Nome da classe</strong><br><span class="tiny muted" id="manageClassCurrentName">—</span></span>
+          <button class="secondary-btn" type="button" id="toggleManageClassRenameBtn" aria-expanded="false" aria-controls="manageClassRenamePanel">Alterar nome</button>
+        </div>
+        <div class="field" id="manageClassRenamePanel" hidden>
+          <label for="manageClassNameInput">Novo nome</label>
+          <input id="manageClassNameInput" class="text-input" type="text" />
+          <div class="toolbar">
+            <button class="primary-btn" type="button" id="saveManageClassNameBtn">Guardar nome</button>
+            <button class="ghost-btn" type="button" id="cancelManageClassNameBtn">Cancelar</button>
+          </div>
+        </div>
+        <details class="class-training-config" id="manageClassTrainingConfig">
+          <summary>Configurar dias de treino</summary>
+          <form class="class-training-form" id="manageClassTrainingForm">
+            <div class="field">
+              <label for="manageClassSeasonStart">Início da época</label>
+              <input class="text-input" id="manageClassSeasonStart" name="seasonStart" type="date" />
+            </div>
+            <fieldset class="field" style="border:0;padding:0;margin:0">
+              <legend class="tiny" style="font-weight:700;margin-bottom:.4rem">Dias de treino</legend>
+              <div class="weekday-picker" id="manageClassWeekdayPicker"></div>
+            </fieldset>
+            <button class="secondary-btn" type="submit">Guardar calendário</button>
+            <p class="training-config-status" id="manageClassTrainingStatus" aria-live="polite"></p>
+          </form>
+        </details>
       </div>
 
       <div class="stack">
-        <div class="toolbar add-member-toolbar">
-          <button class="round-btn" type="button" id="toggleAddMemberBtn" aria-label="Adicionar membro" title="Adicionar membro">+</button>
-        </div>
         <div id="addMemberPanel" class="stack" hidden>
           <div class="field">
             <label for="memberNameInput">Nome do membro</label>
@@ -1661,12 +1715,11 @@
     </section>
 
     <section class="screen" id="screen-classes" aria-labelledby="classes-title">
-      <div class="screen-header">
+      <div class="screen-header classes-page-header">
         <h2 id="classes-title">Classes</h2>
-      </div>
-
-      <div class="toolbar add-class-toolbar">
-        <button class="round-btn" type="button" id="toggleAddClassBtn" aria-label="Adicionar classe" title="Adicionar classe">+</button>
+        <div class="toolbar add-class-toolbar">
+          <button class="round-btn" type="button" id="toggleAddClassBtn" aria-label="Adicionar classe" title="Adicionar classe">+</button>
+        </div>
       </div>
       <div id="addClassPanel" class="stack" hidden>
         <div class="field">
@@ -3285,6 +3338,28 @@
 
     function renderEditList() {
       const cls = currentClass();
+      const isAdminProfile = state.selectedUserId === 'pedro';
+      const weekdays = [
+        { value: 1, label: 'Seg' }, { value: 2, label: 'Ter' }, { value: 3, label: 'Qua' },
+        { value: 4, label: 'Qui' }, { value: 5, label: 'Sex' }, { value: 6, label: 'Sáb' },
+        { value: 0, label: 'Dom' }
+      ];
+      const settingsPanel = document.getElementById('manageClassSettingsPanel');
+      const settingsButton = document.getElementById('toggleManageClassSettingsBtn');
+      const renamePanel = document.getElementById('manageClassRenamePanel');
+      settingsButton.hidden = !isAdminProfile;
+      settingsPanel.hidden = true;
+      if (cls) {
+        document.getElementById('manageClassCurrentName').textContent = cls.name;
+        document.getElementById('manageClassNameInput').value = cls.name;
+        document.getElementById('manageClassSeasonStart').value = cls.seasonStart || '';
+        document.getElementById('manageClassWeekdayPicker').innerHTML = weekdays.map(day => `<label class="weekday-option"><input type="checkbox" name="trainingDay" value="${day.value}" aria-label="${['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'][day.value]}" ${cls.trainingDays.includes(day.value) ? 'checked' : ''} /><span>${day.label}</span></label>`).join('');
+      }
+      settingsButton.setAttribute('aria-expanded', 'false');
+      renamePanel.hidden = true;
+      document.getElementById('toggleManageClassRenameBtn').setAttribute('aria-expanded', 'false');
+      document.getElementById('manageClassTrainingConfig').open = false;
+      document.getElementById('manageClassTrainingStatus').textContent = '';
       els.editMemberList.innerHTML = '';
       if (!cls) {
         els.editMemberList.innerHTML = '<div class="inline-note"><p style="margin:0;" class="muted">Não tens classes atribuídas para gerir.</p></div>';
@@ -3320,11 +3395,6 @@
 
     function renderClassEditor() {
       els.classListEditor.innerHTML = '';
-      const weekdays = [
-        { value: 1, label: 'Seg' }, { value: 2, label: 'Ter' }, { value: 3, label: 'Qua' },
-        { value: 4, label: 'Qui' }, { value: 5, label: 'Sex' }, { value: 6, label: 'Sáb' },
-        { value: 0, label: 'Dom' }
-      ];
       const isAdminProfile = state.selectedUserId === 'pedro';
       const addClassToolbar = document.querySelector('.add-class-toolbar');
       if (addClassToolbar) addClassToolbar.hidden = !isAdminProfile;
@@ -3340,33 +3410,11 @@
               <button class="class-editor-card-open" type="button" data-edit-members-class="${escapeAttr(item.id)}" aria-label="Abrir membros da classe ${escapeAttr(item.name)}">
                 <span class="class-editor-card-copy">
                   <span class="member-name class-editor-card-title">${escapeHtml(item.name)}</span>
-                  <span class="class-editor-card-hint">Gerir membros</span>
+                  <span class="class-editor-card-hint">Gerir classe</span>
                 </span>
                 <span class="class-editor-card-arrow" aria-hidden="true">›</span>
               </button>
-              ${isAdminProfile ? `<button class="small-action class-editor-rename" type="button" data-toggle-rename-class="${escapeAttr(item.id)}" aria-expanded="false" aria-controls="rename-panel-${escapeAttr(item.id)}">Alterar nome</button>` : ''}
             </div>
-            ${isAdminProfile ? `<div class="field" id="rename-panel-${escapeAttr(item.id)}" data-rename-wrapper="${escapeAttr(item.id)}" hidden>
-              <label for="rename-${item.id}">Alterar nome</label>
-              <input id="rename-${item.id}" class="text-input" type="text" value="${escapeAttr(item.name)}" data-rename-class="${item.id}" />
-            </div>
-            <details class="class-training-config">
-              <summary>Configurar dias de treino</summary>
-              <form class="class-training-form" data-training-config="${escapeAttr(item.id)}">
-                <div class="field">
-                  <label for="season-start-${escapeAttr(item.id)}">Início da época</label>
-                  <input class="text-input" id="season-start-${escapeAttr(item.id)}" name="seasonStart" type="date" value="${escapeAttr(item.seasonStart || '')}" required />
-                </div>
-                <fieldset class="field" style="border:0;padding:0;margin:0">
-                  <legend class="tiny" style="font-weight:700;margin-bottom:.4rem">Dias de treino</legend>
-                  <div class="weekday-picker">
-                    ${weekdays.map(day => `<label class="weekday-option"><input type="checkbox" name="trainingDay" value="${day.value}" aria-label="${['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'][day.value]}" ${item.trainingDays.includes(day.value) ? 'checked' : ''} /><span>${day.label}</span></label>`).join('')}
-                  </div>
-                </fieldset>
-                <button class="secondary-btn" type="submit">Guardar calendário</button>
-                <p class="training-config-status" data-training-status="${escapeAttr(item.id)}" aria-live="polite"></p>
-              </form>
-            </details>` : ''}
           </div>`;
         els.classListEditor.appendChild(row);
       });
@@ -3374,11 +3422,11 @@
 
     async function saveTrainingConfig(form) {
       if (state.selectedUserId !== 'pedro') return;
-      const classId = form.dataset.trainingConfig;
+      const classId = currentClass()?.id;
       const cls = state.classes.find(item => item.id === classId);
       if (!cls) return;
       const button = form.querySelector('[type="submit"]');
-      const status = form.querySelector('[data-training-status]');
+      const status = document.getElementById('manageClassTrainingStatus');
       const selectedDays = [...form.querySelectorAll('input[name="trainingDay"]:checked')].map(input => Number(input.value));
       const seasonStart = form.elements.seasonStart.value;
       if (!seasonStart) {
@@ -3928,32 +3976,6 @@
       switchScreen('edit');
     }
 
-    function toggleClassRename(id) {
-      const wrapper = document.querySelector(`[data-rename-wrapper="${CSS.escape(id)}"]`);
-      if (!wrapper) return;
-      const isHidden = wrapper.hidden;
-      wrapper.hidden = !isHidden;
-      document.querySelector(`[data-toggle-rename-class="${CSS.escape(id)}"]`)
-        ?.setAttribute('aria-expanded', String(isHidden));
-      if (isHidden) {
-        const input = wrapper.querySelector('[data-rename-class]');
-        if (input) input.focus();
-      }
-    }
-
-    function saveClassRename(input) {
-      if (!input || state.selectedUserId !== 'pedro') return;
-      const id = input.dataset.renameClass;
-      const value = input.value.trim();
-      const cls = state.classes.find(item => item.id === id);
-      if (!cls || !value || value === cls.name) return;
-      saveClassRecord({ id: cls.id, name: value }, state.selectedClassId, { stayOnPage: true }).catch(() => {});
-    }
-
-    function flushClassRenameSave(input) {
-      saveClassRename(input);
-    }
-
     function applySavedClass(record, nextSelectedClassId) {
       const saved = normalizeClass(record);
       const exists = state.classes.some(item => item.id === saved.id);
@@ -4499,6 +4521,55 @@
         switchScreen('attendanceSingle');
       });
       document.getElementById('toggleAddMemberBtn').addEventListener('click', showAddMemberPanel);
+      document.getElementById('toggleManageClassSettingsBtn').addEventListener('click', event => {
+        const button = event.currentTarget;
+        const panel = document.getElementById('manageClassSettingsPanel');
+        panel.hidden = !panel.hidden;
+        button.setAttribute('aria-expanded', String(!panel.hidden));
+      });
+      document.getElementById('toggleManageClassRenameBtn').addEventListener('click', event => {
+        const button = event.currentTarget;
+        const panel = document.getElementById('manageClassRenamePanel');
+        panel.hidden = !panel.hidden;
+        button.setAttribute('aria-expanded', String(!panel.hidden));
+        if (!panel.hidden) document.getElementById('manageClassNameInput').focus();
+      });
+      document.getElementById('saveManageClassNameBtn').addEventListener('click', async () => {
+        if (state.selectedUserId !== 'pedro') return;
+        const cls = currentClass();
+        const input = document.getElementById('manageClassNameInput');
+        const value = input.value.trim();
+        if (!cls || !value) {
+          input.focus();
+          showNotice('Indica o nome da classe.');
+          return;
+        }
+        if (state.classes.some(item => item.id !== cls.id && item.name.toLowerCase() === value.toLowerCase())) {
+          input.focus();
+          showNotice('Esta classe já existe.');
+          return;
+        }
+        if (value === cls.name) {
+          document.getElementById('manageClassRenamePanel').hidden = true;
+          document.getElementById('toggleManageClassRenameBtn').setAttribute('aria-expanded', 'false');
+          return;
+        }
+        try {
+          await saveClassRecord({ id: cls.id, name: value }, cls.id, { stayOnPage: true });
+          document.getElementById('manageClassRenamePanel').hidden = true;
+          document.getElementById('toggleManageClassRenameBtn').setAttribute('aria-expanded', 'false');
+        } catch {}
+      });
+      document.getElementById('cancelManageClassNameBtn').addEventListener('click', () => {
+        const cls = currentClass();
+        document.getElementById('manageClassNameInput').value = cls?.name || '';
+        document.getElementById('manageClassRenamePanel').hidden = true;
+        document.getElementById('toggleManageClassRenameBtn').setAttribute('aria-expanded', 'false');
+      });
+      document.getElementById('manageClassTrainingForm').addEventListener('submit', event => {
+        event.preventDefault();
+        saveTrainingConfig(event.currentTarget);
+      });
       document.getElementById('cancelAddMemberBtn').addEventListener('click', hideAddMemberPanel);
       document.getElementById('addMemberBtn').addEventListener('click', () => addMember().catch(() => {}));
       document.getElementById('clearMemberPhotoBtn').addEventListener('click', () => {
@@ -4684,36 +4755,14 @@
           editClassMembers(editBtn.dataset.editMembersClass);
           return;
         }
-        const renameBtn = event.target.closest('[data-toggle-rename-class]');
-        if (renameBtn) {
-          toggleClassRename(renameBtn.dataset.toggleRenameClass);
-          return;
-        }
         const removeBtn = event.target.closest('[data-remove-class]');
         if (removeBtn) showClassRemovalDialog(removeBtn.dataset.removeClass, removeBtn);
-      });
-      els.classListEditor.addEventListener('submit', event => {
-        const form = event.target.closest('[data-training-config]');
-        if (!form) return;
-        event.preventDefault();
-        saveTrainingConfig(form);
       });
       document.getElementById('settingsClassList').addEventListener('click', event => {
         const removeBtn = event.target.closest('[data-remove-class]');
         if (removeBtn) showClassRemovalDialog(removeBtn.dataset.removeClass, removeBtn);
       });
-      els.classListEditor.addEventListener('blur', event => {
-        const input = event.target.closest('[data-rename-class]');
-        if (input) flushClassRenameSave(input);
-      }, true);
       els.classListEditor.addEventListener('keydown', event => {
-        const input = event.target.closest('[data-rename-class]');
-        if (input && event.key === 'Enter') {
-          event.preventDefault();
-          flushClassRenameSave(input);
-          input.blur();
-          return;
-        }
         const card = event.target.closest('[data-edit-members-class]');
         if (card && (event.key === 'Enter' || event.key === ' ')) {
           event.preventDefault();
