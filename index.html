@@ -944,7 +944,7 @@
     }
     .recent-training-ignore[aria-busy="true"] { opacity: .72; cursor: wait; }
     .recent-training-ignore:focus-visible { outline: 3px solid var(--class-accent, var(--color-primary)); outline-offset: -3px; }
-    .recent-training-ignore:hover:not(:disabled) { border-color: var(--color-error); background: var(--color-error-highlight); color: var(--color-error); }
+    .recent-training-ignore:hover:not(:disabled) { border-color: var(--color-primary); background: var(--color-primary-highlight); color: var(--color-primary); }
     .recent-training-feedback { margin: 0; font-size: var(--text-xs); line-height: 1.4; }
     .recent-training-feedback.error { color: var(--color-error); }
     .recent-training-feedback.success { color: var(--color-success); }
@@ -2220,12 +2220,6 @@
           ${canIgnore ? `<button class="recent-training-ignore" type="button" data-ignore-training-date="${escapeAttr(item.dateKey)}" aria-label="Ignorar treino de ${escapeAttr(displaySingleDate(item.dateKey))}">Ignorar</button>` : ''}
         </div>`;
       }).join('');
-      els.recentTrainingList.querySelectorAll('[data-recent-training-ignore]').forEach(button => {
-        button.addEventListener('click', event => {
-          event.stopPropagation();
-          ignoreRecentTrainingDate(button.dataset.ignoreTrainingDate, button);
-        });
-      });
     }
     function attendanceRequestKey(classId, dateKey) {
       return `${state.webhookUrl}::${classId}::${dateKey}`;
@@ -4958,10 +4952,10 @@
         els.attendanceDateInput.addEventListener('change', syncAttendanceDate);
       }
       els.recentTrainingList.addEventListener('touchstart', event => {
-        if (event.target.closest('[data-recent-training-ignore]')) return;
+        if (event.target.closest('[data-ignore-training-date]')) return;
         const row = event.target.closest('[data-recent-training-row]');
         const touch = event.changedTouches[0];
-        if (!touch || !row?.querySelector('[data-recent-training-ignore]')) return;
+        if (!touch || !row?.querySelector('[data-ignore-training-date]')) return;
         recentTrainingTouch = { identifier: touch.identifier, x: touch.clientX, y: touch.clientY, row };
       }, { passive: true });
       document.addEventListener('touchmove', event => {
@@ -4982,15 +4976,15 @@
         const deltaY = touch.clientY - y;
         if (deltaX > -60 || Math.abs(deltaX) < Math.abs(deltaY) * 1.25) return;
         recentTrainingSuppressClickUntil = Date.now() + 700;
-        ignoreRecentTrainingDate(row.dataset.recentTrainingRow, row.querySelector('[data-recent-training-ignore]'));
+        ignoreRecentTrainingDate(row.dataset.recentTrainingRow, row.querySelector('[data-ignore-training-date]'));
       }, { passive: true });
       document.addEventListener('touchcancel', () => {
         recentTrainingTouch = null;
       }, { passive: true });
       els.recentTrainingList.addEventListener('pointerdown', event => {
-        if (event.pointerType !== 'touch' || event.target.closest('[data-recent-training-ignore]')) return;
+        if (event.pointerType !== 'touch' || event.target.closest('[data-ignore-training-date]')) return;
         const row = event.target.closest('[data-recent-training-row]');
-        if (!row?.querySelector('[data-recent-training-ignore]')) return;
+        if (!row?.querySelector('[data-ignore-training-date]')) return;
         recentTrainingPointer = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, row };
       });
       document.addEventListener('pointermove', event => {
@@ -5007,13 +5001,13 @@
         const deltaY = event.clientY - y;
         if (deltaX > -60 || Math.abs(deltaX) < Math.abs(deltaY) * 1.25) return;
         recentTrainingSuppressClickUntil = Date.now() + 700;
-        ignoreRecentTrainingDate(row.dataset.recentTrainingRow, row.querySelector('[data-recent-training-ignore]'));
+        ignoreRecentTrainingDate(row.dataset.recentTrainingRow, row.querySelector('[data-ignore-training-date]'));
       });
       document.addEventListener('pointercancel', event => {
         if (recentTrainingPointer?.pointerId === event.pointerId) recentTrainingPointer = null;
       });
       els.recentTrainingList.addEventListener('click', async event => {
-        const ignoreButton = event.target.closest('[data-recent-training-ignore]');
+        const ignoreButton = event.target.closest('[data-ignore-training-date]');
         if (ignoreButton) {
           await ignoreRecentTrainingDate(ignoreButton.dataset.ignoreTrainingDate, ignoreButton);
           return;
