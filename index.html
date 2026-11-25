@@ -913,7 +913,7 @@
       display: grid;
       gap: var(--space-2);
     }
-    .recent-training-row { display: grid; grid-template-columns: minmax(0, 1fr) 6rem; align-items: stretch; gap: var(--space-2); min-width: 0; touch-action: pan-y; }
+    .recent-training-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: var(--space-2); min-width: 0; touch-action: pan-y; }
     .recent-training-row > .recent-training-item { animation: item-enter var(--transition-enter) both; animation-delay: var(--item-delay, 0ms); }
     .recent-training-item {
       display: flex;
@@ -931,20 +931,23 @@
       transition: border-color var(--transition-interactive), box-shadow var(--transition-interactive);
     }
     .recent-training-ignore {
-      width: 6rem;
-      min-height: 54px;
-      padding-inline: .5rem;
-      border: 0;
+      min-width: 4.25rem;
+      min-height: 44px;
+      padding-inline: .4rem;
+      border: 1px solid var(--color-border);
       border-radius: var(--radius-md);
-      background: var(--color-error);
-      color: var(--color-surface);
-      font-size: var(--text-sm);
-      font-weight: 700;
+      background: transparent;
+      color: var(--color-text-muted);
+      font-size: var(--text-xs);
+      font-weight: 600;
       cursor: pointer;
     }
     .recent-training-ignore[aria-busy="true"] { opacity: .72; cursor: wait; }
     .recent-training-ignore:focus-visible { outline: 3px solid var(--class-accent, var(--color-primary)); outline-offset: -3px; }
-    .recent-training-ignore:hover,
+    .recent-training-ignore:hover:not(:disabled) { border-color: var(--color-error); background: var(--color-error-highlight); color: var(--color-error); }
+    .recent-training-feedback { margin: 0; font-size: var(--text-xs); line-height: 1.4; }
+    .recent-training-feedback.error { color: var(--color-error); }
+    .recent-training-feedback.success { color: var(--color-success); }
     .notice-action:hover { filter: brightness(0.94); }
     .notice-action {
       min-height: 36px;
@@ -961,8 +964,8 @@
     .app-notice.has-action { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
     .recent-training-item:not(:disabled):active { box-shadow: 0 0 0 2px var(--class-accent, var(--color-primary)); }
     @media (max-width: 380px) {
-      .recent-training-row { grid-template-columns: minmax(0, 1fr) 5.25rem; gap: var(--space-1); }
-      .recent-training-ignore { width: 5.25rem; min-height: 50px; padding-inline: .25rem; font-size: var(--text-xs); }
+      .recent-training-row { gap: var(--space-1); }
+      .recent-training-ignore { min-width: 4rem; padding-inline: .25rem; }
       .recent-training-item { gap: var(--space-1); padding-inline: .55rem; font-size: var(--text-sm); }
       .recent-training-status { padding-inline: .35rem; }
     }
@@ -1675,6 +1678,7 @@
         <h3 class="recent-training-title">Últimos treinos</h3>
         <p class="recent-training-hint">Toca em Ignorar ao lado da data ou desliza a linha para a esquerda.</p>
         <div id="recentTrainingList" class="recent-training-list" aria-live="polite"></div>
+        <p id="recentTrainingFeedback" class="recent-training-feedback" role="status" aria-live="polite" hidden></p>
       </div>
 
       <div class="footer-actions centered">
@@ -2151,6 +2155,13 @@
       undoButton.focus({ preventScroll: true });
       noticeTimer = setTimeout(() => clearNotice(), 7000);
     }
+    function setRecentTrainingFeedback(message, kind = '') {
+      const status = document.getElementById('recentTrainingFeedback');
+      if (!status) return;
+      status.textContent = message;
+      status.className = `recent-training-feedback${kind ? ` ${kind}` : ''}`;
+      status.hidden = !message;
+    }
     function pulseInteraction(node) {
       if (!node || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
       clearTimeout(node.__tapFeedbackTimer);
@@ -2209,6 +2220,12 @@
           ${canIgnore ? `<button class="recent-training-ignore" type="button" data-ignore-training-date="${escapeAttr(item.dateKey)}" aria-label="Ignorar treino de ${escapeAttr(displaySingleDate(item.dateKey))}">Ignorar</button>` : ''}
         </div>`;
       }).join('');
+      els.recentTrainingList.querySelectorAll('[data-recent-training-ignore]').forEach(button => {
+        button.addEventListener('click', event => {
+          event.stopPropagation();
+          ignoreRecentTrainingDate(button.dataset.ignoreTrainingDate, button);
+        });
+      });
     }
     function attendanceRequestKey(classId, dateKey) {
       return `${state.webhookUrl}::${classId}::${dateKey}`;
@@ -2348,25 +2365,30 @@
     }
     async function ignoreRecentTrainingDate(dateKey, triggerButton) {
       const classId = state.selectedClassId;
-      if (!classId || !dateKey || triggerButton?.disabled) return;
+      if (!classId || !dateKey) {
+        setRecentTrainingFeedback('Não foi possível identificar a classe ou a data. Atualiza a lista e tenta novamente.', 'error');
+        return;
+      }
+      if (triggerButton?.disabled) return;
       if (triggerButton) {
         triggerButton.disabled = true;
         triggerButton.setAttribute('aria-busy', 'true');
-        triggerButton.textContent = 'A ignorar…';
       }
-      showNotice(`A ignorar treino de ${displaySingleDate(dateKey)}…`, 'success');
+      setRecentTrainingFeedback(`A ignorar treino de ${displaySingleDate(dateKey)}…`);
       try {
         await setTrainingDateIgnored(classId, dateKey, true);
+        setRecentTrainingFeedback(`Treino de ${displaySingleDate(dateKey)} ignorado.`, 'success');
         showUndoNotice(`Treino de ${displaySingleDate(dateKey)} ignorado.`, async () => {
           await setTrainingDateIgnored(classId, dateKey, false);
+          setRecentTrainingFeedback(`Treino de ${displaySingleDate(dateKey)} restaurado à lista.`, 'success');
           showNotice(`Treino de ${displaySingleDate(dateKey)} restaurado à lista.`, 'success', 1800);
         });
       } catch (error) {
         if (triggerButton) {
           triggerButton.disabled = false;
           triggerButton.removeAttribute('aria-busy');
-          triggerButton.textContent = 'Ignorar';
         }
+        setRecentTrainingFeedback(`Não foi possível ignorar o treino: ${error.message || 'tenta novamente.'}`, 'error');
         showNotice(`Não foi possível ignorar a data: ${error.message || 'tenta novamente.'}`);
       }
     }
