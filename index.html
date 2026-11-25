@@ -916,11 +916,22 @@
       font-weight: 700;
     }
     .recent-training-hint { margin: calc(var(--space-2) * -1) 0 0; color: var(--color-text-muted); font-size: var(--text-xs); line-height: 1.4; }
-    .recent-training-list {
+    .recent-training-list { display: flex; flex-direction: column; gap: 0; }
+    .recent-training-row {
       display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: stretch;
       gap: var(--space-2);
+      min-width: 0;
+      max-height: var(--ignore-row-height, 1000px);
+      margin-bottom: var(--space-2);
+      touch-action: pan-y;
+      transform: translateX(0);
+      opacity: 1;
+      transition: transform 280ms cubic-bezier(.2,.8,.2,1), opacity 180ms ease, max-height 280ms ease, margin-bottom 280ms ease;
     }
-    .recent-training-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: var(--space-2); min-width: 0; touch-action: pan-y; }
+    .recent-training-row:last-child { margin-bottom: 0; }
+    .recent-training-row.is-ignoring { max-height: 0; margin-bottom: 0; overflow: hidden; opacity: 0; transform: translateX(-100%); pointer-events: none; }
     .recent-training-row > .recent-training-item { animation: item-enter var(--transition-enter) both; animation-delay: var(--item-delay, 0ms); }
     .recent-training-item {
       display: flex;
@@ -2188,19 +2199,75 @@
           : '<p class="recent-training-empty tiny">Não existem treinos definidos para este período.</p>';
         return;
       }
-      els.recentTrainingList.innerHTML = items.map((item, index) => {
-        const statusClass = loading || item.loading ? 'is-loading' : item.filled ? 'is-filled' : item.error ? 'is-loading' : 'is-missing';
-        const statusText = loading || item.loading ? 'A verificar...' : item.error ? 'Sem ligação' : item.filled ? 'Preenchido' : 'Por preencher';
-        const isSelected = item.dateKey === selectedDateKey();
-        const canIgnore = !loading && !item.loading && !item.filled && !item.error;
-        return `<div class="recent-training-row" data-recent-training-row="${escapeAttr(item.dateKey)}" style="--item-delay: ${Math.min(index, 8) * 35}ms">
-          <button class="recent-training-item ${statusClass}${isSelected ? ' is-selected' : ''}" type="button" data-recent-training-date="${escapeAttr(item.dateKey)}" aria-pressed="${isSelected}" ${loading || item.loading ? 'disabled' : ''}>
-            <span class="recent-training-date">${displayTrainingDate(item.dateKey)} - ${displayWeekday(item.dateKey)}</span>
-            <span class="recent-training-status">${statusText}</span>
-          </button>
-          ${canIgnore ? `<button class="recent-training-ignore" type="button" data-ignore-training-date="${escapeAttr(item.dateKey)}" aria-label="Ignorar treino de ${escapeAttr(displaySingleDate(item.dateKey))}">Ignorar</button>` : ''}
-        </div>`;
-      }).join('');
+      els.recentTrainingList.innerHTML = items.map((item, index) => recentTrainingRowMarkup(item, index, loading)).join('');
+    }
+    function recentTrainingRowMarkup(item, index = 0, loading = false) {
+      const statusClass = loading || item.loading ? 'is-loading' : item.filled ? 'is-filled' : item.error ? 'is-loading' : 'is-missing';
+      const statusText = loading || item.loading ? 'A verificar...' : item.error ? 'Sem ligação' : item.filled ? 'Preenchido' : 'Por preencher';
+      const isSelected = item.dateKey === selectedDateKey();
+      const canIgnore = !loading && !item.loading && !item.filled && !item.error;
+      return `<div class="recent-training-row" data-recent-training-row="${escapeAttr(item.dateKey)}" style="--item-delay: ${Math.min(index, 8) * 35}ms">
+        <button class="recent-training-item ${statusClass}${isSelected ? ' is-selected' : ''}" type="button" data-recent-training-date="${escapeAttr(item.dateKey)}" aria-pressed="${isSelected}" ${loading || item.loading ? 'disabled' : ''}>
+          <span class="recent-training-date">${displayTrainingDate(item.dateKey)} - ${displayWeekday(item.dateKey)}</span>
+          <span class="recent-training-status">${statusText}</span>
+        </button>
+        ${canIgnore ? `<button class="recent-training-ignore" type="button" data-ignore-training-date="${escapeAttr(item.dateKey)}" aria-label="Ignorar treino de ${escapeAttr(displaySingleDate(item.dateKey))}">Ignorar</button>` : ''}
+      </div>`;
+    }
+    function animateRecentTrainingRowRemoval(dateKey) {
+      const list = els.recentTrainingList;
+      const row = [...(list?.querySelectorAll('[data-recent-training-row]') || [])].find(item => item.dataset.recentTrainingRow === dateKey);
+      if (!row) return;
+      row.style.setProperty('--ignore-row-height', `${row.getBoundingClientRect().height}px`);
+      let finished = false;
+      let fallbackTimer;
+      let animationFrameId;
+      const cleanup = () => {
+        row.removeEventListener('transitionend', onTransitionEnd);
+        if (fallbackTimer) clearTimeout(fallbackTimer);
+        if (animationFrameId) cancelAnimationFrame(animationFrameId);
+        delete row.__cancelIgnoreExit;
+      };
+      const finish = () => {
+        if (finished || !row.classList.contains('is-ignoring')) return;
+        finished = true;
+        cleanup();
+        row.remove();
+        if (list && !list.querySelector('[data-recent-training-row]')) renderRecentTrainingList([]);
+      };
+      const onTransitionEnd = event => {
+        if (event.target === row && event.propertyName === 'max-height') finish();
+      };
+      row.__cancelIgnoreExit = cleanup;
+      row.addEventListener('transitionend', onTransitionEnd);
+      const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      animationFrameId = requestAnimationFrame(() => {
+        animationFrameId = 0;
+        if (!row.isConnected) return;
+        row.classList.add('is-ignoring');
+        fallbackTimer = setTimeout(finish, reducedMotion ? 30 : 420);
+      });
+    }
+    function insertRecentTrainingRow(item) {
+      const list = els.recentTrainingList;
+      if (!list || !item) return;
+      const rows = [...list.querySelectorAll('[data-recent-training-row]')];
+      const existing = rows.find(row => row.dataset.recentTrainingRow === item.dateKey);
+      if (existing) {
+        existing.__cancelIgnoreExit?.();
+        existing.classList.remove('is-ignoring');
+        existing.style.removeProperty('--ignore-row-height');
+        return;
+      }
+      const holder = document.createElement('div');
+      holder.innerHTML = recentTrainingRowMarkup(item, 0);
+      const row = holder.firstElementChild;
+      if (!rows.length) {
+        list.replaceChildren(row);
+        return;
+      }
+      const before = rows.find(existingRow => existingRow.dataset.recentTrainingRow < item.dateKey);
+      list.insertBefore(row, before || null);
     }
     function attendanceRequestKey(classId, dateKey) {
       return `${state.webhookUrl}::${classId}::${dateKey}`;
@@ -2215,7 +2282,8 @@
       if (!cls) return;
       const items = recentTrainingCache.get(recentTrainingRequestKey(cls.id, todayKey()));
       if (!items || !els.recentTrainingList) return;
-      const buttons = [...els.recentTrainingList.querySelectorAll('[data-recent-training-date]')];
+      const rows = [...els.recentTrainingList.querySelectorAll('[data-recent-training-row]:not(.is-ignoring)')];
+      const buttons = rows.map(row => row.querySelector('[data-recent-training-date]')).filter(Boolean);
       if (buttons.length !== items.length) {
         renderRecentTrainingList(items);
         return;
@@ -2327,15 +2395,16 @@
       const key = recentTrainingRequestKey(classId, todayKey());
       recentTrainingRevision += 1;
       const cachedItems = recentTrainingCache.get(key) || [];
+      const cachedDate = cachedItems.find(item => item.dateKey === dateKey) || { dateKey, filled: false };
       const nextItems = cachedItems.filter(item => item.dateKey !== dateKey);
-      if (!ignored) nextItems.push({ dateKey, filled: false });
+      if (!ignored) nextItems.push(cachedDate);
       nextItems.sort((left, right) => right.dateKey.localeCompare(left.dateKey));
       recentTrainingCache.set(key, nextItems);
       recentTrainingCacheAt.set(key, Date.now());
-      if (state.selectedClassId === classId) renderRecentTrainingList(nextItems);
       recentTrainingRequests.delete(key);
       if (state.selectedClassId === classId) {
-        loadRecentTrainingStatus({ force: true, quiet: true }).catch(() => {});
+        if (ignored) animateRecentTrainingRowRemoval(dateKey);
+        else insertRecentTrainingRow(cachedDate);
       }
     }
     async function ignoreRecentTrainingDate(dateKey, triggerButton) {
