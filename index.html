@@ -221,16 +221,7 @@
       gap: var(--space-5);
     }
     .screen > * { width: 100%; max-width: 1200px; margin-inline: auto; }
-    #screen-class {
-      background:
-        radial-gradient(ellipse 84% 42% at 50% 68%, color-mix(in srgb, var(--class-accent, var(--color-primary)) 8%, transparent), transparent 100%),
-        var(--color-surface);
-    }
-    .theme-dark #screen-class {
-      background:
-        radial-gradient(ellipse 84% 42% at 50% 68%, color-mix(in srgb, var(--class-accent, var(--color-primary)) 5%, transparent), transparent 100%),
-        var(--color-surface);
-    }
+    #screen-class { background: transparent; }
     .screen.active {
       display: flex;
       width: 100%;
@@ -260,7 +251,11 @@
     .screen-header p { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
     .screen-header .class-context { color: var(--class-accent, var(--color-text-muted)); font-weight: 700; line-height: 1.25; }
     .field { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; width: 100%; }
-    .class-selection-group { display: flex; flex: 1; flex-direction: column; justify-content: center; gap: var(--space-4); min-height: 0; }
+    .class-selection-group { display: flex; flex: 1; flex-direction: column; justify-content: flex-start; align-items: stretch; gap: var(--space-4); min-height: 0; width: min(100%, 560px); margin-inline: auto; padding-top: clamp(var(--space-4), 5vh, var(--space-8)); }
+    #screen-class .screen-header,
+    #screen-class .footer-actions { width: min(100%, 560px); }
+    #screen-class .footer-actions.centered { justify-content: flex-start; }
+    #screen-class .footer-actions.centered > * { width: 100%; max-width: none; }
     #screen-class .field { margin-top: 0; }
     #screen-user .user-choice-list { display: flex; flex-direction: column; justify-content: center; flex: 1; margin-inline: auto; }
     label { font-weight: 700; font-size: var(--text-sm); }
@@ -290,7 +285,7 @@
       gap: var(--space-2);
       width: 100%;
     }
-    #screen-class .class-button-list { width: min(88%, 600px); margin-inline: auto; align-self: center; }
+    #screen-class .class-button-list { width: 100%; margin: 0; align-self: stretch; }
     .class-choice {
       --interaction-accent: var(--item-accent, var(--color-primary));
       min-width: 0;
@@ -326,11 +321,23 @@
     }
     .user-choice:hover, .user-choice:focus-visible { border-color: var(--color-primary); background: var(--color-primary-highlight); }
     .user-choice:active { transform: scale(.99); }
-    .user-assignment-list { display: grid; gap: var(--space-3); }
-    .user-assignment-card { border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: var(--space-3); }
-    .user-assignment-card legend { padding-inline: .35rem; font-weight: 700; }
-    .user-assignment-classes { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-block: var(--space-2); }
-    .user-assignment-class { display: inline-flex; align-items: center; gap: .45rem; min-height: 42px; padding: .45rem .65rem; border-radius: var(--radius-md); background: var(--color-surface-2); }
+    .user-assignment-list { display: grid; gap: 0; border-top: 1px solid var(--color-border); }
+    .user-assignment-disclosure { min-width: 0; border-bottom: 1px solid var(--color-border); }
+    .user-assignment-disclosure > summary { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: 68px; padding: var(--space-3) 0; cursor: pointer; list-style: none; }
+    .user-assignment-disclosure > summary::-webkit-details-marker { display: none; }
+    .user-assignment-summary-copy { display: grid; gap: .15rem; min-width: 0; }
+    .user-assignment-summary-copy strong { overflow-wrap: anywhere; }
+    .user-assignment-summary-copy small { color: var(--color-text-muted); font-size: var(--text-xs); overflow-wrap: anywhere; }
+    .user-assignment-disclosure > summary:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; border-radius: var(--radius-sm); }
+    .user-assignment-disclosure > summary::after { content: ''; flex: 0 0 auto; width: .5rem; height: .5rem; margin-right: .25rem; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; color: var(--color-text-muted); transform: rotate(45deg); transition: transform var(--transition-interactive); }
+    .user-assignment-disclosure[open] > summary::after { transform: rotate(225deg); }
+    .user-assignment-add-icon { display: grid; place-items: center; flex: 0 0 auto; width: 2rem; height: 2rem; border-radius: var(--radius-full); background: var(--color-primary-highlight); color: var(--color-primary); font-size: 1.25rem; }
+    .user-assignment-add > summary { justify-content: flex-start; }
+    .user-assignment-add > summary::after { margin-left: auto; }
+    .user-assignment-editor-form { display: grid; gap: var(--space-3); padding: 0 0 var(--space-4); }
+    .user-assignment-editor-form .field { margin-top: 0; }
+    .user-assignment-classes { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; }
+    .user-assignment-class { display: inline-flex; align-items: center; gap: .45rem; min-height: 44px; padding: .45rem .65rem; border-radius: var(--radius-md); background: var(--color-surface-2); }
     .user-assignment-class input { width: 1.1rem; height: 1.1rem; accent-color: var(--color-primary); }
     .settings-choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
     .settings-choice { width: 100%; }
@@ -1523,7 +1530,7 @@
 
       <section class="stack" id="userAssignmentSettings" aria-labelledby="userAssignmentTitle" hidden>
         <h3 id="userAssignmentTitle">Classes por utilizador</h3>
-        <p class="tiny muted">As alterações ficam disponíveis em todos os dispositivos.</p>
+        <p class="tiny muted">Abre um utilizador para editar as classes atribuídas.</p>
         <div id="userAssignmentEditor" class="user-assignment-list"></div>
       </section>
     </section>
@@ -2621,10 +2628,11 @@
           <input type="checkbox" name="classId" value="${escapeAttr(cls.id)}" />
           <span>${escapeHtml(cls.name)}</span>
         </label>`).join('');
-      const newUserCard = document.createElement('fieldset');
-      newUserCard.className = 'user-assignment-card';
-      newUserCard.innerHTML = `<legend>Adicionar utilizador</legend>
-        <form data-create-user>
+      const newUserDisclosure = document.createElement('details');
+      newUserDisclosure.className = 'user-assignment-disclosure user-assignment-add';
+      newUserDisclosure.dataset.assignmentDisclosure = 'create';
+      newUserDisclosure.innerHTML = `<summary><span class="user-assignment-add-icon" aria-hidden="true">+</span><span class="user-assignment-summary-copy"><strong>Adicionar utilizador</strong><small>Criar perfil e escolher classes</small></span></summary>
+        <form class="user-assignment-editor-form" data-create-user>
           <div class="field">
             <label for="newUserName">Nome</label>
             <input class="text-input" id="newUserName" name="displayName" type="text" maxlength="60" autocomplete="off" required />
@@ -2635,23 +2643,36 @@
           <button class="primary-btn" type="submit" ${state.classes.length ? '' : 'disabled'}>Adicionar utilizador</button>
           <p class="tiny" data-create-user-status role="status" aria-live="polite"></p>
         </form>`;
-      editor.appendChild(newUserCard);
+      editor.appendChild(newUserDisclosure);
+      newUserDisclosure.addEventListener('toggle', () => {
+        if (newUserDisclosure.open) editor.querySelectorAll('.user-assignment-disclosure[open]').forEach(other => {
+          if (other !== newUserDisclosure) other.open = false;
+        });
+      });
       state.users.forEach(user => {
-        const fieldset = document.createElement('fieldset');
-        fieldset.className = 'user-assignment-card';
+        const disclosure = document.createElement('details');
+        disclosure.className = 'user-assignment-disclosure';
+        disclosure.dataset.userAssignmentDisclosure = user.id;
         const checkedIds = new Set(user.classIds || []);
+        const assignedClasses = state.classes.filter(cls => checkedIds.has(cls.id)).map(cls => cls.name);
+        const assignedSummary = assignedClasses.length ? assignedClasses.join(' · ') : 'Sem classes atribuídas';
         const classesMarkup = state.classes.map(cls => `
           <label class="user-assignment-class">
             <input type="checkbox" name="classId" value="${escapeAttr(cls.id)}" ${checkedIds.has(cls.id) ? 'checked' : ''} />
             <span>${escapeHtml(cls.name)}</span>
           </label>`).join('');
-        fieldset.innerHTML = `<legend>${escapeHtml(user.name)}</legend>
-          <form data-user-assignments="${escapeAttr(user.id)}">
+        disclosure.innerHTML = `<summary><span class="user-assignment-summary-copy"><strong>${escapeHtml(user.name)}</strong><small>${escapeHtml(assignedSummary)}</small></span></summary>
+          <form class="user-assignment-editor-form" data-user-assignments="${escapeAttr(user.id)}">
             <div class="user-assignment-classes">${classesMarkup || '<span class="tiny muted">Não existem classes.</span>'}</div>
             <button class="secondary-btn" type="submit">Guardar atribuições</button>
             <p class="tiny" data-assignment-status aria-live="polite"></p>
           </form>`;
-        editor.appendChild(fieldset);
+        editor.appendChild(disclosure);
+        disclosure.addEventListener('toggle', () => {
+          if (disclosure.open) editor.querySelectorAll('.user-assignment-disclosure[open]').forEach(other => {
+            if (other !== disclosure) other.open = false;
+          });
+        });
       });
     }
 
@@ -2673,6 +2694,8 @@
         state.users = Array.isArray(result.users) ? result.users : state.users;
         renderUserChoiceList();
         renderUserAssignmentEditor();
+        const refreshedDisclosure = document.querySelector('[data-assignment-disclosure="create"]');
+        if (refreshedDisclosure) refreshedDisclosure.open = true;
         const refreshedForm = document.querySelector('[data-create-user]');
         const refreshedInput = refreshedForm?.elements.displayName;
         const refreshedStatus = refreshedForm?.querySelector('[data-create-user-status]');
@@ -2700,10 +2723,11 @@
 
     async function saveUserAssignments(form) {
       const userId = form.dataset.userAssignments;
+      const keepDisclosureOpen = !!form.closest('[data-user-assignment-disclosure]')?.open;
       const classIds = [...form.querySelectorAll('input[name="classId"]:checked')].map(input => input.value);
       const button = form.querySelector('[type="submit"]');
       const status = form.querySelector('[data-assignment-status]');
-      if (button) { button.disabled = true; button.textContent = 'A guardar...'; }
+      if (button) { button.disabled = true; button.textContent = 'A guardar…'; }
       if (status) status.textContent = '';
       try {
         const result = requireApiSuccess(await apiPost({ action: 'saveUserAssignments', adminUserId: state.selectedUserId, userId, classIds }), 'Não foi possível guardar as atribuições');
@@ -2712,6 +2736,8 @@
         persistState();
         renderUserChoiceList();
         renderUserAssignmentEditor();
+        const refreshedDisclosure = document.querySelector(`[data-user-assignment-disclosure="${CSS.escape(userId)}"]`);
+        if (keepDisclosureOpen && refreshedDisclosure) refreshedDisclosure.open = true;
         renderClassOptions();
         renderTopSummary();
         const refreshedStatus = document.querySelector(`[data-user-assignments="${CSS.escape(userId)}"] [data-assignment-status]`);
