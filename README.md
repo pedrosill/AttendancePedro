@@ -5,7 +5,7 @@ Aplicação web estática, mobile-first, para registar presenças de turmas de g
 ## Fluxo da aplicação
 
 1. Passo 1: escolher a turma.
-2. Passo 2: escolher a data. A lista é sempre relativa ao dia de hoje: mostra os dois treinos mais recentes e quaisquer treinos anteriores ainda por preencher. Carregar num treino seleciona essa data; se for o treino de hoje por preencher, avança diretamente para o Passo 3. O calendário de cada classe (dias da semana e início da época) é configurado na gestão das classes.
+2. Passo 2: escolher a data. A lista é sempre relativa ao dia de hoje: mostra os dois treinos mais recentes e quaisquer treinos anteriores ainda por preencher, exceto datas ignoradas. Carregar num treino seleciona essa data; se for o treino de hoje por preencher, avança diretamente para o Passo 3. Deslizar uma data por preencher para a esquerda revela a opção para a ignorar; a decisão fica guardada por classe e data e pode ser anulada logo depois. O calendário de cada classe (dias da semana e início da época) é configurado na gestão das classes.
 3. Passo 3: escolher o modo de registo, normal ou rápido.
 4. Registar `Presente`, `Atrasado` ou `Falta`, incluindo a justificação quando aplicável.
 
@@ -51,6 +51,7 @@ O frontend comunica com o Worker D1. O Worker usa o URL `/exec` da implementaç�
 - `GET ?action=attendance&classId=...&date=yyyy-MM-dd`: devolve presenças de uma turma/data.
 - `GET ?action=attendanceOverview&classId=...&count=80`: devolve até 80 datas recentes de presenças de uma classe, diretamente do D1.
 - `GET ?action=recentAttendance&classId=...&date=yyyy-MM-dd&count=2`: calcula no D1 os últimos treinos agendados e indica se estão preenchidos. Se o histórico ainda não tiver sido importado, devolve `historyReady: false` em vez de classificar datas como por preencher.
+- `POST { action: "setAttendanceDateIgnored", classId, date, ignored }`: ignora ou restaura uma data de treino sem criar nem alterar registos de presença.
 - `GET ?action=syncStatus`: devolve o número de operações pendentes e o último erro de sincronização.
 - `GET ?action=databaseDiagnostics&classId=...`: consulta, em modo só de leitura, datas, presenças, importação do histórico e fila de sincronização dessa classe.
 - `POST { action: "saveClass", class: {...} }`: cria ou renomeia uma turma sem substituir as restantes.
@@ -72,7 +73,7 @@ Ao abrir a aplicação, turmas e membros vêm do D1. As presenças e o resumo de
 
 As operações de membros não reconstroem a folha inteira: adicionar um membro acrescenta a linha em falta e ordena linhas completas, mantendo as presenças associadas ao nome; remover um membro elimina apenas a sua linha. Renomear uma turma move a folha existente. O Apps Script lê `__classes__` uma vez por operação e escreve o estado actualizado sob lock.
 
-A migração `0003_core_tables.sql` cria tabelas D1 separadas para turmas, membros e presenças. A migração `0004_attendance_history.sql` acrescenta o índice de datas de presença e o estado de importação do histórico por classe. O `kv` antigo mantém-se como compatibilidade e recuperação durante a transição; os registos de presença usam a chave única `classId + date`.
+A migração `0003_core_tables.sql` cria tabelas D1 separadas para turmas, membros e presenças. A migração `0004_attendance_history.sql` acrescenta o índice de datas de presença e o estado de importação do histórico por classe. A migração `0007_ignored_attendance_dates.sql` guarda as datas ignoradas separadamente dos registos de presença. O `kv` antigo mantém-se como compatibilidade e recuperação durante a transição; os registos de presença usam a chave única `classId + date`.
 
 ## Estrutura do Sheets
 

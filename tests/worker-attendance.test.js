@@ -87,6 +87,7 @@ test('o resumo usa estados de presença reais e não um registo vazio no D1', as
             { date_key: '2026-10-08', members_json: JSON.stringify([{ name: 'Ana', status: 'pending' }, { name: 'Bea', status: 'pending' }]) },
             { date_key: '2026-10-06', members_json: JSON.stringify([{ name: 'Ana', status: 'attended' }, { name: 'Bea', status: 'absent_not_justified' }]) }
           ] };
+          if (sql.includes('FROM attendance_ignored_dates')) return { results: [] };
           throw new Error(`Query inesperada: ${sql}`);
         }
       };

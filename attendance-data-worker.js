@@ -315,6 +315,7 @@ async function writeClassCore(env, value, additionalStatements = []) {
 async function deleteClassCore(env, classId) {
   await env.DB.batch([
     env.DB.prepare('DELETE FROM members_core WHERE class_id = ?').bind(classId),
+    env.DB.prepare('DELETE FROM attendance_ignored_dates WHERE class_id = ?').bind(classId),
     env.DB.prepare('DELETE FROM classes_core WHERE id = ?').bind(classId),
     env.DB.prepare('DELETE FROM attendance_dates WHERE class_id = ?').bind(classId),
     env.DB.prepare('DELETE FROM attendance_history_sync WHERE class_id = ?').bind(classId)
@@ -490,6 +491,8 @@ async function recentAttendanceFromD1(env, cls, dateKey, requestedCount = 2) {
   const seasonStart = new Date(`${startKey}T00:00:00Z`);
   const attendanceRows = await env.DB.prepare('SELECT date_key, members_json FROM attendance_core WHERE class_id = ? AND date_key >= ? AND date_key <= ?')
     .bind(cls.id, startKey, anchorKey).all();
+  const ignoredRows = await env.DB.prepare('SELECT date_key FROM attendance_ignored_dates WHERE class_id = ? AND date_key >= ? AND date_key <= ?')
+    .bind(cls.id, startKey, anchorKey).all();
   const trainingDays = new Set((cls.trainingDays || []).map(Number));
   const count = Math.max(1, Math.min(Number(requestedCount) || 2, 10));
   const filledDates = new Set((attendanceRows.results || []).flatMap(row => {
@@ -499,6 +502,7 @@ async function recentAttendanceFromD1(env, cls, dateKey, requestedCount = 2) {
       return [];
     }
   }));
+  const ignoredDates = new Set((ignoredRows.results || []).map(row => row.date_key));
   const recent = [];
   const missing = [];
   const cursor = new Date(anchor);
@@ -507,6 +511,10 @@ async function recentAttendanceFromD1(env, cls, dateKey, requestedCount = 2) {
     scanned += 1;
     if (trainingDays.has(cursor.getUTCDay())) {
       const date = cursor.toISOString().slice(0, 10);
+      if (ignoredDates.has(date)) {
+        cursor.setUTCDate(cursor.getUTCDate() - 1);
+        continue;
+      }
       const item = { date, filled: filledDates.has(date) };
       if (recent.length < count) recent.push(item);
       else if (!item.filled) missing.push(item);
@@ -1149,6 +1157,40 @@ async function handlePost(request, env, ctx) {
     if (Number(history?.complete || 0) !== 1) return jsonResponse({ ok: false, error: 'A atualização do histórico ainda está em curso. Tenta novamente.' }, 503, request, env);
     return jsonResponse({ ok: true }, 200, request, env);
   }
+  if (action === 'setAttendanceDateIgnored') {
+    const classId = String(payload.classId || '').trim();
+    const date = String(payload.date || '').trim();
+    const ignored = payload.ignored === true;
+    const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
+    if (!classId || typeof payload.ignored !== 'boolean' || !parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date) {
+      return jsonResponse({ ok: false, error: 'Classe ou data inválida.' }, 400, request, env);
+    }
+    const lock = await acquireMutationLock(env, `attendance:${classId}:${date}`);
+    try {
+      const state = await readState(env);
+      const cls = findClass(state, classId);
+      if (!cls) return jsonResponse({ ok: false, error: 'Classe não encontrada.' }, 404, request, env);
+      const weekday = parsedDate.getUTCDay();
+      const seasonStart = /^\d{4}-\d{2}-\d{2}$/.test(cls.seasonStart || '') ? cls.seasonStart : DEFAULT_SEASON_START;
+      if (date < seasonStart || !new Set((cls.trainingDays || []).map(Number)).has(weekday)) {
+        return jsonResponse({ ok: false, error: 'A data não pertence ao calendário de treinos desta classe.' }, 400, request, env);
+      }
+      if (ignored) {
+        const attendance = await readAttendanceCore(env, classId, date);
+        if (hasRecordedAttendance(attendance?.members || [])) {
+          return jsonResponse({ ok: false, error: 'Esta data já tem presenças registadas.' }, 409, request, env);
+        }
+        await env.DB.prepare('INSERT OR IGNORE INTO attendance_ignored_dates (class_id, date_key, ignored_at) VALUES (?, ?, ?)')
+          .bind(classId, date, now()).run();
+      } else {
+        await env.DB.prepare('DELETE FROM attendance_ignored_dates WHERE class_id = ? AND date_key = ?').bind(classId, date).run();
+      }
+      await invalidateClassCaches(env, classId);
+      return jsonResponse({ ok: true, classId, date, ignored }, 200, request, env);
+    } finally {
+      await releaseMutationLock(env, lock);
+    }
+  }
   if (action === 'createUser') {
     if (String(payload.adminUserId || '') !== 'pedro') {
       return jsonResponse({ ok: false, error: 'Só o administrador pode adicionar utilizadores' }, 403, request, env);
@@ -1247,6 +1289,9 @@ async function handlePost(request, env, ctx) {
         filled: true,
         operationId
       };
+      if (hasRecordedAttendance(attendance.members)) {
+        await env.DB.prepare('DELETE FROM attendance_ignored_dates WHERE class_id = ? AND date_key = ?').bind(classId, date).run();
+      }
       if (previousAttendance && attendanceFingerprint(previousAttendance) === attendanceFingerprint(attendance)) {
         return jsonResponse({ ok: true, attendance: previousAttendance, unchanged: true }, 200, request, env);
       }
