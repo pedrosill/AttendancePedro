@@ -5,7 +5,7 @@ Aplicação web estática, mobile-first, para registar presenças de turmas de g
 ## Fluxo da aplicação
 
 1. Passo 1: escolher a turma.
-2. Passo 2: escolher a data. A lista é sempre relativa ao dia de hoje: mostra os dois treinos mais recentes e quaisquer treinos anteriores ainda por preencher, exceto datas ignoradas. Carregar num treino seleciona essa data; se for o treino de hoje por preencher, avança diretamente para o Passo 3. Deslizar uma data por preencher para a esquerda revela a opção para a ignorar; a decisão fica guardada por classe e data e pode ser anulada logo depois. O calendário de cada classe (dias da semana e início da época) é configurado na gestão das classes.
+2. Passo 2: escolher a data. A lista é sempre relativa ao dia de hoje: mostra os dois treinos mais recentes e quaisquer treinos anteriores ainda por preencher, exceto datas ignoradas. Carregar num treino seleciona essa data; se for o treino de hoje por preencher, avança diretamente para o Passo 3. É possível tocar em `Ignorar` ao lado de uma data por preencher ou deslizar a linha para a esquerda; a decisão fica guardada por classe e data e pode ser anulada logo depois. O calendário de cada classe (dias da semana e início da época) é configurado na gestão das classes.
 3. Passo 3: escolher o modo de registo, normal ou rápido.
 4. Registar `Presente`, `Atrasado` ou `Falta`, incluindo a justificação quando aplicável.
 
