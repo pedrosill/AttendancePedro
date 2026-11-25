@@ -913,7 +913,7 @@
       display: grid;
       gap: var(--space-2);
     }
-    .recent-training-row { display: grid; grid-template-columns: minmax(0, 1fr) 5.25rem; align-items: stretch; gap: var(--space-2); min-width: 0; touch-action: pan-y; }
+    .recent-training-row { display: grid; grid-template-columns: minmax(0, 1fr) 6rem; align-items: stretch; gap: var(--space-2); min-width: 0; touch-action: pan-y; }
     .recent-training-row > .recent-training-item { animation: item-enter var(--transition-enter) both; animation-delay: var(--item-delay, 0ms); }
     .recent-training-item {
       display: flex;
@@ -922,6 +922,7 @@
       width: 100%;
       gap: var(--space-3);
       min-width: 0;
+      min-height: 54px;
       padding: 0.7rem 0.85rem;
       border: 1px solid var(--color-border);
       border-radius: var(--radius-md);
@@ -930,17 +931,18 @@
       transition: border-color var(--transition-interactive), box-shadow var(--transition-interactive);
     }
     .recent-training-ignore {
-      width: 5.25rem;
-      min-height: 44px;
-      padding-inline: .45rem;
-      border: 1px solid color-mix(in srgb, var(--color-error) 35%, var(--color-border));
+      width: 6rem;
+      min-height: 54px;
+      padding-inline: .5rem;
+      border: 0;
       border-radius: var(--radius-md);
-      background: var(--color-error-highlight);
-      color: var(--color-error);
-      font-size: var(--text-xs);
+      background: var(--color-error);
+      color: var(--color-surface);
+      font-size: var(--text-sm);
       font-weight: 700;
       cursor: pointer;
     }
+    .recent-training-ignore[aria-busy="true"] { opacity: .72; cursor: wait; }
     .recent-training-ignore:focus-visible { outline: 3px solid var(--class-accent, var(--color-primary)); outline-offset: -3px; }
     .recent-training-ignore:hover,
     .notice-action:hover { filter: brightness(0.94); }
@@ -959,8 +961,8 @@
     .app-notice.has-action { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
     .recent-training-item:not(:disabled):active { box-shadow: 0 0 0 2px var(--class-accent, var(--color-primary)); }
     @media (max-width: 380px) {
-      .recent-training-row { grid-template-columns: minmax(0, 1fr) 4.75rem; gap: var(--space-1); }
-      .recent-training-ignore { width: 4.75rem; padding-inline: .25rem; }
+      .recent-training-row { grid-template-columns: minmax(0, 1fr) 5.25rem; gap: var(--space-1); }
+      .recent-training-ignore { width: 5.25rem; min-height: 50px; padding-inline: .25rem; font-size: var(--text-xs); }
       .recent-training-item { gap: var(--space-1); padding-inline: .55rem; font-size: var(--text-sm); }
       .recent-training-status { padding-inline: .35rem; }
     }
@@ -2316,7 +2318,7 @@
         } catch (error) {
           if (requestRevision === recentTrainingRevision && requestId === recentTrainingRequestId && state.selectedClassId === cls.id) {
             if (!cachedItems) renderRecentTrainingList([]);
-            showNotice(`Não foi possível verificar os últimos treinos: ${error.message || 'erro desconhecido'}`, 'error');
+            if (!options.quiet) showNotice(`Não foi possível verificar os últimos treinos: ${error.message || 'erro desconhecido'}`, 'error');
           }
           return [];
         }
@@ -2332,15 +2334,27 @@
       requireApiSuccess(await apiPost({ action: 'setAttendanceDateIgnored', classId, date: dateKey, ignored }), 'Não foi possível atualizar esta data');
       const key = recentTrainingRequestKey(classId, todayKey());
       recentTrainingRevision += 1;
-      recentTrainingCache.delete(key);
-      recentTrainingCacheAt.delete(key);
+      const cachedItems = recentTrainingCache.get(key) || [];
+      const nextItems = cachedItems.filter(item => item.dateKey !== dateKey);
+      if (!ignored) nextItems.push({ dateKey, filled: false });
+      nextItems.sort((left, right) => right.dateKey.localeCompare(left.dateKey));
+      recentTrainingCache.set(key, nextItems);
+      recentTrainingCacheAt.set(key, Date.now());
+      if (state.selectedClassId === classId) renderRecentTrainingList(nextItems);
       recentTrainingRequests.delete(key);
-      if (state.selectedClassId === classId) await loadRecentTrainingStatus({ force: true });
+      if (state.selectedClassId === classId) {
+        loadRecentTrainingStatus({ force: true, quiet: true }).catch(() => {});
+      }
     }
     async function ignoreRecentTrainingDate(dateKey, triggerButton) {
       const classId = state.selectedClassId;
       if (!classId || !dateKey || triggerButton?.disabled) return;
-      if (triggerButton) triggerButton.disabled = true;
+      if (triggerButton) {
+        triggerButton.disabled = true;
+        triggerButton.setAttribute('aria-busy', 'true');
+        triggerButton.textContent = 'A ignorar…';
+      }
+      showNotice(`A ignorar treino de ${displaySingleDate(dateKey)}…`, 'success');
       try {
         await setTrainingDateIgnored(classId, dateKey, true);
         showUndoNotice(`Treino de ${displaySingleDate(dateKey)} ignorado.`, async () => {
@@ -2348,7 +2362,11 @@
           showNotice(`Treino de ${displaySingleDate(dateKey)} restaurado à lista.`, 'success', 1800);
         });
       } catch (error) {
-        if (triggerButton) triggerButton.disabled = false;
+        if (triggerButton) {
+          triggerButton.disabled = false;
+          triggerButton.removeAttribute('aria-busy');
+          triggerButton.textContent = 'Ignorar';
+        }
         showNotice(`Não foi possível ignorar a data: ${error.message || 'tenta novamente.'}`);
       }
     }
