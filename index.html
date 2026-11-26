@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-PT" class="theme-light">
 <head>
   <meta charset="UTF-8" />
@@ -251,11 +251,8 @@
     .screen-header p { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
     .screen-header .class-context { color: var(--class-accent, var(--color-text-muted)); font-weight: 700; line-height: 1.25; }
     .field { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; width: 100%; }
-    .class-selection-group { display: flex; flex: 1; flex-direction: column; justify-content: flex-start; align-items: stretch; gap: var(--space-4); min-height: 0; width: min(100%, 560px); margin-inline: auto; padding-top: clamp(var(--space-4), 5vh, var(--space-8)); }
-    #screen-class .screen-header,
-    #screen-class .footer-actions { width: min(100%, 560px); }
-    #screen-class .footer-actions.centered { justify-content: flex-start; }
-    #screen-class .footer-actions.centered > * { width: 100%; max-width: none; }
+    .class-selection-group { display: flex; flex: 0 0 auto; flex-direction: column; justify-content: flex-start; align-items: stretch; gap: var(--space-4); min-height: 0; width: min(100%, 560px); margin-inline: auto; padding-top: clamp(var(--space-4), 5vh, var(--space-8)); }
+    #screen-class .screen-header { width: min(100%, 560px); }
     #screen-class .field { margin-top: 0; }
     #screen-user .user-choice-list { display: flex; flex-direction: column; justify-content: center; flex: 1; margin-inline: auto; }
     label { font-weight: 700; font-size: var(--text-sm); }
@@ -287,9 +284,11 @@
     }
     #screen-class .class-button-list { width: 100%; margin: 0; align-self: stretch; }
     .class-choice {
-      --interaction-accent: var(--item-accent, var(--color-primary));
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       min-width: 0;
-      min-height: 52px;
+      min-height: 60px;
       padding: 0.7rem 0.8rem;
       border: 1px solid rgba(40,37,29,.12);
       border-radius: var(--radius-lg);
@@ -297,17 +296,15 @@
       color: var(--color-text);
       font-weight: 700;
       line-height: 1.2;
+      text-align: left;
       overflow-wrap: anywhere;
-      transition: transform var(--transition-interactive), background var(--transition-interactive), border-color var(--transition-interactive), color var(--transition-interactive);
+      transition: transform var(--transition-interactive), background var(--transition-interactive), border-color var(--transition-interactive);
     }
+    .class-choice-name { min-width: 0; overflow-wrap: anywhere; }
+    .class-choice-count { flex: 0 0 auto; color: var(--color-text-muted); font-size: var(--text-xs); font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .class-choice:hover { background: var(--color-surface-offset); }
     .class-choice:active { transform: scale(0.98); }
     .class-button-list > .class-choice { animation: item-enter var(--transition-enter) both; animation-delay: var(--item-delay, 0ms); }
-    .class-choice.active {
-      background: color-mix(in srgb, var(--item-accent, var(--color-primary)) 13%, var(--color-surface-2));
-      border-color: color-mix(in srgb, var(--item-accent, var(--color-primary)) 45%, transparent);
-      color: var(--item-accent, var(--color-primary));
-      box-shadow: 0 0 0 2px color-mix(in srgb, var(--item-accent, var(--color-primary)) 14%, transparent);
-    }
     .user-choice-list { display: grid; grid-template-columns: 1fr; gap: var(--space-3); width: min(100%, 600px); margin-inline: auto; }
     .user-choice {
       min-height: 64px;
@@ -1151,7 +1148,6 @@
     .manage-class-settings .weekday-option span { min-width: 44px; min-height: 44px; }
     .toolbar .small-action { flex: 0 0 auto; }
     #screen-class .class-button-list { grid-template-columns: 1fr; }
-    #screen-class .summary-grid { margin-top: 0; }
     .member-card .small-action { white-space: nowrap; flex: 0 0 auto; }
     .tap-feedback { animation: tap-feedback 280ms ease-out; }
     .selection-feedback { animation: selection-feedback 240ms var(--transition-interactive) both; }
@@ -1446,7 +1442,7 @@
       <div class="class-selection-group">
         <div class="field">
           <select id="classSelect" aria-label="Escolher classe"></select>
-          <div id="classButtonList" class="class-button-list" hidden aria-label="Escolher classe"></div>
+          <div id="classButtonList" class="class-button-list" role="group" hidden aria-label="Escolher classe"></div>
         </div>
 
         <div class="loading-banner" id="loadingClassesText">
@@ -1457,16 +1453,6 @@
         </div>
         <p class="inline-note" id="noAssignedClassesMessage" hidden>Não tens classes atribuídas. Pede ao Pedro para atualizar as atribuições nas Definições.</p>
 
-        <div class="summary-grid" aria-label="Current class quick stats">
-          <div class="summary-card" aria-live="polite">
-            <strong id="membersCount">0</strong>
-            <span>membros</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="footer-actions centered">
-        <button class="primary-btn" type="button" id="goToDateBtn" hidden>Continuar</button>
       </div>
     </section>
 
@@ -1986,7 +1972,6 @@
       authMessage: document.getElementById('authMessage'),
       classSelect: document.getElementById('classSelect'),
       classButtonList: document.getElementById('classButtonList'),
-      membersCount: document.getElementById('membersCount'),
       loadingClassesText: document.getElementById('loadingClassesText'),
       selectedClassLabel: document.getElementById('dateClassLabel'),
       dateClassLabel: document.getElementById('dateClassLabel'),
@@ -3453,17 +3438,22 @@
     function renderClassOptions() {
       const classes = availableClasses();
       els.classSelect.innerHTML = '';
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'Escolhe uma classe';
+      placeholder.disabled = true;
+      placeholder.selected = true;
+      els.classSelect.appendChild(placeholder);
       classes.forEach(item => {
         const opt = document.createElement('option');
         opt.value = item.id;
-        opt.textContent = item.name;
-        if (item.id === state.selectedClassId) opt.selected = true;
+        const memberCount = (item.members || []).length;
+        const countLabel = `${new Intl.NumberFormat('pt-PT').format(memberCount)} ${memberCount === 1 ? 'membro' : 'membros'}`;
+        opt.textContent = `${item.name} · ${countLabel}`;
         els.classSelect.appendChild(opt);
       });
       renderClassButtons();
       renderSettingsClassList();
-      const continueButton = document.getElementById('goToDateBtn');
-      if (continueButton) continueButton.hidden = classes.length === 0;
       const user = currentUser();
       if (els.activeUserLabel) els.activeUserLabel.textContent = user ? `Perfil: ${user.name}` : '';
       const emptyMessage = document.getElementById('noAssignedClassesMessage');
@@ -3477,11 +3467,17 @@
       availableClasses().forEach((item, index) => {
         const button = document.createElement('button');
         button.type = 'button';
-        button.className = `class-choice ${item.id === state.selectedClassId ? 'active' : ''}`;
+        button.className = 'class-choice';
         button.dataset.classId = item.id;
-        button.style.setProperty('--item-accent', colorFromString(item.name));
         button.style.setProperty('--item-delay', `${Math.min(index, 8) * 35}ms`);
-        button.textContent = item.name;
+        const name = document.createElement('span');
+        name.className = 'class-choice-name';
+        name.textContent = item.name;
+        const count = document.createElement('span');
+        count.className = 'class-choice-count';
+        const memberCount = (item.members || []).length;
+        count.textContent = `${new Intl.NumberFormat('pt-PT').format(memberCount)} ${memberCount === 1 ? 'membro' : 'membros'}`;
+        button.append(name, count);
         els.classButtonList.appendChild(button);
       });
       const buttonsMode = state.classPickerMode === 'buttons';
@@ -3493,11 +3489,6 @@
       if (!availableClasses().some(item => item.id === classId)) return;
       state.selectedClassId = classId;
       persistState();
-      if (els.classSelect) els.classSelect.value = classId;
-      els.classButtonList?.querySelectorAll('[data-class-id]').forEach(button => {
-        button.classList.toggle('active', button.dataset.classId === classId);
-      });
-      animateSelection(els.classButtonList?.querySelector(`[data-class-id="${CSS.escape(classId)}"]`) || els.classSelect);
       renderTopSummary();
       if (els.screens.date?.classList.contains('active')) loadRecentTrainingStatus();
     }
@@ -3511,6 +3502,7 @@
       if (els.actionAttendanceDateInput) els.actionAttendanceDateInput.value = selectedDateKey();
       if (els.attendanceDateInput) els.attendanceDateInput.value = selectedDateKey();
       persistState();
+      if (els.classSelect) els.classSelect.value = '';
       switchScreen('date');
     }
 
@@ -3518,7 +3510,6 @@
       const cls = currentClass();
       if (els.activeUserLabel) els.activeUserLabel.textContent = currentUser() ? `Perfil: ${currentUser().name}` : '';
       if (!cls) {
-        els.membersCount.textContent = '0';
         if (els.actionAttendanceDateInput) els.actionAttendanceDateInput.value = selectedDateKey();
         if (els.attendanceDateInput) els.attendanceDateInput.value = selectedDateKey();
         if (els.singleAttendanceDateInput) els.singleAttendanceDateInput.value = selectedDateKey();
@@ -3532,9 +3523,7 @@
         return;
       }
       ensureRosterStatuses();
-      const map = currentAttendanceMap();
       applyClassAccent(colorFromString(cls.name));
-      els.membersCount.textContent = cls.members.length;
       if (els.actionAttendanceDateInput) els.actionAttendanceDateInput.value = selectedDateKey();
       if (els.attendanceDateInput) els.attendanceDateInput.value = selectedDateKey();
       updateDateDisplays();
@@ -4864,9 +4853,6 @@
       document.getElementById('copyShareLinkBtn').addEventListener('click', copyAppLink);
       document.getElementById('toggleAppPinBtn').addEventListener('click', toggleAppPin);
       document.getElementById('nativeShareBtn').addEventListener('click', shareApp);
-      document.getElementById('goToDateBtn').addEventListener('click', () => {
-        continueToDateStep();
-      });
       document.getElementById('goToActionsBtn').addEventListener('click', () => switchScreen('actions'));
       document.getElementById('editClassesTopBtn').addEventListener('click', () => switchScreen('classes'));
       document.getElementById('settingsTopBtn').addEventListener('click', () => switchScreen('settings'));
@@ -4990,15 +4976,11 @@
         if (key && els.screens[key]) switchScreen(key, { historyMode: 'pop' });
       });
       els.classSelect.addEventListener('change', event => {
-        pulseInteraction(event.currentTarget);
+        if (!event.target.value) return;
         selectClass(event.target.value);
+        continueToDateStep();
       });
-      els.classSelect.addEventListener('dblclick', () => continueToDateStep());
       els.classButtonList.addEventListener('click', event => {
-        const button = event.target.closest('[data-class-id]');
-        if (button) selectClass(button.dataset.classId);
-      });
-      els.classButtonList.addEventListener('dblclick', event => {
         const button = event.target.closest('[data-class-id]');
         if (!button) return;
         selectClass(button.dataset.classId);
